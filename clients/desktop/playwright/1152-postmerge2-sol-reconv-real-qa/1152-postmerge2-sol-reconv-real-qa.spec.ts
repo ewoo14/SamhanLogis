@@ -145,7 +145,7 @@ test('실 출고 lifecycle이 complete 200으로 재고를 반영한다', async 
   })
 
   await page.goto(`${APP_BASE}/#/sales/${OUTBOUND_SLIP_ID}`)
-  await expect(page.getByRole('heading', { name: /판매전표 상세.*2026\/08\/08-41/ }), '출고전표 상세 도달').toBeVisible({ timeout: 30_000 })
+  await expect(page.getByRole('heading', { name: /출고전표 상세.*2026\/08\/08-41/ }), '출고전표 상세 도달').toBeVisible({ timeout: 30_000 })
   console.log('[TRIGGER COUNT] OUTBOUND_DRAFT_WITH_ACTIVE_PRODUCT_AND_STOCK=1')
 
   const actions = ['save', 'send', 'accept', 'process', 'complete'] as const

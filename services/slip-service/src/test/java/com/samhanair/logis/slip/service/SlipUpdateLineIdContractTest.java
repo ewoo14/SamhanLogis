@@ -295,7 +295,7 @@ class SlipUpdateLineIdContractTest {
     }
 
     /**
-     * 매입 미러 — 계보 보유 매입 전표 + 마커 + lineId 전무도 거부한다 (D-R8-13). 매입/매출
+     * 매입 미러 — 계보 보유 입고 전표 + 마커 + lineId 전무도 거부한다 (D-R8-13). 매입/매출
      * 비대칭은 이 PR 의 재발 패턴이므로 매출
      * {@link #salesPut_onBundleSlip_withMarker_butNoLineIdAtAll_isRejected} 와 <b>같은</b>
      * 계약(같은 사유 문구 포함)이어야 한다.
@@ -405,7 +405,7 @@ class SlipUpdateLineIdContractTest {
     private Slip bundleSalesSlip() {
         Slip slip = persisted(Slip.createOutbound("2026/07/16-1", LocalDate.of(2026, 7, 16), 1,
                 UUID.randomUUID(), UUID.randomUUID(), PARTNER_ID, "테스트 거래처",
-                DeliveryTag.DAY, "세트 전표", "user-1"));
+                DeliveryTag.SALE, "세트 전표", "user-1"));
         addBundleLines(slip);
         return slip;
     }
@@ -413,7 +413,7 @@ class SlipUpdateLineIdContractTest {
     private Slip bundlePurchaseSlip() {
         Slip slip = persisted(Slip.createInbound("2026/07/16-2", LocalDate.of(2026, 7, 16), 2,
                 UUID.randomUUID(), PARTNER_ID, "테스트 거래처",
-                DeliveryTag.RETURN_TRIP, "세트 매입 전표", "user-1"));
+                DeliveryTag.RETURN_TRIP, "세트 입고 전표", "user-1"));
         addBundleLines(slip);
         return slip;
     }
@@ -421,7 +421,7 @@ class SlipUpdateLineIdContractTest {
     private Slip plainSalesSlip() {
         Slip slip = persisted(Slip.createOutbound("2026/07/16-3", LocalDate.of(2026, 7, 16), 3,
                 UUID.randomUUID(), UUID.randomUUID(), PARTNER_ID, "테스트 거래처",
-                DeliveryTag.DAY, "평면 전표", "user-1"));
+                DeliveryTag.SALE, "평면 전표", "user-1"));
         slip.addLine(persistedLine(SlipLine.create(slip, PLAIN_PRODUCT, "일반 품목", "PLAIN-809",
                 null, 1, new BigDecimal("99000"), "일반 라인")));
         return slip;

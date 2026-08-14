@@ -158,7 +158,7 @@ test('#907 게이트③ — 같은 거래처 적격 주문 2건을 병합 발행
   const toastText = (await toast.textContent()) ?? ''
   console.log('[SUCCESS TOAST]', toastText)
   console.log('[MERGE RESPONSE FINAL]', mergeResponse)
-  expect(toastText, '토스트에 판매전표 번호가 없음').toMatch(/판매전표\s+\S+\s+발행 완료/)
+  expect(toastText, '토스트에 출고전표 번호가 없음').toMatch(/출고전표\s+\S+\s+발행 완료/)
   await shot('07-병합발행-성공-토스트')
 
   // 발행 후 목록 상태(전환완료 반영) 캡처

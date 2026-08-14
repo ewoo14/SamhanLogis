@@ -1,5 +1,5 @@
 /**
- * Phase F (D-DF-06) — 판매전표 사본 양식.
+ * Phase F (D-DF-06) — 출고전표 사본 양식.
  *
  * 헤드리스 사본도 interactive DispatchView 와 같은 DispatchDocument 를 사용한다.
  * 입력 SlipData 계약은 기존 PlaywrightCopyRenderer 쿼리 파라미터와 호환되도록 유지한다.
@@ -34,9 +34,9 @@ export interface SlipData {
   dispatcherName?: string
   recipientName?: string
   memo?: string
-  /** 발행 회사 (기존 계약 유지, 판매전표 양식에서는 직접 표시하지 않음). */
+  /** 발행 회사 (기존 계약 유지, 출고전표 양식에서는 직접 표시하지 않음). */
   companyLegalName?: string
-  /** 회사 대표 전화 (기존 계약 유지, 판매전표 양식에서는 직접 표시하지 않음). */
+  /** 회사 대표 전화 (기존 계약 유지, 출고전표 양식에서는 직접 표시하지 않음). */
   companyTel?: string
 }
 

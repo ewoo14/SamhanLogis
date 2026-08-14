@@ -861,6 +861,9 @@ jobs:
       - name: source build (electron-vite)
         run: npm run build
 
+      - name: 실제 Electron 계약 테스트
+        run: xvfb-run -a npm run test:electron-contract
+
   frontend-order-app:
     name: Frontend Order-App (typecheck + test + build)
     runs-on: ubuntu-latest

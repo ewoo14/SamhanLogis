@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * 매입 전표 direct PUT 수정 요청.
+ * 입고 전표 direct PUT 수정 요청.
  *
  * <p>{@code updatedAt} 은 상세 조회 시점의 {@code modifiedAt} 값이며, 기존 row 에 수정일이
  * 없으면 {@code createdAt} 값으로 비교한다.

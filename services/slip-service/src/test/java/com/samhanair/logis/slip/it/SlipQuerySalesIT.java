@@ -2,7 +2,9 @@ package com.samhanair.logis.slip.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -53,7 +55,7 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>매출은 별도 엔티티가 아닌 {@code Slip.slipType=OUTBOUND} 이다.
  * 목록은 {@code /slips?type=OUTBOUND} (legacy alias) 및 {@code /slips/query?slipType=OUTBOUND} 양쪽을
  * 검증하며, {@code SALES / MANAGER / MASTER} 만 허용한다.
- * {@code INVENTORY / WAREHOUSE} 는 SP-03 정책상 매출 전표 열람 불가 → R1/R2 모두 403.
+ * {@code INVENTORY / WAREHOUSE} 는 SP-03 정책상 출고 전표 열람 불가 → R1/R2 모두 403.
  *
  * <p>권한 매트릭스 (SP-08-6-1):
  * <ul>
@@ -74,6 +76,8 @@ class SlipQuerySalesIT extends AbstractPostgresIT {
     private static final String SLIPS_PATH = "/slips";
     private static final String SLIPS_QUERY_PATH = "/slips/query";
     private static final LocalDate TODAY = LocalDate.now(ZoneId.of("Asia/Seoul"));
+    /** 다른 테스트가 오늘 날짜의 유형별 채번을 소비해도 동번호 fixture가 흔들리지 않도록 격리한다. */
+    private static final LocalDate COLLISION_FIXTURE_DATE = LocalDate.of(2099, 1, 1);
     private static final UUID TEST_USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000002");
 
     @Autowired
@@ -465,6 +469,86 @@ class SlipQuerySalesIT extends AbstractPostgresIT {
                         .header(USER_ID_HEADER, TEST_USER_ID.toString())
                         .header(USER_ROLE_HEADER, "WAREHOUSE"))
                 .andExpect(status().isForbidden());
+    }
+
+    /**
+     * #1210 RED: WAREHOUSE 는 전체 상세 대신 최소 QR scan-context 로 출고전표에 도달해야 한다.
+     * 현재 구현에는 endpoint 가 없으므로 RED 단계에서 404 로 실패한다.
+     */
+    @Test
+    @DisplayName("#1210 RED: WAREHOUSE 는 출고전표 scan-context 에 도달하고 영업 정보·UUID를 받지 않는다")
+    void warehouseCanReachOutboundScanContextWithoutSalesFieldsOrUuid() throws Exception {
+        String id = createSlip("OUTBOUND", TODAY, "RED-SALES-PARTNER");
+
+        mockMvc.perform(get(SLIPS_PATH + "/{id}/scan-context", id)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_ROLE_HEADER, "WAREHOUSE"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.slipNo").exists())
+                .andExpect(jsonPath("$.data.slipType", is("OUTBOUND")))
+                .andExpect(jsonPath("$.data.lines").isArray())
+                .andExpect(jsonPath("$.data.id").doesNotExist())
+                .andExpect(jsonPath("$.data.partnerName").doesNotExist())
+                .andExpect(jsonPath("$.data.partnerCode").doesNotExist())
+                .andExpect(jsonPath("$.data.totalAmount").doesNotExist())
+                .andExpect(jsonPath("$.data.discountInfo").doesNotExist())
+                .andExpect(jsonPath("$.data.collectTerm").doesNotExist())
+                .andExpect(jsonPath("$.data.customerAddress").doesNotExist())
+                .andExpect(jsonPath("$.data.receiverPhone").doesNotExist())
+                .andExpect(jsonPath("$.data.businessNumber").doesNotExist())
+                .andExpect(jsonPath("$.data.projectName").doesNotExist())
+                .andExpect(jsonPath("$", notNullValue()))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(not(containsString(TEST_USER_ID.toString()))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(not(containsString("RED-SALES-PARTNER"))));
+    }
+
+    /** 번호 직접 진입도 목록 조회를 거치지 않고 같은 최소 계약을 사용한다. */
+    @Test
+    @DisplayName("#1210 RED: WAREHOUSE 는 출고전표번호로 scan-context 에 직접 도달한다")
+    void warehouseCanReachOutboundScanContextBySlipNumber() throws Exception {
+        String id = createSlip("OUTBOUND", TODAY, "RED-BY-NUMBER-PARTNER");
+        String slipNo = slipRepository.findById(UUID.fromString(id)).orElseThrow().getSlipNo();
+
+        mockMvc.perform(get(SLIPS_PATH + "/scan-context/by-number")
+                        .param("slipNo", slipNo)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_ROLE_HEADER, "WAREHOUSE"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.slipNo", is(slipNo)))
+                .andExpect(jsonPath("$.data.id").doesNotExist())
+                .andExpect(jsonPath("$.data.partnerName").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("#1210 RED: INBOUND 전표 ID는 출고 scan-context에서 유형을 설명하며 거부한다")
+    void inboundSlipIdIsRejectedWithOutboundOnlyReason() throws Exception {
+        String id = createSlip("INBOUND", TODAY, "RED-INBOUND-SCAN-CONTEXT");
+
+        mockMvc.perform(get(SLIPS_PATH + "/{id}/scan-context", id)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_ROLE_HEADER, "WAREHOUSE"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message", containsString("출고 스캔 문맥은 출고전표만 허용")));
+    }
+
+    @Test
+    @DisplayName("#1210 RED: 입고·출고 동번호는 출고 화면에서 자동 선택하지 않는다")
+    void collidingInboundAndOutboundSlipNumberIsRejected() throws Exception {
+        String inboundId = createSlip("INBOUND", COLLISION_FIXTURE_DATE, "RED-COLLISION-INBOUND");
+        String outboundId = createSlip("OUTBOUND", COLLISION_FIXTURE_DATE, "RED-COLLISION-OUTBOUND");
+        String inboundNo = slipRepository.findById(UUID.fromString(inboundId)).orElseThrow().getSlipNo();
+        String outboundNo = slipRepository.findById(UUID.fromString(outboundId)).orElseThrow().getSlipNo();
+        assertThat(inboundNo).isEqualTo(outboundNo);
+
+        mockMvc.perform(get(SLIPS_PATH + "/scan-context/by-number")
+                        .param("slipNo", inboundNo)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_ROLE_HEADER, "WAREHOUSE"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message", containsString("입고전표와 출고전표에 같은 번호")))
+                .andExpect(jsonPath("$.data").doesNotExist());
     }
 
     /**

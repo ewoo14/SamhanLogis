@@ -288,6 +288,36 @@ public class SlipInternalController {
     }
 
     /**
+     * QR 스캔용 전표 내부 참조 — 사용자 요청의 slipNo를 내부 slip id와 품목 product id로 해석한다.
+     *
+     * <p>UUID는 서비스간 내부 응답에만 사용하고, 사용자 QR 스캔 요청·응답에는 전달하지 않는다.
+     * inventory-service가 product-service에서 product id를 품목코드로 해석하여 오스캔을 차단한다.
+     */
+    @Operation(summary = "Internal QR 스캔 전표 참조", description = "slipNo와 방향으로 유효 전표·라인 product id를 조회")
+    @GetMapping("/scan-reference")
+    @PreAuthorize("hasRole('MASTER')")
+    public ApiResponse<ScanReferenceResponse> findScanReference(
+            @RequestParam String slipNo, @RequestParam String direction) {
+        if (slipNo == null || slipNo.isBlank() || direction == null || direction.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "slipNo와 direction은 필수입니다");
+        }
+        SlipType requestedType;
+        if ("INBOUND".equalsIgnoreCase(direction)) {
+            requestedType = SlipType.INBOUND;
+        } else if ("OUTBOUND".equalsIgnoreCase(direction)) {
+            requestedType = SlipType.OUTBOUND;
+        } else {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "스캔 방향이 올바르지 않습니다");
+        }
+        Slip slip = slipRepository.findBySlipTypeAndSlipNoAndIsDeletedFalse(requestedType, slipNo.trim())
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "전표를 찾을 수 없습니다: " + slipNo));
+        return ApiResponse.ok(new ScanReferenceResponse(
+                slip.getId(), slip.getSlipNo(), slip.getSlipType().name(), slip.getPartnerCode(),
+                slip.getLines().stream().map(SlipLine::getProductId).distinct().toList()));
+    }
+
+    /**
      * 기간 마감 lock — accounting-service 월마감/일마감 서비스간 전용 endpoint.
      *
      * <p>{@code /internal/**} prefix 로 {@link com.samhanair.logis.security.InternalTokenFilter} 를 경유하며,
@@ -323,6 +353,10 @@ public class SlipInternalController {
      * @param status 슬립 상태 (SIGNABLE_STATUSES 가드용 hint)
      */
     public record LookupResponse(UUID slipId, String slipNo, String status) {}
+
+    /** QR 스캔 전표 참조의 서비스간 내부 응답. */
+    public record ScanReferenceResponse(UUID slipId, String slipNo, String slipType,
+                                        String partnerCode, List<UUID> productIds) {}
 
     /**
      * 배차 계열 공통 출고전표 조회.
@@ -412,7 +446,7 @@ public class SlipInternalController {
     }
 
     /**
-     * 거래처별 원장용 판매전표 read projection 조회.
+     * 거래처별 원장용 출고전표 read projection 조회.
      *
      * <p>원장은 회계 반영 완료 목록이 아니라 거래 사실 문서이므로 CONFIRMED·DELIVERED·COMPLETED
      * 세 상태를 모두 포함한다. 기존 DPS용 {@code /outbound-lines}는 품목·수량 중심의 별도 계약이라
@@ -421,9 +455,9 @@ public class SlipInternalController {
      * @param from 조회 시작일(포함)
      * @param to 조회 종료일(포함)
      * @param partnerCode 거래처코드, 생략 시 전체
-     * @return UUID 없는 전표 단위 원장 판매전표 목록
+     * @return UUID 없는 전표 단위 원장 출고전표 목록
      */
-    @Operation(summary = "거래처별 원장 판매전표 조회",
+    @Operation(summary = "거래처별 원장 출고전표 조회",
             description = "X-Internal-Token 인증. CONFIRMED/DELIVERED/COMPLETED OUTBOUND 전표와 품목을 조회한다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
@@ -462,13 +496,13 @@ public class SlipInternalController {
     }
 
     /**
-     * 저장 직후 판매전표 원장 projection — 대상 slipNo를 회계 원장에 한 번만 포함시키기 위한 read 계약.
+     * 저장 직후 출고전표 원장 projection — 대상 slipNo를 회계 원장에 한 번만 포함시키기 위한 read 계약.
      *
      * <p>기존 기간 조회는 canonical 판매 상태만 읽으므로 DRAFT/SAVED 신규 전표가 빠진다.
      * 이 endpoint는 활성 OUTBOUND 전표를 상태와 무관하게 반환하며, 응답은 기존 projection과
      * 동일하게 UUID를 사용자 계약으로 노출하지 않는다.
      */
-    @Operation(summary = "저장 대상 판매전표 원장 projection 조회",
+    @Operation(summary = "저장 대상 출고전표 원장 projection 조회",
             description = "X-Internal-Token 인증. 활성 OUTBOUND 전표를 slipNo로 조회하며 DRAFT/SAVED도 포함한다.")
     @GetMapping("/partner-ledger-sales/by-slip-no")
     @PreAuthorize("hasRole('MASTER')")
@@ -479,14 +513,14 @@ public class SlipInternalController {
         }
         Slip slip = slipRepository.findBySlipTypeAndSlipNoAndIsDeletedFalse(SlipType.OUTBOUND, slipNo.trim())
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                        "저장 대상 판매전표를 찾을 수 없습니다: " + slipNo));
+                        "저장 대상 출고전표를 찾을 수 없습니다: " + slipNo));
         return ApiResponse.ok(PartnerLedgerSalesResponse.from(slip));
     }
 
     // ---- SP-SAS-1 Task 7 — accounting-service cross-service read-only contract ----
 
     /**
-     * Internal 전표 라인 전체 조회 — accounting-service 매출전표 생성 시 검증용.
+     * Internal 전표 라인 전체 조회 — accounting-service 출고전표 생성 시 검증용.
      *
      * <p>slip-service 의 {@link Slip#getLines()} 를 SlipLineSnapshot 리스트로 변환하여 반환.
      * CONFIRMED 상태 + 매출=OUTBOUND/매입=INBOUND source 검증은 호출자 책임.
@@ -495,7 +529,7 @@ public class SlipInternalController {
      * @return SlipLineSnapshot 리스트
      */
     @Operation(summary = "Internal 전표 라인 전체 조회 (SP-SAS-1 Task 7 — accounting-service)",
-            description = "X-Internal-Token 인증. accounting-service 매출전표 생성 시 검증/매핑용.")
+            description = "X-Internal-Token 인증. accounting-service 출고전표 생성 시 검증/매핑용.")
     @GetMapping("/{slipId}/lines")
     @PreAuthorize("hasRole('MASTER')")
     public List<SlipLineSnapshot> getSlipLines(@PathVariable UUID slipId) {

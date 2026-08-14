@@ -33,7 +33,7 @@ vi.mock('../../stores/session', () => ({
   canQueryPurchases: () => true,
   useSessionStore: (selector: (state: { auth: { fullName: string; role: string }; logout: () => Promise<void> }) => unknown) =>
     selector({
-      auth: { fullName: '오병승', role: 'MASTER' },
+      auth: { fullName: '[DEV-SEED] 오병승', role: 'MASTER' },
       logout: mocks.logout,
     }),
 }))
@@ -85,6 +85,13 @@ afterEach(() => {
 })
 
 describe('AppLayout isPrintSurfacePath — PR #921 SOL 2차 B-1', () => {
+  test('공통 헤더는 DEV-SEED 표시명을 사용자에게 내보내지 않는다', () => {
+    renderAt('/')
+    const header = document.querySelector('[data-testid="header-user-name"]')
+    expect(header?.textContent).toContain('오병승')
+    expect(header?.textContent).not.toContain('[DEV-SEED]')
+  })
+
   test('사이드바 판매관리 진입점 /sales 는 인쇄 표면으로 판정된다', () => {
     renderAt('/sales')
     expect(isPrintSurface(), '/sales(기본 진입점)이 is-print-surface 클래스를 받지 못했다').toBe(true)

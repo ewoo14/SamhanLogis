@@ -37,6 +37,6 @@ test('라이브 대표 DRAFT 2026/08/07-41 읽기 전용 화면', async ({ conte
   const target = JSON.parse(listedRaw).data.content.find((row: { slipNo?: string }) => row.slipNo === '2026/08/07-41')
   expect(target, '대표 DRAFT 전표').toBeTruthy()
   await page.goto(`${APP_BASE}/#/sales/${target.id}`, { waitUntil: 'domcontentloaded' })
-  await expect(page.getByRole('heading', { name: /판매전표 상세.*2026\/08\/07-41/ })).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByRole('heading', { name: /출고전표 상세.*2026\/08\/07-41/ })).toBeVisible({ timeout: 30_000 })
   await page.screenshot({ path: path.join(SHOTS, '08-live-draft-2026-08-07-41.png'), fullPage: true })
 })

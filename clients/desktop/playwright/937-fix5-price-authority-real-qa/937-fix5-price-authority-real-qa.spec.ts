@@ -52,7 +52,7 @@ const POLLUTED_SLIP = process.env['QA_POLLUTED_SLIP'] ?? ''
 const COPY_SLIP = process.env['QA_COPY_SLIP'] ?? ''
 /** 끝수 단가 499,999.5 왕복. */
 const FRACTION_SLIP = process.env['QA_FRACTION_SLIP'] ?? ''
-/** 매입전표 인쇄 회귀. */
+/** 입고전표 인쇄 회귀. */
 const PURCHASE_SLIP = process.env['QA_PURCHASE_SLIP'] ?? ''
 const SHOTS = process.env['QA_SHOTS_DIR'] ?? path.resolve(_dirname, 'shots')
 fs.mkdirSync(SHOTS, { recursive: true })
@@ -408,7 +408,7 @@ test.describe('#937 재수렴 5차 — 사용자 권위 단가 보존 라이브Q
     expect(posts, `coedit 중 전표 생성 POST 발생: ${posts.join(', ')}`).toHaveLength(0)
   })
 
-  test('인쇄 3종 + ⑤ 사본 인쇄 — 세금계산서·매입전표 단가 x 수량 == 공급가액', async ({ browser }) => {
+  test('인쇄 3종 + ⑤ 사본 인쇄 — 세금계산서·입고전표 단가 x 수량 == 공급가액', async ({ browser }) => {
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 1200 } })
     const page = await ctx.newPage()
     await login(page)
@@ -438,8 +438,8 @@ test.describe('#937 재수렴 5차 — 사용자 권위 단가 보존 라이브Q
     await capture(page, 'print-02-statement')
     expect(stmUnit, '거래명세서도 사용자 입력 단가를 보인다').toBe(110000)
 
-    // 매입전표 — ⑤ 오염행
-    console.log(`[FIX5-인쇄] 매입 전표 DB=${lineRow(PURCHASE_SLIP)}`)
+    // 입고전표 — ⑤ 오염행
+    console.log(`[FIX5-인쇄] 입고 전표 DB=${lineRow(PURCHASE_SLIP)}`)
     await page.goto(`${BASE_URL}/purchases/${PURCHASE_SLIP}/print/purchase`)
     const purRow = page.locator('tbody tr').filter({ hasText: MODEL }).first()
     await purRow.waitFor({ state: 'visible', timeout: 40000 })
@@ -447,9 +447,9 @@ test.describe('#937 재수렴 5차 — 사용자 권위 단가 보존 라이브Q
     const purQty = num(await purRow.locator('td.col-qty').textContent())
     const purPrice = num(await purRow.locator('td.col-price').textContent())
     const purSupply = num(await purRow.locator('td.col-supply').textContent())
-    console.log(`[FIX5-인쇄] 매입전표: 수량=${purQty} 단가=${purPrice} 공급가액=${purSupply}`)
+    console.log(`[FIX5-인쇄] 입고전표: 수량=${purQty} 단가=${purPrice} 공급가액=${purSupply}`)
     await capture(page, 'print-03-purchase')
-    expect(purPrice * purQty, '매입전표 단가 x 수량 == 공급가액').toBe(purSupply)
+    expect(purPrice * purQty, '입고전표 단가 x 수량 == 공급가액').toBe(purSupply)
 
     // ⑤ 오염행 사본(copyOf) 세금계산서
     console.log(`[FIX5-인쇄] 사본 DB=${lineRow(COPY_SLIP)}`)

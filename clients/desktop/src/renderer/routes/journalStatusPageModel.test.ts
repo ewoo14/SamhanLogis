@@ -27,7 +27,7 @@ describe('journalStatusPageModel', () => {
           sourceTypeDisplayName: '전표',
           bizNo: '1111111111',
           partnerName: '주식회사 윌리',
-          description: '매출전표',
+          description: '출고전표',
           totalDebit: '5000.00',
           totalCredit: '5000.00',
         },

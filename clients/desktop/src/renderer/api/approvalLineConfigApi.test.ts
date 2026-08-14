@@ -52,7 +52,7 @@ describe('approvalLineConfigApi contract', () => {
     })
 
     await expect(fetchConfigurableDocTypes()).resolves.toEqual([
-      { value: 'SLIP_OUTBOUND', label: '판매전표', kind: 'SLIP' },
+      { value: 'SLIP_OUTBOUND', label: '출고전표', kind: 'SLIP' },
       { value: 'SLIP_INBOUND', label: '입고전표', kind: 'SLIP' },
       { value: 'PARTNER_ORDER', label: '주문', kind: 'SLIP' },
       { value: 'GROUPWARE_EXPENSE_REPORT', label: '지출결의서', kind: 'GROUPWARE' },
@@ -66,7 +66,7 @@ describe('approvalLineConfigApi contract', () => {
     vi.mocked(apiClient.get).mockRejectedValueOnce(new Error('groupware unavailable'))
 
     await expect(fetchConfigurableDocTypes()).resolves.toEqual([
-      { value: 'SLIP_OUTBOUND', label: '판매전표', kind: 'SLIP' },
+      { value: 'SLIP_OUTBOUND', label: '출고전표', kind: 'SLIP' },
       { value: 'SLIP_INBOUND', label: '입고전표', kind: 'SLIP' },
       { value: 'PARTNER_ORDER', label: '주문', kind: 'SLIP' },
     ])

@@ -29,6 +29,7 @@ import {
   type SessionInfo,
 } from '../auth/authProvider'
 import { clearSessionQueryCache } from '../queryClientRegistry'
+import { sanitizeDisplayName } from '../common/userDisplayName'
 
 interface SessionState {
   /** 세션 부팅 완료 여부 — false 이면 splash/스피너 표시. */
@@ -52,7 +53,7 @@ function sessionInfoToSnapshot(session: SessionInfo | null, token = ''): AuthSna
     token,
     userId: session.userId,
     role: session.role,
-    fullName: session.fullName,
+    fullName: sanitizeDisplayName(session.fullName),
     partnerCode: session.partnerCode,
     groups: session.groups,
   }
@@ -64,7 +65,7 @@ function loginToSnapshot(login: LoginResponse): AuthSnapshot {
     token: isElectronPlatform ? login.token : '',
     userId: login.userId,
     role: login.role,
-    fullName: login.displayName,
+    fullName: sanitizeDisplayName(login.displayName),
     partnerCode: login.partnerCode,
     groups: login.groups,
   }
@@ -133,7 +134,7 @@ export const useSessionStore = create<SessionState>((set) => ({
 }))
 
 /**
- * 매출 전표 목록 조회 권한.
+ * 출고 전표 목록 조회 권한.
  *
  * BE `SlipSalesAccessGuard#canReadOutboundSales` 와 동일 허용 집합(SALES/MANAGER/MASTER).
  * seed `sales.slip.list` 는 ACCOUNTANT/INVENTORY 에도 view=TRUE 를 부여하나,

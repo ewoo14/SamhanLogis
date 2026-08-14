@@ -82,12 +82,12 @@ class SlipCutoffAdminControllerIT extends com.samhanair.logis.slip.it.AbstractPo
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data").isArray());
 
-        // 2. 신규 등록 (DAY 태그 — 시드 없음)
+        // 2. 신규 등록 (SALE 태그 — 시드 없음)
         String createBody = mvc.perform(post("/admin/slip-cutoffs")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "deliveryTag": "DAY",
+                                  "deliveryTag": "SALE",
                                   "cutoffTime": "10:00",
                                   "active": true
                                 }
@@ -96,8 +96,8 @@ class SlipCutoffAdminControllerIT extends com.samhanair.logis.slip.it.AbstractPo
                         .header("X-User-Role", USER_ROLE))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.deliveryTag").value("DAY"))
-                .andExpect(jsonPath("$.data.deliveryTagLabel").value("당일"))
+                .andExpect(jsonPath("$.data.deliveryTag").value("SALE"))
+                .andExpect(jsonPath("$.data.deliveryTagLabel").value("판매"))
                 .andExpect(jsonPath("$.data.cutoffTime").value("10:00"))
                 .andExpect(jsonPath("$.data.active").value(true))
                 .andReturn()
@@ -130,7 +130,7 @@ class SlipCutoffAdminControllerIT extends com.samhanair.logis.slip.it.AbstractPo
                         .header("X-User-Id", USER_ID)
                         .header("X-User-Role", USER_ROLE))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[?(@.deliveryTag=='DAY')]").isEmpty());
+                .andExpect(jsonPath("$.data[?(@.deliveryTag=='SALE')]").isEmpty());
     }
 
     @Test
@@ -167,7 +167,7 @@ class SlipCutoffAdminControllerIT extends com.samhanair.logis.slip.it.AbstractPo
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").isArray())
                 // OUTBOUND 태그만 포함 — RETURN_TRIP(INBOUND) 미포함
-                .andExpect(jsonPath("$.data[?(@.tag=='DAY')]").exists())
+                .andExpect(jsonPath("$.data[?(@.tag=='SALE')]").exists())
                 .andExpect(jsonPath("$.data[?(@.tag=='RETURN_TRIP')]").isEmpty());
     }
 
@@ -184,7 +184,7 @@ class SlipCutoffAdminControllerIT extends com.samhanair.logis.slip.it.AbstractPo
         mvc.perform(post("/admin/slip-cutoffs")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"deliveryTag": "DAY", "cutoffTime": "10:00"}
+                                {"deliveryTag": "SALE", "cutoffTime": "10:00"}
                                 """)
                         .header("X-User-Id", USER_ID)
                         .header("X-User-Role", USER_ROLE))

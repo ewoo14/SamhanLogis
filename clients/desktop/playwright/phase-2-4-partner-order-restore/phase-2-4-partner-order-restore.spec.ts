@@ -185,7 +185,7 @@ test.describe('Phase 2.4 거래처 주문 버전이력 + 복원', () => {
     await expect(toast).toBeVisible()
     await expect(toast).toContainText('버전 1')
     // slipResyncRequired=false → '출고전표' 경고 문구 미노출
-    await expect(toast).not.toContainText('판매전표')
+    await expect(toast).not.toContainText('출고전표')
   })
 
   // ──────────────────────────────────────────────────────────
@@ -221,7 +221,7 @@ test.describe('Phase 2.4 거래처 주문 버전이력 + 복원', () => {
     // slipResyncRequired=true → 경고 toast ('출고전표' 포함)
     const toast = page.getByTestId('partner-order-version-history-toast')
     await expect(toast).toBeVisible()
-    await expect(toast).toContainText('판매전표')
+    await expect(toast).toContainText('출고전표')
     await expect(toast).toContainText('버전 1')
   })
 

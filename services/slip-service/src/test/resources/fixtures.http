@@ -49,7 +49,7 @@ Content-Type: application/json
   "destinationWarehouseId": "{{vehicleWarehouseId}}",
   "partnerId": "{{testPartnerId}}",
   "partnerName": "테스트 거래처",
-  "deliveryTag": "DAY",
+  "deliveryTag": "SALE",
   "memo": "초기 등록 시연",
   "lines": [
     {
@@ -119,7 +119,7 @@ Content-Type: application/json
   "destinationWarehouseId": "{{hqWarehouseId}}",
   "partnerId": "{{testPartnerId}}",
   "partnerName": "발주 거래처",
-  "deliveryTag": "DAY",
+  "deliveryTag": "SALE",
   "memo": "초기 입고",
   "lines": [
     {
@@ -185,7 +185,7 @@ Content-Type: application/json
   "destinationWarehouseId": "{{vehicleWarehouseId}}",
   "partnerId": "{{testPartnerId}}",
   "partnerName": "거부 시나리오 거래처",
-  "deliveryTag": "DAY",
+  "deliveryTag": "SALE",
   "memo": "reject 후 release 검증",
   "lines": [
     {
@@ -239,7 +239,7 @@ Content-Type: application/json
   "destinationWarehouseId": "{{vehicleWarehouseId}}",
   "partnerId": "{{testPartnerId}}",
   "partnerName": "전이 가드 검증",
-  "deliveryTag": "DAY",
+  "deliveryTag": "SALE",
   "memo": "잘못된 전이 검증",
   "lines": [
     {
@@ -337,7 +337,7 @@ Content-Type: application/json
   "destinationWarehouseId": "{{vehicleWarehouseId}}",
   "partnerId": "{{testPartnerId}}",
   "partnerName": "(주)윌리-정현수",
-  "deliveryTag": "DAY",
+  "deliveryTag": "SALE",
   "memo": "Slice A 인스펙트 풀 라이프사이클 검증",
   "lines": [
     {
@@ -434,7 +434,7 @@ Content-Type: application/json
   "destinationWarehouseId": "{{vehicleWarehouseId}}",
   "partnerId": "{{testPartnerId}}",
   "partnerName": "음성 검증",
-  "deliveryTag": "DAY",
+  "deliveryTag": "SALE",
   "memo": "잘못된 상태에서 inspect 시도",
   "lines": [
     {
@@ -481,7 +481,7 @@ Content-Type: application/json
   "destinationWarehouseId": "{{vehicleWarehouseId}}",
   "partnerId": "{{testPartnerId}}",
   "partnerName": "(주)윌리-정현수",
-  "deliveryTag": "DAY",
+  "deliveryTag": "SALE",
   "memo": "Slice B driver fields 검증 — 슬립 1",
   "driverName": "김기사",
   "driverPhone": "010-1111-2222",
@@ -516,7 +516,7 @@ Content-Type: application/json
   "destinationWarehouseId": "{{vehicleWarehouseId}}",
   "partnerId": "{{testPartnerId}}",
   "partnerName": "(주)정직 가전",
-  "deliveryTag": "DAY",
+  "deliveryTag": "SALE",
   "memo": "Slice B 같은 기사 두 번째 슬립",
   "driverName": "김기사",
   "driverPhone": "010-1111-2222",

@@ -35,14 +35,17 @@ function makeCutoff(deliveryTag: string, extra?: Partial<SlipCutoff>): SlipCutof
 }
 
 const ALL_TAGS = [
-  { tag: 'DAY' as const, label: '당일' },
+  { tag: 'SALE' as const, label: '판매' },
   { tag: 'STACK' as const, label: '야적' },
   { tag: 'REGION' as const, label: '지방' },
   { tag: 'LOGEN' as const, label: '로젠택배' },
   { tag: 'GYEONGDONG_PARCEL' as const, label: '경동택배' },
   { tag: 'GYEONGDONG_FREIGHT' as const, label: '경동화물' },
   { tag: 'RENTAL' as const, label: '대여' },
-  { tag: 'RETURN_RENTAL' as const, label: '반납' },
+  { tag: 'BORROW_RETURN' as const, label: '차용반납' },
+  { tag: 'DEFECT_RETURN' as const, label: '불량반납' },
+  { tag: 'DIRECT_DELIVERY' as const, label: '직배' },
+  { tag: 'PREEMPTIVE_ACTION' as const, label: '착하선조치' },
 ]
 
 // ---------------------------------------------------------------------------
@@ -193,7 +196,7 @@ describe('availableTagsForForm', () => {
     const tags = available.map((t) => t.tag)
     expect(tags).not.toContain('REGION')
     expect(tags).not.toContain('STACK')
-    expect(tags).toContain('DAY')
+    expect(tags).toContain('SALE')
     expect(tags).toContain('LOGEN')
   })
 
@@ -208,7 +211,7 @@ describe('availableTagsForForm', () => {
     expect(available).toHaveLength(0)
   })
 
-  it('전체 OUTBOUND 8종 태그 옵션을 지원', () => {
-    expect(ALL_TAGS).toHaveLength(8)
+  it('전체 OUTBOUND 11종 태그 옵션을 지원', () => {
+    expect(ALL_TAGS).toHaveLength(11)
   })
 })

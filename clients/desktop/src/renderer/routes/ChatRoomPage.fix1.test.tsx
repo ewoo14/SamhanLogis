@@ -17,6 +17,7 @@ vi.mock('../api/messengerApi', () => ({
   sendChatMessage: vi.fn(),
   createDirectChatRoom: vi.fn(),
   searchRecipients: vi.fn(),
+  sanitizeInternalLabel: (value: string | null | undefined) => value?.replace(/^\[DEV-SEED\]\s*/i, '').trim() || value,
 }))
 
 function renderWithQuery(element: React.ReactElement) {
@@ -75,5 +76,17 @@ describe('room 기반 1:1 채팅 fix1 화면 계약', () => {
     renderWithQuery(<MemoryRouter initialEntries={['/chat/CHAT-20260812-000017']}><Routes><Route path="/chat/:roomCode" element={<ChatRoomPage />} /></Routes></MemoryRouter>)
     await waitFor(() => expect(screen.getByRole('heading', { name: '김개발' })).toBeTruthy())
     expect(screen.getByText('플랫폼팀 · E001')).toBeTruthy()
+  })
+
+  it('개발 시드 표식은 실제 채팅 화면에 노출하지 않는다 RED', async () => {
+    vi.mocked(await import('../api/messengerApi')).fetchChatRooms.mockResolvedValue([
+      { roomCode: 'CHAT-20260812-000017', type: 'DIRECT', roomName: null, partnerName: '[DEV-SEED] 개발매니저', partnerDepartment: '대표실', partnerEmployeeCode: 'E001' },
+    ])
+    vi.mocked(await import('../api/messengerApi')).fetchChatMessages.mockResolvedValue([
+      { roomCode: 'CHAT-20260812-000017', sequence: 1, body: '실제 메시지', sentAt: '2026-08-12T09:00:00Z', senderName: '[DEV-SEED] 개발매니저', senderDepartment: '대표실', senderEmployeeCode: 'E001', mine: false },
+    ])
+    renderWithQuery(<MemoryRouter initialEntries={['/chat/CHAT-20260812-000017']}><Routes><Route path="/chat/:roomCode" element={<ChatRoomPage />} /></Routes></MemoryRouter>)
+    expect(await screen.findByRole('heading', { name: '개발매니저' })).toBeTruthy()
+    expect(screen.queryByText(/\[DEV-SEED\]/)).toBeNull()
   })
 })

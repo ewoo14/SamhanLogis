@@ -1,5 +1,5 @@
 /**
- * 판매관리 (매출 전표) — 출고전표 다중 선택 + 날짜 범위 + 검색 모달 + 50/page pagination.
+ * 판매관리 (출고 전표) — 출고전표 다중 선택 + 날짜 범위 + 검색 모달 + 50/page pagination.
  *
  * SP-08-6-1 R1/R2 매출 목록·상세 슬라이스.
  * - slipType: 'OUTBOUND' (BE OUTBOUND = 출고 = 매출)
@@ -169,7 +169,7 @@ const EMPTY_SEARCH: SearchForm = {
 }
 
 export function SalesQueryPage() {
-  usePageTitle('매출 전표')
+  usePageTitle('출고 전표')
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const auth = useSessionStore((s) => s.auth)
@@ -277,15 +277,15 @@ export function SalesQueryPage() {
           return
         }
         if (status === 422) {
-          setSalesDeleteShippedAlert('출고 완료된 매출 전표는 삭제할 수 없습니다')
+          setSalesDeleteShippedAlert('출고 완료된 출고 전표는 삭제할 수 없습니다')
           return
         }
         if (status === 403) {
-          setSalesDeleteForbiddenAlert('매출 전표 삭제 권한이 없습니다.')
+          setSalesDeleteForbiddenAlert('출고 전표 삭제 권한이 없습니다.')
           return
         }
       }
-      setSalesDeleteErrorAlert('매출 전표 삭제에 실패했습니다.')
+      setSalesDeleteErrorAlert('출고 전표 삭제에 실패했습니다.')
     },
   })
 
@@ -405,7 +405,7 @@ export function SalesQueryPage() {
   if (!canQuery) {
     return (
       <div role="alert" style={{ padding: 32, fontSize: 14, color: 'var(--color-danger-600)' }}>
-        매출 전표 조회 권한이 없습니다. (SALES / MANAGER / MASTER 역할 필요)
+        출고 전표 조회 권한이 없습니다. (SALES / MANAGER / MASTER 역할 필요)
       </div>
     )
   }
@@ -616,7 +616,7 @@ export function SalesQueryPage() {
             onClick={() => navigate('/sales/new')}
             data-testid="sales-query-new-slip-btn"
           >
-            신규 판매전표
+            신규 출고전표
           </Button>
         ) : null}
 
@@ -647,7 +647,7 @@ export function SalesQueryPage() {
             rows={rows}
             rowKey={(r) => r.id}
             loading={slipsQuery.isLoading}
-            emptyMessage="조회된 판매 전표가 없습니다."
+            emptyMessage="조회된 출고 전표가 없습니다."
             enableMultiSelect
             enableCopy
           />
@@ -708,7 +708,7 @@ export function SalesQueryPage() {
             ) : rows.length === 0 ? (
               <tr>
                 <td colSpan={tableColumnCount} style={{ textAlign: 'center', padding: 32, color: 'var(--color-neutral-400)' }}>
-                  조회된 판매 전표가 없습니다.
+                  조회된 출고 전표가 없습니다.
                 </td>
               </tr>
             ) : (
@@ -818,7 +818,7 @@ export function SalesQueryPage() {
       {/* ── 에러 ── */}
       {slipsQuery.isError ? (
         <div role="alert" style={{ color: 'var(--color-danger-600)', fontSize: 13 }}>
-          판매 전표 목록을 불러오지 못했습니다. 백엔드 연결을 확인하세요.
+          출고 전표 목록을 불러오지 못했습니다. 백엔드 연결을 확인하세요.
         </div>
       ) : null}
 
@@ -916,7 +916,7 @@ export function SalesQueryPage() {
       </Modal>
 
       {/*
-        SP-08-6-3: 매출 전표 삭제 확인 modal.
+        SP-08-6-3: 출고 전표 삭제 확인 modal.
         - UUID 비공개 가드: slipNo 만 표시 (id 미노출).
         - 409 충돌 시 "최신 내용 불러오기" 배너 표시.
         - 422 SHIPPED 시 삭제 불가 안내.
@@ -933,7 +933,7 @@ export function SalesQueryPage() {
             setSalesDeleteTargetRow(null)
           }
         }}
-        title="매출 전표 삭제"
+        title="출고 전표 삭제"
         size="sm"
         data-testid="sales-slip-delete-confirm"
         footer={(
@@ -1005,7 +1005,7 @@ export function SalesQueryPage() {
               style={{ marginTop: 12 }}
             >
               <strong>삭제 불가</strong>
-              <p style={{ margin: '4px 0 0 0' }}>출고 진행 중이거나 완료된 매출 전표는 삭제할 수 없습니다.</p>
+              <p style={{ margin: '4px 0 0 0' }}>출고 진행 중이거나 완료된 출고 전표는 삭제할 수 없습니다.</p>
             </div>
           )}
           {salesDeleteForbiddenAlert && (

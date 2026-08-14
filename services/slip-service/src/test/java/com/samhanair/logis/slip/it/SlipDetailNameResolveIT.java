@@ -237,7 +237,7 @@ class SlipDetailNameResolveIT extends AbstractPostgresIT {
         int seqNo = SEQ.incrementAndGet();
         return Slip.createOutbound(SLIP_NO_PREFIX + seqNo, LocalDate.of(2026, 6, 22), seqNo,
                 UUID.randomUUID(), null, UUID.randomUUID(), "S4D 출고거래처",
-                DeliveryTag.DAY, "출고 결재란 테스트", UUID.randomUUID().toString());
+                DeliveryTag.SALE, "출고 결재란 테스트", UUID.randomUUID().toString());
     }
 
     private SlipLine defaultLine(Slip slip) {

@@ -5,7 +5,7 @@ import java.util.UUID;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 
-/** MIG-3 — 이카운트 매출전표 I CSV → sales_accounting_slips import. */
+/** MIG-3 — 이카운트 출고전표 I CSV → sales_accounting_slips import. */
 @Service
 public class EcountSalesSlipImporter extends AbstractEcountSlipImporter {
 

@@ -110,7 +110,7 @@ class PartnerLedgerReadModelServiceTest {
         when(partnerLookupClient.findByPartnerCodeResult("P-VAT-001"))
                 .thenReturn(PartnerLookupClient.LookupResult.found(partner));
         when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO)).thenReturn(List.of(
-                // 교차 경로 fixture: legacy 401 순액 1,000, 정상 판매전표 VAT 포함 문서금액 1,100.
+                // 교차 경로 fixture: legacy 401 순액 1,000, 정상 출고전표 VAT 포함 문서금액 1,100.
                 new Total(partnerId, "4019", BigDecimal.ZERO, new BigDecimal("1000")),
                 new Total(partnerId, "1089", new BigDecimal("1100"), BigDecimal.ZERO)));
         CashReceipt receipt = CashReceipt.fromMig7Staging(
@@ -178,7 +178,7 @@ class PartnerLedgerReadModelServiceTest {
                     assertThat(document.amount()).isEqualByComparingTo("28600000");
                     assertThat(document.debit()).isEqualByComparingTo("28600000");
                     assertThat(document.credit()).isZero();
-                    assertThat(document.description()).contains("판매전표 없음 / 전표 미이관");
+                    assertThat(document.description()).contains("출고전표 없음 / 전표 미이관");
                 });
         assertThat(result.selected().receivableBalance()).isEqualByComparingTo("28600000");
         assertThat(result.selected().partnerId()).isNotNull();
@@ -313,7 +313,7 @@ class PartnerLedgerReadModelServiceTest {
 
         assertThat(result.selected().documents()).hasSize(1);
         assertThat(result.selected().documents().get(0).description())
-                .contains("판매전표 없음 / 전표 미이관");
+                .contains("출고전표 없음 / 전표 미이관");
     }
 
     @Test

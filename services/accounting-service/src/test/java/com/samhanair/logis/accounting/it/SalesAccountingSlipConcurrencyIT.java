@@ -46,7 +46,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * #850 HIGH-1 매출전표 배분 동시성 실 IT (실 PostgreSQL Testcontainers).
+ * #850 HIGH-1 출고전표 배분 동시성 실 IT (실 PostgreSQL Testcontainers).
  *
  * <p>단일스레드 Mockito {@code InOrder} + lock mock 이 잡지 못하는 <b>실 경합</b>을 검증한다.
  * {@code createDraftAttempt} 는 {@code REQUIRES_NEW} 트랜잭션에서 {@code pg_advisory_xact_lock}

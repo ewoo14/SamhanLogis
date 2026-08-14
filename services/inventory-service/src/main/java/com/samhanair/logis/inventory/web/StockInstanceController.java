@@ -4,6 +4,11 @@ import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.inventory.domain.StockInstance;
 import com.samhanair.logis.inventory.domain.StockInstanceStatus;
 import com.samhanair.logis.inventory.service.StockInstanceService;
+import com.samhanair.logis.inventory.service.StockInstanceScanService;
+import com.samhanair.logis.inventory.service.StockScanDirection;
+import com.samhanair.logis.inventory.service.StockScanItem;
+import com.samhanair.logis.inventory.service.StockScanRequest;
+import com.samhanair.logis.inventory.service.StockScanResponse;
 import com.samhanair.logis.inventory.web.dto.BatchInboundInstanceRequest;
 import com.samhanair.logis.inventory.web.dto.CreateInstanceRequest;
 import com.samhanair.logis.inventory.web.dto.ReleaseBatchInstanceRequest;
@@ -15,15 +20,17 @@ import com.samhanair.logis.inventory.web.dto.StockInstanceResponse;
 import com.samhanair.logis.inventory.web.dto.StockInstanceListResponse;
 import com.samhanair.logis.inventory.web.dto.UpdateStockInstanceQualityRequest;
 import com.samhanair.logis.inventory.web.dto.UnrecallBatchInstanceRequest;
+import com.samhanair.logis.inventory.web.dto.QrScanRequest;
 import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import java.util.List;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -51,7 +58,6 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/inventory/instances")
-@RequiredArgsConstructor
 @Tag(name = "재고 인스턴스", description = "개별시리얼 재고 인스턴스 CRUD/조회 API (Phase INV-S S1)")
 public class StockInstanceController {
 
@@ -59,6 +65,21 @@ public class StockInstanceController {
     private static final String USER_NAME_HEADER = "X-User-Name";
 
     private final StockInstanceService stockInstanceService;
+    private final StockInstanceScanService stockInstanceScanService;
+
+    /** Spring이 선택하는 운영 생성자 — 기존 단위 테스트용 호환 생성자와 분리한다. */
+    @Autowired
+    public StockInstanceController(StockInstanceService stockInstanceService,
+                                   ObjectProvider<StockInstanceScanService> stockInstanceScanService) {
+        this.stockInstanceService = stockInstanceService;
+        this.stockInstanceScanService = stockInstanceScanService.getIfAvailable();
+    }
+
+    /** 기존 단위 테스트·내부 생성 경로와의 호환 생성자. QR 호출 경로에서는 Spring이 2개 인자를 주입한다. */
+    public StockInstanceController(StockInstanceService stockInstanceService) {
+        this.stockInstanceService = stockInstanceService;
+        this.stockInstanceScanService = null;
+    }
 
     /**
      * 개별시리얼 인스턴스 수동 생성.
@@ -334,6 +355,15 @@ public class StockInstanceController {
         return ApiResponse.ok(stockInstanceService.listForProductCode(productCode), "품목리스트 조회 완료");
     }
 
+    /** 구매·차용 입고전표 화면의 QR 출력용 — 전표 귀속 인스턴스만 반환한다. */
+    @Operation(summary = "입고전표 QR 인스턴스 조회", description = "입고전표번호에 귀속된 인스턴스의 시리얼키·품목코드를 반환.")
+    @GetMapping("/by-inbound-slip")
+    @RequirePermission(page = "purchases.slip.edit", action = PermissionAction.VIEW)
+    public ApiResponse<List<StockInstanceResponse>> byInboundSlip(@RequestParam String slipNo) {
+        return ApiResponse.ok(stockInstanceService.listByInboundSlip(slipNo).stream()
+                .map(StockInstanceResponse::from).toList(), "입고전표 QR 인스턴스 조회 완료");
+    }
+
     /** AVAILABLE/RESERVED만 품질 변경 가능. SHIPPED 차단은 서비스·도메인 양쪽에서 수행한다. */
     @Operation(summary = "재고 품목 상태 변경", description = "serialKey 기준 품질 변경. SHIPPED는 409.")
     @PatchMapping("/quality")
@@ -348,5 +378,30 @@ public class StockInstanceController {
         return ApiResponse.ok(stockInstanceService.listForProductCode(instance.getProductCode()).stream()
                 .filter(row -> row.serialKey().equals(serialKey)).findFirst().orElseThrow(),
                 "품목 상태 변경 완료");
+    }
+
+    /** 전표 귀속 QR 입고 — 계정별 inventory.stock-balance CREATE 권한을 사용한다. */
+    @Operation(summary = "QR 시리얼 입고", description = "전표번호와 QR 시리얼키 목록을 검증해 원자적으로 입고 귀속.")
+    @PostMapping("/scan/inbound")
+    @RequirePermission(page = "inventory.stock-balance", action = PermissionAction.CREATE)
+    public ApiResponse<StockScanResponse> scanInbound(@Valid @RequestBody QrScanRequest request) {
+        return ApiResponse.ok(stockInstanceScanService.scan(toServiceRequest(request, StockScanDirection.INBOUND)),
+                "QR 시리얼 입고 완료");
+    }
+
+    /** 전표 귀속 QR 출고 — 계정별 inventory.stock-balance UPDATE 권한을 사용한다. */
+    @Operation(summary = "QR 시리얼 출고", description = "전표번호와 QR 시리얼키 목록을 검증해 원자적으로 출고 및 차감.")
+    @PostMapping("/scan/outbound")
+    @RequirePermission(page = "inventory.stock-balance", action = PermissionAction.UPDATE)
+    public ApiResponse<StockScanResponse> scanOutbound(@Valid @RequestBody QrScanRequest request) {
+        return ApiResponse.ok(stockInstanceScanService.scan(toServiceRequest(request, StockScanDirection.OUTBOUND)),
+                "QR 시리얼 출고 완료");
+    }
+
+    private StockScanRequest toServiceRequest(QrScanRequest request, StockScanDirection direction) {
+        return new StockScanRequest(request.slipNo(), direction,
+                request.items().stream()
+                        .map(item -> new StockScanItem(item.serialKey(), item.productCode()))
+                        .toList());
     }
 }

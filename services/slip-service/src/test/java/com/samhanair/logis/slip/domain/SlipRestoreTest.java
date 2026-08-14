@@ -31,7 +31,7 @@ class SlipRestoreTest {
     void toSnapshot_preservesCategoryKey() throws Exception {
         Slip slip = Slip.createOutbound("2026/05/29-1", LocalDate.of(2026, 5, 29), 1,
                 SOURCE_WH, UUID.randomUUID(), PARTNER, "삼한물산",
-                DeliveryTag.DAY, "원본", "user-1");
+                DeliveryTag.SALE, "원본", "user-1");
         slip.addLine(SlipLine.create(slip, UUID.randomUUID(), "펌프", "MX-100", "220V",
                 2, new BigDecimal("15000.00"), "라인메모", UUID.randomUUID(), "singleSets"));
 
@@ -45,7 +45,7 @@ class SlipRestoreTest {
     void restoreFromSnapshot_preservesCategoryKey() {
         Slip slip = Slip.createOutbound("2026/05/29-1", LocalDate.of(2026, 5, 29), 1,
                 SOURCE_WH, UUID.randomUUID(), PARTNER, "삼한물산",
-                DeliveryTag.DAY, "원본", "user-1");
+                DeliveryTag.SALE, "원본", "user-1");
         slip.addLine(SlipLine.create(slip, UUID.randomUUID(), "펌프", "MX-100", "220V",
                 2, new BigDecimal("15000.00"), "라인메모", UUID.randomUUID(), "singleSets"));
         SlipSnapshot snapshot = slip.toSnapshot();
@@ -63,7 +63,7 @@ class SlipRestoreTest {
     private Slip sampleSlip() {
         Slip slip = Slip.createOutbound("2026/05/29-1", LocalDate.of(2026, 5, 29), 1,
                 SOURCE_WH, UUID.randomUUID(), PARTNER, "삼한물산",
-                DeliveryTag.DAY, "원본", "user-1");
+                DeliveryTag.SALE, "원본", "user-1");
         slip.addLine(SlipLine.create(slip, UUID.randomUUID(), "펌프", "MX-100", "220V",
                 2, new BigDecimal("15000.00"), "라인메모"));
         slip.addLine(SlipLine.create(slip, UUID.randomUUID(), "밸브", null, null,

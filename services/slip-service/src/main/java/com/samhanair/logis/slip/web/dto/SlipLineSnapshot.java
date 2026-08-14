@@ -15,7 +15,7 @@ import java.util.UUID;
  *   <li>{@code lineTotal} — quantity × unitPriceWithVat (VAT 포함 합)</li>
  *   <li>{@code partnerId} — Slip.partnerId (원천 전표 헤더 거래처)</li>
  *   <li>{@code partnerCode}/{@code partnerName} — Slip 헤더 거래처 snapshot</li>
- *   <li>{@code slipStatus} — Slip.status.name() — CONFIRMED 만 매출/매입전표 source 가능</li>
+ *   <li>{@code slipStatus} — Slip.status.name() — CONFIRMED 만 매출/입고전표 source 가능</li>
  *   <li>{@code slipType} — Slip.slipType.name() — 매출=OUTBOUND, 매입=INBOUND 만 source 가능</li>
  * </ul>
  */

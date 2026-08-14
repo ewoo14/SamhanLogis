@@ -26,7 +26,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-@Tag(name = "수신 세금계산서", description = "거래처 발행 세금계산서 수신 등록 및 매입전표 매칭")
+@Tag(name = "수신 세금계산서", description = "거래처 발행 세금계산서 수신 등록 및 입고전표 매칭")
 @RestController
 @RequestMapping("/admin/tax-invoices/inbound")
 @RequiredArgsConstructor
@@ -49,7 +49,7 @@ public class TaxInvoiceInboundController {
     }
 
     @Operation(summary = "수신 세금계산서 등록",
-            description = "POSTED 매입전표 N장을 동일 거래처·동일월 기준으로 INBOUND 세금계산서 1장에 연결합니다.")
+            description = "POSTED 입고전표 N장을 동일 거래처·동일월 기준으로 INBOUND 세금계산서 1장에 연결합니다.")
     @RequirePermission(page = "accounting.tax-invoice.inbound.manage", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     @PostMapping
     public ResponseEntity<InboundTaxInvoiceResponse> registerInbound(

@@ -28,12 +28,24 @@ export function fetchMessengerDirectory(): Promise<MessengerEmployee[]> { return
 export function fetchMessengerMe(): Promise<MessengerMe> { return request(`${userApiPrefix}/users/messenger/me`) }
 export function joinMessengerPresence(sessionId: string): Promise<void> { return request(`${userApiPrefix}/users/messenger/presence/sessions/${encodeURIComponent(sessionId)}`, { method: 'POST' }) }
 export function leaveMessengerPresence(sessionId: string): Promise<void> { return request(`${userApiPrefix}/users/messenger/presence/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' }) }
-export function fetchGroupChatRooms(): Promise<GroupChatRoom[]> { return request('/admin/groupware/chat/rooms/groups') }
+export async function fetchGroupChatRooms(): Promise<GroupChatRoom[]> {
+  const rooms = await request<Array<GroupChatRoom & { participants?: unknown[]; lastMessage?: string | null }>>('/admin/groupware/chat/rooms/groups')
+  return Promise.all(rooms.map(async (room) => {
+    const messages = await fetchChatMessages(room.roomCode).catch(() => [])
+    const latest = messages.at(-1)
+    return {
+      ...room,
+      memberCount: (room as GroupChatRoom & { memberCount?: number }).memberCount ?? room.participants?.length ?? 0,
+      lastMessage: room.lastMessage ?? latest?.body ?? null,
+      lastMessageAt: room.latestMessageAt ?? latest?.sentAt ?? null,
+    } as GroupChatRoom
+  }))
+}
 export function createGroupChatRoom(employeeCodes: string[], roomName?: string): Promise<ChatRoom> {
   return request('/admin/groupware/chat/rooms/groups', { method: 'POST', body: JSON.stringify({ employeeCodes, roomName: roomName || null }) })
 }
 export function createDirectChatRoomByEmployeeCode(employeeCode: string): Promise<ChatRoom> {
-  return request('/admin/groupware/chat/rooms/direct/by-employee-code', { method: 'POST', body: JSON.stringify({ employeeCode }) })
+  return request('/api/v1/admin/groupware/chat/rooms/direct/by-employee-code', { method: 'POST', body: JSON.stringify({ employeeCode }) })
 }
 export function sendChatMessage(roomCode: string, body: string): Promise<ChatMessage> {
   return request(`/admin/groupware/chat/rooms/${encodeURIComponent(roomCode)}/messages`, { method: 'POST', body: JSON.stringify({ body }) })

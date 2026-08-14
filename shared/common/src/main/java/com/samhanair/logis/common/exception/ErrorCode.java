@@ -39,32 +39,32 @@ public enum ErrorCode {
     SLIP_UPDATE_INVALID_LINE(HttpStatus.UNPROCESSABLE_ENTITY,
             "전표 라인 입력값이 올바르지 않습니다."),
     /**
-     * 매입 전표 삭제 불가 — 검수/처리 진행 중이거나 완료된 전표는 삭제할 수 없습니다.
+     * 입고 전표 삭제 불가 — 검수/처리 진행 중이거나 완료된 전표는 삭제할 수 없습니다.
      * DRAFT/SAVED 상태만 삭제 허용 (운영 정책).
      */
     SLIP_DELETE_INSPECTION_COMPLETED(HttpStatus.UNPROCESSABLE_ENTITY,
-            "검수 진행 중이거나 완료된 매입 전표는 삭제할 수 없습니다."),
+            "검수 진행 중이거나 완료된 입고 전표는 삭제할 수 없습니다."),
     /**
-     * 매입 전표 삭제 불가 — slipType 이 INBOUND 가 아닌 전표에 매입 삭제 endpoint 호출.
+     * 입고 전표 삭제 불가 — slipType 이 INBOUND 가 아닌 전표에 매입 삭제 endpoint 호출.
      */
     SLIP_DELETE_NON_INBOUND(HttpStatus.FORBIDDEN,
-            "매입 전표만 삭제할 수 있습니다."),
+            "입고 전표만 삭제할 수 있습니다."),
     /**
-     * 매출 전표 수정 불가 — slipType 이 OUTBOUND 가 아닌 전표에 매출 수정 endpoint 호출.
+     * 출고 전표 수정 불가 — slipType 이 OUTBOUND 가 아닌 전표에 매출 수정 endpoint 호출.
      */
     SLIP_UPDATE_NON_SALES(HttpStatus.FORBIDDEN,
-            "매출 전표만 직접 수정할 수 있습니다."),
+            "출고 전표만 직접 수정할 수 있습니다."),
     /**
-     * 매출 전표 삭제 불가 — 출고 진행 중이거나 완료된 전표는 삭제할 수 없습니다.
+     * 출고 전표 삭제 불가 — 출고 진행 중이거나 완료된 전표는 삭제할 수 없습니다.
      * DRAFT/SAVED 상태만 삭제 허용 (운영 정책).
      */
     SLIP_DELETE_SALES_SHIPPED(HttpStatus.UNPROCESSABLE_ENTITY,
-            "출고 진행 중이거나 완료된 매출 전표는 삭제할 수 없습니다."),
+            "출고 진행 중이거나 완료된 출고 전표는 삭제할 수 없습니다."),
     /**
-     * 매출 전표 삭제 불가 — slipType 이 OUTBOUND 가 아닌 전표에 매출 삭제 endpoint 호출.
+     * 출고 전표 삭제 불가 — slipType 이 OUTBOUND 가 아닌 전표에 매출 삭제 endpoint 호출.
      */
     SLIP_DELETE_NON_SALES(HttpStatus.FORBIDDEN,
-            "매출 전표만 삭제할 수 있습니다."),
+            "출고 전표만 삭제할 수 있습니다."),
     PARTNER_ORDER_FROM_ESTIMATE_NOT_FOUND(HttpStatus.NOT_FOUND,
             "변환할 견적을 찾을 수 없습니다."),
     PARTNER_ORDER_FROM_ESTIMATE_ALREADY_CONVERTED(HttpStatus.CONFLICT,
@@ -81,6 +81,9 @@ public enum ErrorCode {
      */
     PRICE_CALCULATION_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE,
             "가격 계산 서버가 응답하지 않아 주문을 확정할 수 없습니다. 잠시 후 다시 시도해 주세요."),
+    /** Claude 외부 모델 자격 미설정 — 목업 응답으로 대체하지 않고 503으로 중단한다. */
+    CLAUDE_CREDENTIAL_NOT_CONFIGURED(HttpStatus.SERVICE_UNAVAILABLE,
+            "Claude 자격이 설정되지 않았습니다. 환경변수를 확인해주세요."),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다."),
     /**
      * 도메인 specific — product-service 의 modelCode/UUID 조회 미존재.
@@ -170,10 +173,10 @@ public enum ErrorCode {
     SAS_LINE_AMOUNT_MISMATCH(HttpStatus.UNPROCESSABLE_ENTITY,
             "라인의 공급가액+부가세가 라인 합계와 다릅니다."),
     /**
-     * 단일 매출/매입전표 내 line 단위 tax_type 혼합 금지 (SAS 슬라이스).
+     * 단일 매출/입고전표 내 line 단위 tax_type 혼합 금지 (SAS 슬라이스).
      */
     SAS_TAX_TYPE_MIXED(HttpStatus.UNPROCESSABLE_ENTITY,
-            "단일 매출/매입전표 내 라인 단위 과세유형 혼합은 금지됩니다."),
+            "단일 매출/입고전표 내 라인 단위 과세유형 혼합은 금지됩니다."),
     /**
      * 이미 POSTED 된 전표는 수정 불가 (SAS 슬라이스).
      */
@@ -185,30 +188,30 @@ public enum ErrorCode {
     SAS_DAILY_CLOSING_LOCKED(HttpStatus.CONFLICT,
             "해당 일자 일마감이 잠겨 있습니다."),
     /**
-     * 이미 세금계산서와 매핑된 매출전표 (SAS 슬라이스).
+     * 이미 세금계산서와 매핑된 출고전표 (SAS 슬라이스).
      */
     SAS_TAX_INVOICE_ALREADY_LINKED(HttpStatus.CONFLICT,
-            "이미 세금계산서와 매핑된 매출전표입니다."),
+            "이미 세금계산서와 매핑된 출고전표입니다."),
     /**
      * 묶음 발행 시 거래처 또는 발행월이 일치하지 않음 (SAS 슬라이스).
      */
     SAS_PARTNER_MONTH_MISMATCH(HttpStatus.UNPROCESSABLE_ENTITY,
             "묶음 발행 시 거래처 또는 발행월이 일치하지 않습니다."),
     /**
-     * 매출전표가 POSTED 상태가 아니어서 세금계산서 묶음 발행 불가 (SAS 슬라이스).
+     * 출고전표가 POSTED 상태가 아니어서 세금계산서 묶음 발행 불가 (SAS 슬라이스).
      */
     SAS_SALES_SLIP_NOT_POSTED(HttpStatus.UNPROCESSABLE_ENTITY,
-            "반영완료 상태 매출전표만 세금계산서 묶음 발행할 수 있습니다."),
+            "반영완료 상태 출고전표만 세금계산서 묶음 발행할 수 있습니다."),
     /**
-     * 매입전표가 POSTED 상태가 아니어서 수신 세금계산서 매칭 불가 (SAS 슬라이스).
+     * 입고전표가 POSTED 상태가 아니어서 수신 세금계산서 매칭 불가 (SAS 슬라이스).
      */
     SAS_PURCHASE_SLIP_NOT_POSTED(HttpStatus.UNPROCESSABLE_ENTITY,
-            "반영완료 상태 매입전표만 수신 세금계산서와 매칭할 수 있습니다."),
+            "반영완료 상태 입고전표만 수신 세금계산서와 매칭할 수 있습니다."),
     /**
-     * 매출/매입전표 번호 생성 충돌 — timestamp 기반 PoC 채번 중 slip_no unique 충돌 발생.
+     * 매출/입고전표 번호 생성 충돌 — timestamp 기반 PoC 채번 중 slip_no unique 충돌 발생.
      */
     SAS_SLIP_NO_CONFLICT(HttpStatus.CONFLICT,
-            "매출/매입전표 번호 충돌 — 재시도 권장"),
+            "매출/입고전표 번호 충돌 — 재시도 권장"),
     /**
      * MIG-2 이카운트 마스터 CSV 헤더 형식 불일치.
      */

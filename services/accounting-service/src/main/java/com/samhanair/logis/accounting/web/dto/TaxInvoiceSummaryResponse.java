@@ -6,6 +6,7 @@ import com.samhanair.logis.accounting.domain.TaxInvoiceType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 세금계산서 목록 조회 응답 (P0-4 — Slice C 패턴).
@@ -59,7 +60,13 @@ public record TaxInvoiceSummaryResponse(
         LocalDateTime cancelledAt,
 
         /** 취소 사유. */
-        String cancelReason
+        String cancelReason,
+
+        /** Q4 legacy 정책 marker — true이면 생성/수정/발행이 아닌 읽기만 허용. */
+        boolean legacyReadOnly,
+
+        /** 사용자 표시용 eligibility 사유. UUID는 포함하지 않는다. */
+        List<String> eligibilityReasons
 ) {
     /**
      * TaxInvoice 엔티티 → TaxInvoiceSummaryResponse 변환.
@@ -83,7 +90,11 @@ public record TaxInvoiceSummaryResponse(
                 ti.getIssuedAt(),
                 ti.getIssuedBy(),
                 ti.getCancelledAt(),
-                ti.getCancelReason()
+                ti.getCancelReason(),
+                ti.isLegacyReadOnly(),
+                ti.isLegacyReadOnly()
+                        ? List.of("LEGACY_READ_ONLY", "기존 legacy 세금계산서는 읽기 전용입니다")
+                        : List.of()
         );
     }
 }

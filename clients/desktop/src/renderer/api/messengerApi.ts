@@ -48,7 +48,10 @@ export async function searchRecipients(q: string): Promise<RecipientOption[]> {
     '/admin/groupware/messages/recipient-search',
     { params: { q, limit: '10000' } },
   )
-  return response.data.data
+  return response.data.data.map((recipient) => ({
+    ...recipient,
+    name: sanitizeInternalLabel(recipient.name) ?? '알 수 없는 사용자',
+  }))
 }
 
 /** 복수 수신 메신저 발송. 송신자 식별자는 payload에 포함하지 않는다. */
@@ -84,14 +87,27 @@ export async function markMessageRead(messageId: string): Promise<MessageRespons
 export interface ChatRoom { roomCode: string; type: 'DIRECT' | 'GROUP' | 'SYSTEM'; roomName: string | null; partnerName?: string | null; partnerDepartment?: string | null; partnerEmployeeCode?: string | null }
 export interface ChatMessage { roomCode: string; sequence: number; body: string; sentAt: string; senderName?: string | null; senderDepartment?: string | null; senderEmployeeCode?: string | null; mine?: boolean }
 
+/** 개발용 seed provenance는 데이터 보존 대상이지만 사용자 표시 경계에서는 제거한다. */
+export function sanitizeInternalLabel(value: string | null | undefined): string | null | undefined {
+  if (value == null) return value
+  return value.replace(/^\[DEV-SEED\]\s*/i, '').trim() || '알 수 없는 사용자'
+}
+
 export async function fetchChatRooms(): Promise<ChatRoom[]> {
   const response = await apiClient.get<ApiEnvelope<ChatRoom[]>>('/admin/groupware/chat/rooms')
-  return response.data.data
+  return response.data.data.map((room) => ({
+    ...room,
+    roomName: sanitizeInternalLabel(room.roomName) ?? null,
+    partnerName: sanitizeInternalLabel(room.partnerName),
+  }))
 }
 
 export async function fetchChatMessages(roomCode: string): Promise<ChatMessage[]> {
   const response = await apiClient.get<ApiEnvelope<ChatMessage[]>>(`/admin/groupware/chat/rooms/${encodeURIComponent(roomCode)}/messages`)
-  return response.data.data
+  return response.data.data.map((message) => ({
+    ...message,
+    senderName: sanitizeInternalLabel(message.senderName),
+  }))
 }
 
 export async function sendChatMessage(roomCode: string, body: string): Promise<ChatMessage> {
@@ -101,5 +117,6 @@ export async function sendChatMessage(roomCode: string, body: string): Promise<C
 
 export async function createDirectChatRoom(participantId: string): Promise<ChatRoom> {
   const response = await apiClient.post<ApiEnvelope<ChatRoom>>('/admin/groupware/chat/rooms/direct', { participantId })
-  return response.data.data
+  const room = response.data.data
+  return { ...room, roomName: sanitizeInternalLabel(room.roomName) ?? null, partnerName: sanitizeInternalLabel(room.partnerName) }
 }

@@ -22,7 +22,7 @@ public class SlipRestoreController {
 
     private final SlipRestoreService restoreService;
 
-    @Operation(summary = "판매전표 목록 삭제행 복원",
+    @Operation(summary = "출고전표 목록 삭제행 복원",
             description = "soft-deleted 전표를 복원합니다. 동일 전표번호 활성행이 있으면 409 를 반환합니다.")
     @PostMapping("/{id}/restore")
     @RequirePermission(page = "sales.slip.list", action = PermissionAction.RESTORE)

@@ -31,7 +31,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 
-/** MIG-3 매입전표 importer RED 가드. */
+/** MIG-3 입고전표 importer RED 가드. */
 @ExtendWith(MockitoExtension.class)
 class EcountPurchaseSlipImporterTest {
 
@@ -59,7 +59,7 @@ class EcountPurchaseSlipImporterTest {
     @Test
     void importCsv_정상_1건을_purchaseSlip으로_적재한다() {
         EcountVoucherImportResult result = importer.importCsv(stream(purchaseCsv("""
-                "2026/05/18 -253\t","매입전표 I(매입)\t","1,200\t","삼한상사\t","원자재 매입\t",""
+                "2026/05/18 -253\t","입고전표 I(매입)\t","1,200\t","삼한상사\t","원자재 매입\t",""
                 """)), "tester");
 
         assertThat(result.totalRows()).isEqualTo(1);
@@ -86,7 +86,7 @@ class EcountPurchaseSlipImporterTest {
         when(partnerLookupClient.findByPartnerNameStrict("미등록거래처")).thenReturn(Optional.empty());
 
         EcountVoucherImportResult result = importer.importCsv(stream(purchaseCsv("""
-                "2026/05/18 -253\t","매입전표 I(매입)\t","1,200\t","미등록거래처\t","원자재 매입\t",""
+                "2026/05/18 -253\t","입고전표 I(매입)\t","1,200\t","미등록거래처\t","원자재 매입\t",""
                 """)), "tester");
 
         assertThat(result.imported()).isZero();
@@ -100,7 +100,7 @@ class EcountPurchaseSlipImporterTest {
     @Test
     void importCsv_금액_0이하는_MIG3_SLIP_AMOUNT_INVALID로_reject한다() {
         EcountVoucherImportResult result = importer.importCsv(stream(purchaseCsv("""
-                "2026/05/18 -253\t","매입전표 I(매입)\t","0\t","삼한상사\t","원자재 매입\t",""
+                "2026/05/18 -253\t","입고전표 I(매입)\t","0\t","삼한상사\t","원자재 매입\t",""
                 """)), "tester");
 
         assertThat(result.rejected()).isEqualTo(1);
@@ -112,8 +112,8 @@ class EcountPurchaseSlipImporterTest {
     @Test
     void importCsv_동일파일_전표번호_중복은_MIG3_VOUCHER_NO_DUPLICATE로_reject한다() {
         EcountVoucherImportResult result = importer.importCsv(stream(purchaseCsv("""
-                "2026/05/18 -253\t","매입전표 I(매입)\t","1,200\t","삼한상사\t","원자재 매입\t",""
-                "2026/05/18 -253\t","매입전표 I(매입)\t","3,400\t","삼한상사\t","원자재 추가\t",""
+                "2026/05/18 -253\t","입고전표 I(매입)\t","1,200\t","삼한상사\t","원자재 매입\t",""
+                "2026/05/18 -253\t","입고전표 I(매입)\t","3,400\t","삼한상사\t","원자재 추가\t",""
                 """)), "tester");
 
         assertThat(result.imported()).isEqualTo(1);
@@ -126,9 +126,9 @@ class EcountPurchaseSlipImporterTest {
     @Test
     void importCsv_source_row_no는_데이터행_기준_1부터_증가한다() {
         importer.importCsv(stream(purchaseCsv("""
-                "2026/05/18 -253\t","매입전표 I(매입)\t","1,200\t","삼한상사\t","원자재 매입\t",""
-                "2026/05/19 -254\t","매입전표 I(매입)\t","3,400\t","삼한상사\t","원자재 추가\t",""
-                "2026/05/20 -255\t","매입전표 I(매입)\t","5,600\t","삼한상사\t","원자재 추가2\t",""
+                "2026/05/18 -253\t","입고전표 I(매입)\t","1,200\t","삼한상사\t","원자재 매입\t",""
+                "2026/05/19 -254\t","입고전표 I(매입)\t","3,400\t","삼한상사\t","원자재 추가\t",""
+                "2026/05/20 -255\t","입고전표 I(매입)\t","5,600\t","삼한상사\t","원자재 추가2\t",""
                 """)), "tester");
 
         ArgumentCaptor<SqlParameterSource> params = ArgumentCaptor.forClass(SqlParameterSource.class);
@@ -143,8 +143,8 @@ class EcountPurchaseSlipImporterTest {
     @Test
     void importCsv_행별_형식오류가_다른행_import를_막지_않는다() {
         EcountVoucherImportResult result = importer.importCsv(stream(purchaseCsv("""
-                "bad-voucher\t","매입전표 I(매입)\t","1,200\t","삼한상사\t","오류\t",""
-                "2026/05/19 -254\t","매입전표 I(매입)\t","3,400\t","삼한상사\t","정상\t",""
+                "bad-voucher\t","입고전표 I(매입)\t","1,200\t","삼한상사\t","오류\t",""
+                "2026/05/19 -254\t","입고전표 I(매입)\t","3,400\t","삼한상사\t","정상\t",""
                 """)), "tester");
 
         assertThat(result.imported()).isEqualTo(1);
@@ -174,7 +174,7 @@ class EcountPurchaseSlipImporterTest {
             EcountCsvSupport.validateHeader(parsed.header(), EcountPurchaseSlipImporter.HEADERS);
             // raw 파일은 docs/migration/ecount-data/raw/ 에 회사/자택 PC 에만 존재 (CI Linux 미존재).
             // 존재 시 fixture 와 cross-check, 미존재 시 skip (feedback_testcontainers_windows_docker 답습).
-            Path raw = rawPath("매입전표I-Excel다운로드(20260501~20260519_1).csv");
+            Path raw = rawPath("입고전표I-Excel다운로드(20260501~20260519_1).csv");
             org.junit.jupiter.api.Assumptions.assumeTrue(Files.exists(raw),
                     "raw CSV (" + raw + ") 미존재 → cross-check skip");
             EcountCsvSupport.ParsedCsv rawCsv = EcountCsvSupport.parse(Files.readAllBytes(raw));
@@ -188,7 +188,7 @@ class EcountPurchaseSlipImporterTest {
 
     private static String purchaseCsv(String rows) {
         return """
-                "데이터관리>매입전표 I-Excel다운로드"
+                "데이터관리>입고전표 I-Excel다운로드"
                 "전표번호\t","거래유형\t","금액\t","거래처명\t","적요명\t",""
                 """ + rows;
     }

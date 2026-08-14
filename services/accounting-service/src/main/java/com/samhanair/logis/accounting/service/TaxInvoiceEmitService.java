@@ -114,7 +114,9 @@ public class TaxInvoiceEmitService {
 
         TaxInvoice ti = taxInvoiceRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                        "세금계산서를 찾을 수 없습니다: " + id));
+                          "세금계산서를 찾을 수 없습니다: " + id));
+
+        ti.requireMutable("e-Tax 전송은 ");
 
         // 도메인 사전 검증 — ISSUED 상태 + 중복 방지.
         // 실제 markEmitted 내에서도 동일 검증을 하지만, ETaxClient 호출 전에 먼저 검증하여

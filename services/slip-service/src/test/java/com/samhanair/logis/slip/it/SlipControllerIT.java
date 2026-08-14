@@ -163,7 +163,7 @@ class SlipControllerIT extends AbstractPostgresIT {
         body.put("destinationWarehouseId", UUID.randomUUID().toString());
         body.put("partnerId", UUID.randomUUID().toString());
         body.put("partnerName", "테스트 거래처");
-        body.put("deliveryTag", "DAY");
+        body.put("deliveryTag", "SALE");
         body.put("memo", "테스트");
         body.put("lines", List.of(line));
         return body;
@@ -176,7 +176,7 @@ class SlipControllerIT extends AbstractPostgresIT {
         line.put("modelName", "PUR-M4");
         line.put("quantity", 3);
         line.put("unitPrice", 120000);
-        line.put("note", "M4 매입 전표 권한 테스트");
+        line.put("note", "M4 입고 전표 권한 테스트");
 
         Map<String, Object> body = new HashMap<>();
         body.put("slipType", "INBOUND");
@@ -185,7 +185,7 @@ class SlipControllerIT extends AbstractPostgresIT {
         body.put("partnerId", UUID.randomUUID().toString());
         body.put("partnerName", "매입 권한 테스트 거래처");
         body.put("deliveryTag", "RETURN_TRIP");
-        body.put("memo", "M4 매입 전표 권한 테스트");
+        body.put("memo", "M4 입고 전표 권한 테스트");
         body.put("lines", List.of(line));
         return body;
     }
@@ -370,7 +370,7 @@ class SlipControllerIT extends AbstractPostgresIT {
         body.put("sourceWarehouseId", UUID.randomUUID().toString());
         body.put("destinationWarehouseId", UUID.randomUUID().toString());
         body.put("partnerName", "VAT거래처");
-        body.put("deliveryTag", "DAY");
+        body.put("deliveryTag", "SALE");
         body.put("lines", List.of(line));
 
         mockMvc.perform(post("/slips")
@@ -402,7 +402,7 @@ class SlipControllerIT extends AbstractPostgresIT {
         body.put("sourceWarehouseId", UUID.randomUUID().toString());
         body.put("destinationWarehouseId", UUID.randomUUID().toString());
         body.put("partnerName", "원단위거래처");
-        body.put("deliveryTag", "DAY");
+        body.put("deliveryTag", "SALE");
         body.put("lines", List.of(line));
 
         mockMvc.perform(post("/slips")
@@ -432,7 +432,7 @@ class SlipControllerIT extends AbstractPostgresIT {
         body.put("sourceWarehouseId", UUID.randomUUID().toString());
         body.put("destinationWarehouseId", UUID.randomUUID().toString());
         body.put("partnerName", "항등식거래처");
-        body.put("deliveryTag", "DAY");
+        body.put("deliveryTag", "SALE");
         body.put("lines", List.of(line));
 
         mockMvc.perform(post("/slips")
@@ -462,7 +462,7 @@ class SlipControllerIT extends AbstractPostgresIT {
         body.put("sourceWarehouseId", UUID.randomUUID().toString());
         body.put("destinationWarehouseId", UUID.randomUUID().toString());
         body.put("partnerName", "부분값거래처");
-        body.put("deliveryTag", "DAY");
+        body.put("deliveryTag", "SALE");
         body.put("lines", List.of(line));
 
         mockMvc.perform(post("/slips")
@@ -828,7 +828,7 @@ class SlipControllerIT extends AbstractPostgresIT {
         body.put("destinationWarehouseId", UUID.randomUUID().toString());
         body.put("partnerId", UUID.randomUUID().toString());
         body.put("partnerName", "거래처");
-        body.put("deliveryTag", "DAY");
+        body.put("deliveryTag", "SALE");
         body.put("memo", "메모");
         body.put("lines", List.of(line));
 

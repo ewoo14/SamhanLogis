@@ -30,7 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
  * (QA BUG-2 fix — PR #146).
  *
  * <h2>#907 재수렴 R — 화면 필터 파리티</h2>
- * <p>기존에는 항상 {@link SlipService#list} 만 위임해 판매전표목록(SlipListPage) 화면의
+ * <p>기존에는 항상 {@link SlipService#list} 만 위임해 출고전표목록(SlipListPage) 화면의
  * 배송태그 필터·삭제행 포함 여부는 반영됐어도, 판매/구매관리(SalesQueryPage/PurchaseQueryPage)
  * 검색모달의 자유검색(전표번호/거래처명/사업자번호/프로젝트명/배송주소)은 export 파라미터
  * 자체가 없어 화면에서 좁혀도 파일은 slipType/기간만으로 전체가 나왔다(예: 화면 1건 / 파일
@@ -92,7 +92,7 @@ public class SlipExcelExportService {
      * <p>{@code search*} 파라미터가 1개라도 채워지면 {@link SlipQueryService#listForQuery} 로
      * 위임한다(판매/구매관리 검색모달 파리티 — deliveryTags/includeDeleted 는 이 경로에서 무시,
      * 두 화면 모두 해당 필터가 없음). 그렇지 않으면 기존 {@link SlipService#list} 위임 경로를
-     * 쓰되 deliveryTags/includeDeleted 를 반영한다(판매전표목록 파리티).
+     * 쓰되 deliveryTags/includeDeleted 를 반영한다(출고전표목록 파리티).
      *
      * @param slipType              전표 유형 필터 (null 이면 전체)
      * @param status                상태 필터 (null 이면 전체)

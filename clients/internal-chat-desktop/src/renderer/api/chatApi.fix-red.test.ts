@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  createDirectChatRoomByEmployeeCode,
   createGroupChatRoom,
   fetchGroupChatRooms,
   fetchMessengerDirectory,
@@ -34,5 +35,13 @@ describe('채팅 API gateway 계약 RED', () => {
       'http://localhost:8080/admin/groupware/chat/rooms/groups',
       'http://localhost:8080/admin/groupware/chat/rooms/groups',
     ])
+  })
+
+  it('1:1 employeeCode 생성은 명시적 v1 관리자 게이트웨이 경로를 사용한다', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(JSON.stringify({ data: { roomCode: 'ROOM-1' } }), { status: 201 }))
+
+    await createDirectChatRoomByEmployeeCode('EMP-1')
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe('http://localhost:8080/api/v1/admin/groupware/chat/rooms/direct/by-employee-code')
   })
 })

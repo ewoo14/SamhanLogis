@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 매입 전표 soft delete endpoint — SP-08-5-3.
+ * 입고 전표 soft delete endpoint — SP-08-5-3.
  *
  * <p>WAREHOUSE / MANAGER / MASTER 가 INBOUND 전표를 {@code updatedAt} 낙관적 잠금으로
  * 즉시 삭제한다. 물리 삭제(hard delete)는 절대 수행하지 않으며
@@ -48,7 +48,7 @@ public class SlipDeleteController {
      * @return {@code ApiResponse<Void>} (data: null)
      */
     @Operation(
-            summary = "매입 전표 soft delete",
+            summary = "입고 전표 soft delete",
             description = "WAREHOUSE/MANAGER/MASTER 가 INBOUND 전표를 updatedAt 낙관적 잠금으로 삭제합니다. "
                     + "물리 삭제 불가, DRAFT/SAVED 단계만 삭제 허용.")
     @DeleteMapping("/{id}")

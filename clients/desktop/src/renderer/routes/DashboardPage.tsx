@@ -14,6 +14,7 @@ import { listSlips } from '../api/slip'
 import { canQueryPurchases, canQuerySales, useSessionStore } from '../stores/session'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
+import { sanitizeDisplayName } from '../common/userDisplayName'
 
 export function DashboardPage() {
   usePageTitle('대시보드')
@@ -40,13 +41,13 @@ export function DashboardPage() {
   return (
     <>
       <p style={{ marginTop: 0 }}>
-        환영합니다, <strong>{auth?.fullName ?? '사용자'}</strong> 님.
+        환영합니다, <strong>{sanitizeDisplayName(auth?.fullName)}</strong> 님.
       </p>
 
       <div className="dashboard-grid">
         {canReadSales ? (
           <Card padding={4} shadow="sm">
-            <p className="stat-label">처리중 판매전표</p>
+            <p className="stat-label">처리중 출고전표</p>
             <p className="stat-value">
               {processingQuery.isLoading ? '...' : processingCount}
             </p>
@@ -80,7 +81,7 @@ export function DashboardPage() {
             onClick={() => navigate('/sales/new')}
             disabled={!canAccess('sales.slip.create', 'create')}
           >
-            새 판매전표
+            새 출고전표
           </Button>
           {canReadSales ? (
             <Button variant="secondary" onClick={() => navigate('/sales')}>

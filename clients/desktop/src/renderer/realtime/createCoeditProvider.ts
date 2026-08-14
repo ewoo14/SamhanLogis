@@ -9,6 +9,7 @@ import { makeCoeditApi, normalizeCoeditBasePath } from './coeditApi'
 import { createRealtimeClient } from './createRealtimeClient'
 import type { RealtimeEvent } from './createRealtimeClient'
 import { presenceHexFromUserId } from '../utils/presenceColor'
+import { sanitizeDisplayName } from '../common/userDisplayName'
 
 const REMOTE_ORIGIN = 'samhan-coedit-remote'
 const POST_DEBOUNCE_MS = 150
@@ -207,7 +208,7 @@ function isEditAwarenessState(value: unknown, fieldPath?: string): value is {
 async function resolveLocalUser(): Promise<{ displayName: string; color: string }> {
   try {
     const session = await getAuthProvider().getSession()
-    const displayName = session?.fullName?.trim() || '사용자'
+    const displayName = sanitizeDisplayName(session?.fullName)
     return {
       displayName,
       color: presenceHexFromUserId(session?.userId || displayName),

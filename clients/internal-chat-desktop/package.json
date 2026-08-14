@@ -2,7 +2,7 @@
   "name": "@samhan/internal-chat-desktop",
   "version": "0.1.0",
   "private": true,
-  "description": "Samhan Public 사내 메신저 독립 데스크톱 앱 셸",
+  "description": "Samhan Public internal chat desktop shell",
   "main": "out/main/index.js",
   "type": "module",
   "scripts": {
@@ -12,15 +12,17 @@
     "build:win": "node ../../scripts/build-internal-chat-desktop-release.cjs",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:electron-contract": "node scripts/build-and-run-electron-contract.cjs"
   },
   "dependencies": {
-    "@tanstack/react-query": "^5.59.20",
     "@samhan/design-system": "file:../web/design-system",
+    "@tanstack/react-query": "^5.59.20",
     "electron-updater": "^6.8.9",
+    "electron-store": "^10.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^6.27.0"
+    "react-router-dom": "^7.18.2"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",
@@ -29,6 +31,7 @@
     "@types/react-dom": "^18.3.1",
     "@typescript-eslint/parser": "^8.13.0",
     "@types/node": "^22.10.1",
+    "@playwright/test": "^1.59.1",
     "electron": "^33.2.0",
     "electron-builder": "^25.1.8",
     "electron-vite": "^2.3.0",

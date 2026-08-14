@@ -1,0 +1,1127 @@
+{
+  "startedAt": "2026-08-13T14:56:58.901Z",
+  "api": [
+    {
+      "label": "그룹 목록",
+      "method": "GET",
+      "path": "/auth/admin/permission-groups",
+      "status": 200,
+      "elapsedMs": 27.264,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":[{\"id\":\"00000000-0000-0000-0000-000000000100\",\"name\":\"마스터\",\"description\":\"MASTER 시스템 전권 그룹\",\"builtin\":true,\"systemMaster\":true,\"assignedAccountCount\":1},{\"id\":\"7299e581-bdfb-41a8-b0d9-96304157760f\",\"name\":\"QA1180 Claude ??\",\"description\":\"PR1180 liveqa isolated\",\"builtin\":false,\"systemMaster\":false,\"assignedAccountCount\":2},{\"id\":\"6aadd396-1d28-45c2-b262-90bdc503973d\",\"name\":\"QA1180 Claude 허용 그룹\",\"description\":\"PR1180 격리 라이브QA\",\"builtin\":false,\"systemMaster\":false,\"assignedAccountCount\":2},{\"id\":\"00000000-0000-0000-0000-000000000109\",\"name\":\"개발자\",\"description\":\"DEVELOPER 기본 권한그룹\",\"builtin\":false,\"systemMaster\":false,\"assignedAccountCount\":1},{\"id\":\"00000000-0000-0000-0000-000000000107\",\"name\":\"기사\",\"description\":\"DRIVER 기본 권한그룹\",\"builtin\":false,\"systemMaster\":false,\"assignedAccountCount\":1},{\"id\":\"00000000-0000-0000-0000-000000000101\",\"name\":\"매니저\",\"description\":\"MANAGER 기본 권한그룹\",\"builtin\":false,\"systemMaster\":false,\"assignedAccountCount\":1},{\"id\":\"00000000-0000-0000-0000-000000000106\",\"name\":\"배차담당자\",\"description\":\"DISPATCH 기본 권한그룹\",\"builtin\":false,\"systemMaster\":false,\"assignedAccountCount\":1},{\"id\":\"00000000-0000-0000-0000-000000000108\",\"name\":\"사원\",\"description\":\"STAFF 기본 권한그룹\",\"builtin\":false,\"systemMaster\":false,\"assignedAccountCount\":1},{\"id\":\"00000000-0000-0000-0000-000000000102\",\"name\":\"영업원\",\"description\":\"SALES 기본 권한그룹\",\"builtin\":false,\"systemMaster\":false,\"assignedAccountCount\":2},{\"id\":\"00000000-0000-0000-0000-000000000105\",\"name\":\"재고원\",\"description\":\"INVENTORY 기본 권한그룹\",\"builtin\":false,\"systemMaster\":false,\"assignedAccountCount\":1},{\"id\":\"00000000-0000-0000-0000-000000000103\",\"name\":\"창고원\",\"description\":\"WAREHOUSE 기본 권한그룹\",\"builtin\":false,\"systemMaster\":false,\"assignedAccountCount\":1},{\"id\":\"00000000-0000-0000-0000-000000000104\",\"name\":\"회계원\",\"description\":\"ACCOUNTANT 기본 권한그룹\",\"builtin\":false,\"systemMaster\":false,\"assignedAccountCount\":1}],\"timestamp\":\"2026-08-13T14:56:58.924720804Z\"}"
+    },
+    {
+      "label": "그룹 system.claude VIEW ON",
+      "method": "PUT",
+      "path": "/auth/admin/permission-groups/6aadd396-1d28-45c2-b262-90bdc503973d/permissions",
+      "status": 200,
+      "elapsedMs": 128.466,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"changedCount\":1},\"timestamp\":\"2026-08-13T14:56:59.058158994Z\"}"
+    },
+    {
+      "label": "SALES QA 그룹 배속",
+      "method": "POST",
+      "path": "/auth/admin/accounts/a0000000-0000-0000-0000-000000000004/groups",
+      "status": 200,
+      "elapsedMs": 69.425,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"accountId\":\"a0000000-0000-0000-0000-000000000004\",\"accountDisplayName\":\"[DEV-SEED] 개발영업\",\"groupId\":\"6aadd396-1d28-45c2-b262-90bdc503973d\",\"groupName\":\"QA1180 Claude 허용 그룹\",\"groupDescription\":\"PR1180 격리 라이브QA\",\"groupBuiltin\":false,\"groupSystemMaster\":false},\"timestamp\":\"2026-08-13T14:56:59.127449236Z\"}"
+    },
+    {
+      "label": "ACCOUNTANT QA 그룹 배속",
+      "method": "POST",
+      "path": "/auth/admin/accounts/a0000000-0000-0000-0000-000000000005/groups",
+      "status": 200,
+      "elapsedMs": 76.383,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"accountId\":\"a0000000-0000-0000-0000-000000000005\",\"accountDisplayName\":\"[DEV-SEED] 개발회계\",\"groupId\":\"6aadd396-1d28-45c2-b262-90bdc503973d\",\"groupName\":\"QA1180 Claude 허용 그룹\",\"groupDescription\":\"PR1180 격리 라이브QA\",\"groupBuiltin\":false,\"groupSystemMaster\":false},\"timestamp\":\"2026-08-13T14:56:59.204044122Z\"}"
+    },
+    {
+      "label": "MANAGER 개인 ON",
+      "method": "PUT",
+      "path": "/auth/admin/permissions/account/a0000000-0000-0000-0000-000000000003",
+      "status": 200,
+      "elapsedMs": 85.341,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"changedCount\":1},\"timestamp\":\"2026-08-13T14:56:59.289518781Z\"}"
+    },
+    {
+      "label": "ACCOUNTANT 개인 ON",
+      "method": "PUT",
+      "path": "/auth/admin/permissions/account/a0000000-0000-0000-0000-000000000005",
+      "status": 200,
+      "elapsedMs": 77.9,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"changedCount\":1},\"timestamp\":\"2026-08-13T14:56:59.367977709Z\"}"
+    },
+    {
+      "label": "WAREHOUSE 개인 OFF",
+      "method": "PUT",
+      "path": "/auth/admin/permissions/account/a0000000-0000-0000-0000-000000000006",
+      "status": 200,
+      "elapsedMs": 62.297,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"changedCount\":1},\"timestamp\":\"2026-08-13T14:56:59.430083685Z\"}"
+    },
+    {
+      "label": "4조합: 개인별만 켜짐",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 501,
+      "elapsedMs": 8.92,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.437458707Z\"}"
+    },
+    {
+      "label": "4조합: 그룹별만 켜짐",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 501,
+      "elapsedMs": 7.264,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.446620055Z\"}"
+    },
+    {
+      "label": "4조합: 둘 다 켜짐",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 501,
+      "elapsedMs": 15.08,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.461280218Z\"}"
+    },
+    {
+      "label": "4조합: 둘 다 꺼짐",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 7.053,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.469215783Z\"}"
+    },
+    {
+      "label": "캐시 신선도: MANAGER OFF",
+      "method": "PUT",
+      "path": "/auth/admin/permissions/account/a0000000-0000-0000-0000-000000000003",
+      "status": 200,
+      "elapsedMs": 81.886,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"changedCount\":1},\"timestamp\":\"2026-08-13T14:56:59.550647436Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #8",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 22.343,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.571696847Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #5",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 22.973,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.572069340Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #6",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 23.2,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.571696763Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #10",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 23.2,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.571844655Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #7",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 23.436,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.572295099Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #4",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 23.739,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.572439880Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #1",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 24.336,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.572486781Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #9",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 23.667,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.572509390Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #3",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 24.183,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.572508157Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #2",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 24.456,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.572968Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #13",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 23.868,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.573931585Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #11",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 24.421,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.574059353Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #14",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 24.962,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.574310064Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #12",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 25.87,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.574631749Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #16",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 26.184,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.574720761Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #18",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 26.43,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.574656051Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #15",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 26.868,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.574975755Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #20",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 27.06,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.575230201Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #19",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 27.475,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.575443103Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #17",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 27.863,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.575395266Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #34",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 27.275,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.576106416Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #35",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 27.485,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.576962958Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #23",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 28.701,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.577067445Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #24",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 28.738,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.576919759Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #25",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 28.891,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.576835089Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #41",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 28.494,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.577464420Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #29",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 29.195,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.577715337Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #46",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 28.965,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.577859923Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #27",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 30.133,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.577884050Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #28",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 30.285,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.577884045Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #33",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 30.423,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.578695068Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #36",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 30.573,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.579484205Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #37",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 30.862,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.579600910Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #22",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 32.073,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.579431071Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #31",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 31.673,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.579704894Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #32",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 31.789,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.579865419Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #38",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 31.763,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.580068264Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #42",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 31.715,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.580239581Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #39",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 31.881,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.580233760Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #21",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 33.046,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.580319801Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #40",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 32.024,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.580937325Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #43",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 32.018,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.581519014Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #45",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 32.068,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.581803867Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #44",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 32.166,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.582045209Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #49",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 32.098,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.582415177Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #26",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 32.987,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.581854475Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #47",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 32.435,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.582585573Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #30",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 33.301,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.582527990Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #50",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 32.739,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.582908149Z\"}"
+    },
+    {
+      "label": "캐시 OFF 직후 #48",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 32.927,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.583011064Z\"}"
+    },
+    {
+      "label": "캐시 신선도 후 MANAGER ON 복구",
+      "method": "PUT",
+      "path": "/auth/admin/permissions/account/a0000000-0000-0000-0000-000000000003",
+      "status": 200,
+      "elapsedMs": 88.023,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"changedCount\":1},\"timestamp\":\"2026-08-13T14:56:59.674375377Z\"}"
+    },
+    {
+      "label": "다른 페이지 view 단독 ON",
+      "method": "PUT",
+      "path": "/auth/admin/permissions/account/a0000000-0000-0000-0000-000000000002",
+      "status": 200,
+      "elapsedMs": 74.31,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"changedCount\":1},\"timestamp\":\"2026-08-13T14:56:59.748754533Z\"}"
+    },
+    {
+      "label": "products.list:view가 Claude에 영향 없음",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 5.915,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.754977880Z\"}"
+    },
+    {
+      "label": "다른 페이지 create 단독 ON",
+      "method": "PUT",
+      "path": "/auth/admin/permissions/account/a0000000-0000-0000-0000-000000000002",
+      "status": 200,
+      "elapsedMs": 74.055,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"changedCount\":1},\"timestamp\":\"2026-08-13T14:56:59.828692472Z\"}"
+    },
+    {
+      "label": "products.list:create가 Claude에 영향 없음",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 5.463,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.834679515Z\"}"
+    },
+    {
+      "label": "다른 페이지 update 단독 ON",
+      "method": "PUT",
+      "path": "/auth/admin/permissions/account/a0000000-0000-0000-0000-000000000002",
+      "status": 200,
+      "elapsedMs": 77.757,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"changedCount\":1},\"timestamp\":\"2026-08-13T14:56:59.912044707Z\"}"
+    },
+    {
+      "label": "products.list:update가 Claude에 영향 없음",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.584,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.918857182Z\"}"
+    },
+    {
+      "label": "다른 페이지 delete 단독 ON",
+      "method": "PUT",
+      "path": "/auth/admin/permissions/account/a0000000-0000-0000-0000-000000000002",
+      "status": 200,
+      "elapsedMs": 76.117,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"changedCount\":1},\"timestamp\":\"2026-08-13T14:56:59.994867719Z\"}"
+    },
+    {
+      "label": "products.list:delete가 Claude에 영향 없음",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.309,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:57:00.001423121Z\"}"
+    },
+    {
+      "label": "다른 페이지 restore 단독 ON",
+      "method": "PUT",
+      "path": "/auth/admin/permissions/account/a0000000-0000-0000-0000-000000000002",
+      "status": 200,
+      "elapsedMs": 77.816,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"changedCount\":1},\"timestamp\":\"2026-08-13T14:57:00.078871834Z\"}"
+    },
+    {
+      "label": "products.list:restore가 Claude에 영향 없음",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 8.904,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:57:00.087431235Z\"}"
+    },
+    {
+      "label": "다른 페이지 download 단독 ON",
+      "method": "PUT",
+      "path": "/auth/admin/permissions/account/a0000000-0000-0000-0000-000000000002",
+      "status": 200,
+      "elapsedMs": 78.068,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"changedCount\":1},\"timestamp\":\"2026-08-13T14:57:00.164542593Z\"}"
+    },
+    {
+      "label": "products.list:download가 Claude에 영향 없음",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.872,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:57:00.172941382Z\"}"
+    },
+    {
+      "label": "다른 페이지 print 단독 ON",
+      "method": "PUT",
+      "path": "/auth/admin/permissions/account/a0000000-0000-0000-0000-000000000002",
+      "status": 200,
+      "elapsedMs": 73.937,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"changedCount\":1},\"timestamp\":\"2026-08-13T14:57:00.246335487Z\"}"
+    },
+    {
+      "label": "products.list:print가 Claude에 영향 없음",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 8.171,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:57:00.254404405Z\"}"
+    },
+    {
+      "label": "system.claude view 단독 ON",
+      "method": "PUT",
+      "path": "/auth/admin/permissions/account/a0000000-0000-0000-0000-000000000002",
+      "status": 200,
+      "elapsedMs": 75.329,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"changedCount\":1},\"timestamp\":\"2026-08-13T14:57:00.330283026Z\"}"
+    },
+    {
+      "label": "system.claude:view 단독 판정",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 501,
+      "elapsedMs": 5.861,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-13T14:57:00.336491179Z\"}"
+    },
+    {
+      "label": "system.claude create 단독 ON",
+      "method": "PUT",
+      "path": "/auth/admin/permissions/account/a0000000-0000-0000-0000-000000000002",
+      "status": 200,
+      "elapsedMs": 71.8,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"changedCount\":1},\"timestamp\":\"2026-08-13T14:57:00.408161309Z\"}"
+    },
+    {
+      "label": "system.claude:create 단독 판정",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.601,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:57:00.415291425Z\"}"
+    },
+    {
+      "label": "system.claude update 단독 ON",
+      "method": "PUT",
+      "path": "/auth/admin/permissions/account/a0000000-0000-0000-0000-000000000002",
+      "status": 200,
+      "elapsedMs": 72.968,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"changedCount\":1},\"timestamp\":\"2026-08-13T14:57:00.487820997Z\"}"
+    },
+    {
+      "label": "system.claude:update 단독 판정",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.621,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:57:00.494799596Z\"}"
+    },
+    {
+      "label": "system.claude delete 단독 ON",
+      "method": "PUT",
+      "path": "/auth/admin/permissions/account/a0000000-0000-0000-0000-000000000002",
+      "status": 200,
+      "elapsedMs": 73.88,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"changedCount\":1},\"timestamp\":\"2026-08-13T14:57:00.568264497Z\"}"
+    },
+    {
+      "label": "system.claude:delete 단독 판정",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 5.876,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:57:00.574799409Z\"}"
+    },
+    {
+      "label": "system.claude restore 단독 ON",
+      "method": "PUT",
+      "path": "/auth/admin/permissions/account/a0000000-0000-0000-0000-000000000002",
+      "status": 200,
+      "elapsedMs": 73.408,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"changedCount\":1},\"timestamp\":\"2026-08-13T14:57:00.647847493Z\"}"
+    },
+    {
+      "label": "system.claude:restore 단독 판정",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 5.378,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:57:00.653622715Z\"}"
+    },
+    {
+      "label": "system.claude download 단독 ON",
+      "method": "PUT",
+      "path": "/auth/admin/permissions/account/a0000000-0000-0000-0000-000000000002",
+      "status": 200,
+      "elapsedMs": 73.674,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"changedCount\":1},\"timestamp\":\"2026-08-13T14:57:00.726917849Z\"}"
+    },
+    {
+      "label": "system.claude:download 단독 판정",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 5.81,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:57:00.732935662Z\"}"
+    },
+    {
+      "label": "system.claude print 단독 ON",
+      "method": "PUT",
+      "path": "/auth/admin/permissions/account/a0000000-0000-0000-0000-000000000002",
+      "status": 200,
+      "elapsedMs": 78.653,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"changedCount\":1},\"timestamp\":\"2026-08-13T14:57:00.811387818Z\"}"
+    },
+    {
+      "label": "system.claude:print 단독 판정",
+      "method": "POST",
+      "path": "/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 5.644,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:57:00.817492534Z\"}"
+    },
+    {
+      "label": "DEVELOPER system.claude OFF 복구",
+      "method": "PUT",
+      "path": "/auth/admin/permissions/account/a0000000-0000-0000-0000-000000000002",
+      "status": 200,
+      "elapsedMs": 74.55,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"changedCount\":1},\"timestamp\":\"2026-08-13T14:57:00.891251923Z\"}"
+    }
+  ],
+  "combinations": [
+    {
+      "name": "개인별만 켜짐",
+      "expected": 501,
+      "actual": 501,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.437458707Z\"}"
+    },
+    {
+      "name": "그룹별만 켜짐",
+      "expected": 501,
+      "actual": 501,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.446620055Z\"}"
+    },
+    {
+      "name": "둘 다 켜짐",
+      "expected": 501,
+      "actual": 501,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.461280218Z\"}"
+    },
+    {
+      "name": "둘 다 꺼짐",
+      "expected": 403,
+      "actual": 403,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T14:56:59.469215783Z\"}"
+    }
+  ],
+  "cacheFreshness": {
+    "samples": 50,
+    "statusCounts": {
+      "403": [
+        {
+          "index": 1,
+          "status": 403,
+          "afterOffMs": 24.398
+        },
+        {
+          "index": 2,
+          "status": 403,
+          "afterOffMs": 24.74
+        },
+        {
+          "index": 3,
+          "status": 403,
+          "afterOffMs": 24.63
+        },
+        {
+          "index": 4,
+          "status": 403,
+          "afterOffMs": 24.304
+        },
+        {
+          "index": 5,
+          "status": 403,
+          "afterOffMs": 23.618
+        },
+        {
+          "index": 6,
+          "status": 403,
+          "afterOffMs": 23.918
+        },
+        {
+          "index": 7,
+          "status": 403,
+          "afterOffMs": 24.202
+        },
+        {
+          "index": 8,
+          "status": 403,
+          "afterOffMs": 23.203
+        },
+        {
+          "index": 9,
+          "status": 403,
+          "afterOffMs": 24.516
+        },
+        {
+          "index": 10,
+          "status": 403,
+          "afterOffMs": 24.084
+        },
+        {
+          "index": 11,
+          "status": 403,
+          "afterOffMs": 25.347
+        },
+        {
+          "index": 12,
+          "status": 403,
+          "afterOffMs": 26.83
+        },
+        {
+          "index": 13,
+          "status": 403,
+          "afterOffMs": 24.857
+        },
+        {
+          "index": 14,
+          "status": 403,
+          "afterOffMs": 25.987
+        },
+        {
+          "index": 15,
+          "status": 403,
+          "afterOffMs": 27.92
+        },
+        {
+          "index": 16,
+          "status": 403,
+          "afterOffMs": 27.26
+        },
+        {
+          "index": 17,
+          "status": 403,
+          "afterOffMs": 28.981
+        },
+        {
+          "index": 18,
+          "status": 403,
+          "afterOffMs": 27.58
+        },
+        {
+          "index": 19,
+          "status": 403,
+          "afterOffMs": 28.65
+        },
+        {
+          "index": 20,
+          "status": 403,
+          "afterOffMs": 28.26
+        },
+        {
+          "index": 21,
+          "status": 403,
+          "afterOffMs": 34.299
+        },
+        {
+          "index": 22,
+          "status": 403,
+          "afterOffMs": 33.361
+        },
+        {
+          "index": 23,
+          "status": 403,
+          "afterOffMs": 30.015
+        },
+        {
+          "index": 24,
+          "status": 403,
+          "afterOffMs": 30.351
+        },
+        {
+          "index": 25,
+          "status": 403,
+          "afterOffMs": 30.643
+        },
+        {
+          "index": 26,
+          "status": 403,
+          "afterOffMs": 34.783
+        },
+        {
+          "index": 27,
+          "status": 403,
+          "afterOffMs": 31.963
+        },
+        {
+          "index": 28,
+          "status": 403,
+          "afterOffMs": 32.181
+        },
+        {
+          "index": 29,
+          "status": 403,
+          "afterOffMs": 31.142
+        },
+        {
+          "index": 30,
+          "status": 403,
+          "afterOffMs": 35.279
+        },
+        {
+          "index": 31,
+          "status": 403,
+          "afterOffMs": 33.693
+        },
+        {
+          "index": 32,
+          "status": 403,
+          "afterOffMs": 33.841
+        },
+        {
+          "index": 33,
+          "status": 403,
+          "afterOffMs": 32.503
+        },
+        {
+          "index": 34,
+          "status": 403,
+          "afterOffMs": 29.401
+        },
+        {
+          "index": 35,
+          "status": 403,
+          "afterOffMs": 29.668
+        },
+        {
+          "index": 36,
+          "status": 403,
+          "afterOffMs": 32.79
+        },
+        {
+          "index": 37,
+          "status": 403,
+          "afterOffMs": 33.104
+        },
+        {
+          "index": 38,
+          "status": 403,
+          "afterOffMs": 34.038
+        },
+        {
+          "index": 39,
+          "status": 403,
+          "afterOffMs": 34.216
+        },
+        {
+          "index": 40,
+          "status": 403,
+          "afterOffMs": 34.386
+        },
+        {
+          "index": 41,
+          "status": 403,
+          "afterOffMs": 30.883
+        },
+        {
+          "index": 42,
+          "status": 403,
+          "afterOffMs": 34.127
+        },
+        {
+          "index": 43,
+          "status": 403,
+          "afterOffMs": 34.457
+        },
+        {
+          "index": 44,
+          "status": 403,
+          "afterOffMs": 34.629
+        },
+        {
+          "index": 45,
+          "status": 403,
+          "afterOffMs": 34.557
+        },
+        {
+          "index": 46,
+          "status": 403,
+          "afterOffMs": 31.482
+        },
+        {
+          "index": 47,
+          "status": 403,
+          "afterOffMs": 34.996
+        },
+        {
+          "index": 48,
+          "status": 403,
+          "afterOffMs": 35.491
+        },
+        {
+          "index": 49,
+          "status": 403,
+          "afterOffMs": 34.714
+        },
+        {
+          "index": 50,
+          "status": 403,
+          "afterOffMs": 35.402
+        }
+      ]
+    },
+    "first": {
+      "index": 1,
+      "status": 403,
+      "afterOffMs": 24.398
+    },
+    "last": {
+      "index": 50,
+      "status": 403,
+      "afterOffMs": 35.402
+    },
+    "stalePasses": 0
+  },
+  "unrelatedBits": [
+    {
+      "pageCode": "products.list",
+      "action": "view",
+      "expected": 403,
+      "actual": 403
+    },
+    {
+      "pageCode": "products.list",
+      "action": "create",
+      "expected": 403,
+      "actual": 403
+    },
+    {
+      "pageCode": "products.list",
+      "action": "update",
+      "expected": 403,
+      "actual": 403
+    },
+    {
+      "pageCode": "products.list",
+      "action": "delete",
+      "expected": 403,
+      "actual": 403
+    },
+    {
+      "pageCode": "products.list",
+      "action": "restore",
+      "expected": 403,
+      "actual": 403
+    },
+    {
+      "pageCode": "products.list",
+      "action": "download",
+      "expected": 403,
+      "actual": 403
+    },
+    {
+      "pageCode": "products.list",
+      "action": "print",
+      "expected": 403,
+      "actual": 403
+    }
+  ],
+  "claudeBits": [
+    {
+      "action": "view",
+      "expected": 501,
+      "actual": 501
+    },
+    {
+      "action": "create",
+      "expected": 403,
+      "actual": 403
+    },
+    {
+      "action": "update",
+      "expected": 403,
+      "actual": 403
+    },
+    {
+      "action": "delete",
+      "expected": 403,
+      "actual": 403
+    },
+    {
+      "action": "restore",
+      "expected": 403,
+      "actual": 403
+    },
+    {
+      "action": "download",
+      "expected": 403,
+      "actual": 403
+    },
+    {
+      "action": "print",
+      "expected": 403,
+      "actual": 403
+    }
+  ],
+  "ui": [],
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  ],
+  "failure": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('heading', { name: '권한설정', exact: true }) to be visible\u001b[22m\n\n    at runUi (C:\\dev\\Samhan-Public\\.claude\\worktrees\\w901\\clients\\desktop\\qa1180-liveqa.mjs:240:68)\n    at async file:///C:/dev/Samhan-Public/.claude/worktrees/w901/clients/desktop/qa1180-liveqa.mjs:285:3"
+}

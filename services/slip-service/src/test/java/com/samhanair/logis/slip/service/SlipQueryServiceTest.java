@@ -111,7 +111,7 @@ class SlipQueryServiceTest {
                         SlipStatus.DRAFT,
                         LocalDate.of(2026, 7, 1),
                         LocalDate.of(2026, 7, 31),
-                        List.of(DeliveryTag.DAY),
+                        List.of(DeliveryTag.SALE),
                         null, null, null, null, null, null,
                         PageRequest.of(0, 50));
     }
@@ -132,7 +132,7 @@ class SlipQueryServiceTest {
                 null,
                 PARTNER_ID,
                 "테스트 거래처",
-                DeliveryTag.DAY,
+                DeliveryTag.SALE,
                 null,
                 requesterId);
     }

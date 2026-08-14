@@ -178,7 +178,7 @@ class SlipUpdateIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("U1: soft-deleted 매입 전표 수정은 404를 반환한다")
+    @DisplayName("U1: soft-deleted 입고 전표 수정은 404를 반환한다")
     void testUpdateSoftDeletedReturns404() throws Exception {
         String id = createSlip("INBOUND", "SP0852-삭제됨");
         String updatedAt = updatedAt(id);

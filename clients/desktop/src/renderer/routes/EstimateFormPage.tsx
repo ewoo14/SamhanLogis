@@ -213,7 +213,7 @@ const ESTIMATE_HEADER_TEXT_FIELDS = new Set<string>(['memo'])
 /**
  * 견적 라인 헤더/행 공용 grid.
  *
- * 판매전표 LineRowVat 의 열 정책을 그대로 사용하되, 견적에 없는 체크박스와
+ * 출고전표 LineRowVat 의 열 정책을 그대로 사용하되, 견적에 없는 체크박스와
  * 드래그 열만 제외한다. 모델명·품목명은 같은 minmax(100px, 1.5fr) 비율로
  * 남는 폭을 대등하게 나눈다.
  */
@@ -1205,7 +1205,7 @@ export function EstimateFormPage() {
   }
 
   /**
-   * 견적 라인 품목 검색 — 판매전표와 같은 ProductAutocomplete 공용 검색 경로를 사용한다.
+   * 견적 라인 품목 검색 — 출고전표와 같은 ProductAutocomplete 공용 검색 경로를 사용한다.
    * 기존 정확 모델 lookup은 레거시 서버/테스트 계약의 안전망으로만 남겨, 부분검색 API가
    * 후보를 반환하면 절대 실행하지 않는다.
    */

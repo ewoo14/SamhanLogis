@@ -146,6 +146,19 @@ export function TaxInvoiceListPage() {
       ),
     },
     {
+      key: 'legacyReadOnly',
+      header: '연결 상태',
+      width: '130px',
+      mobilePriority: 'secondary',
+      render: (row) => row.legacyReadOnly ? (
+        <Badge variant="neutral" data-testid="tax-invoice-legacy-read-only">
+          읽기 전용
+        </Badge>
+      ) : (
+        <span style={{ color: '#087443' }}>생성 가능</span>
+      ),
+    },
+    {
       key: 'status',
       header: '상태',
       width: '100px',

@@ -100,6 +100,7 @@ function toProductOption(p: ProductSummaryResponse): ProductOption {
     id: p.id,
     modelName: p.modelName ?? '',
     productName: p.name ?? '',
+    productCode: p.productCode ?? null,
     sellingPrice:
       p.sellingPrice != null
         ? Number(p.sellingPrice)

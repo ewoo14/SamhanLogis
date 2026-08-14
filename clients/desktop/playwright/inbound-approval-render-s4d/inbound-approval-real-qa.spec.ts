@@ -62,7 +62,7 @@ async function setupApiProxy(page: Page, token: string): Promise<void> {
   })
 }
 
-test('S4D-A: 매입전표 인쇄 결재란 — 입고자 이름 자동채움', async ({ page }) => {
+test('S4D-A: 입고전표 인쇄 결재란 — 입고자 이름 자동채움', async ({ page }) => {
   const token = await fetchRealToken()
   await installRealAuth(page, token)
   await setupApiProxy(page, token)
@@ -78,7 +78,7 @@ test('S4D-A: 매입전표 인쇄 결재란 — 입고자 이름 자동채움', a
   expect(body).toContain('개발마스터')
 })
 
-test('S4D-B: 매입전표 인쇄 결재란 — 검수자 이름 자동채움 (COMPLETED)', async ({ page }) => {
+test('S4D-B: 입고전표 인쇄 결재란 — 검수자 이름 자동채움 (COMPLETED)', async ({ page }) => {
   const token = await fetchRealToken()
   await installRealAuth(page, token)
   await setupApiProxy(page, token)

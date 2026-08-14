@@ -1,5 +1,5 @@
 /**
- * #729 게이트웨이 매출/매입 전표 admin 라우트 추가 — 실 QA 전용 Playwright 설정.
+ * #729 게이트웨이 매출/입고 전표 admin 라우트 추가 — 실 QA 전용 Playwright 설정.
  * VITE_MOCK_MODE OFF — 실 게이트웨이 :8080 연결. 렌더러 선기동 필요
  * (`node_modules/.bin/vite dev --config vite.renderer.dev.config.ts --port <N> --strictPort`).
  */

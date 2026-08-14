@@ -17,7 +17,7 @@ import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UuidGenerator;
 
 /**
- * 매출전표 (회계 분개) — 출고전표 source 와 N:M 매핑.
+ * 출고전표 (회계 분개) — 출고전표 source 와 N:M 매핑.
  *
  * <p>spec: 2026-05-19-sales-purchase-accounting-slip-design.md §3-A
  */

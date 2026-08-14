@@ -56,7 +56,7 @@ describe('PR #1134 R11 slip audit contract', () => {
     expect(auditByField.memo[0]).toMatchObject({
       beforeValue: 'S33-open-overlay-ok',
       afterValue: 'S33-open-collab-ok',
-      actorName: '[DEV-SEED] 개발영업',
+      actorName: '개발영업',
     })
     expect(auditByField.undefined).toBeUndefined()
   })

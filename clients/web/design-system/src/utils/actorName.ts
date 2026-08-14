@@ -26,7 +26,7 @@ function normalizeForComparison(value: string): string {
 /** invisible 문자 제거 후 빈 문자열은 null 로 정규화한다. */
 export function normalizeActorName(actorName: string | null | undefined): string | null {
   if (actorName == null) return null
-  const normalized = actorName.replace(FORMAT_ACTOR_CHARACTERS, '').trim()
+  const normalized = actorName.replace(FORMAT_ACTOR_CHARACTERS, '').replace(/^\[DEV-SEED\]\s*/i, '').trim()
   return normalized === '' ? null : normalized
 }
 

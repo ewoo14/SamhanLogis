@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-/** MIG-4 — Admin 이카운트 세금계산서용 판매전표 CSV import. */
+/** MIG-4 — Admin 이카운트 세금계산서용 출고전표 CSV import. */
 @Slf4j
 @RestController
 @RequestMapping("/admin/accounting/tax-invoices/imports")
@@ -36,7 +36,7 @@ public class EcountTaxInvoiceImportController {
 
     @PostMapping(value = "/ecount", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @RequirePermission(page = PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
-    @Operation(summary = "이카운트 세금계산서용 판매전표 CSV 적재")
+    @Operation(summary = "이카운트 세금계산서용 출고전표 CSV 적재")
     public EcountMig4ImportResult upload(
             @RequestPart("file") MultipartFile file,
             @RequestHeader("X-User-Id") String userId,

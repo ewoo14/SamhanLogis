@@ -332,7 +332,7 @@ class DispatchRedispatchManualPolicyIT extends AbstractPostgresIT {
                 UUID.randomUUID(),
                 UUID.randomUUID(),
                 "재배차 IT 거래처 %d".formatted(seq),
-                DeliveryTag.DAY,
+                DeliveryTag.SALE,
                 "재배차 IT",
                 MASTER_ACCOUNT_ID);
         ReflectionTestUtils.setField(slip, "partnerCode", "P-DMR-%03d".formatted(seq));

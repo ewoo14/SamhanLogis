@@ -66,7 +66,7 @@ export function TaxInvoiceInboundPage() {
   })
 
   const columns: DataTableColumn<PurchaseAccountingSlipResponse>[] = [
-    { key: 'slipNo', header: '매입전표', width: '160px', mobilePriority: 'primary' },
+    { key: 'slipNo', header: '입고전표', width: '160px', mobilePriority: 'primary' },
     {
       key: 'select',
       header: '',
@@ -164,16 +164,16 @@ export function TaxInvoiceInboundPage() {
       <Card style={{ marginBottom: 16 }}>
         {purchaseSlipsQuery.isLoading ? (
           <div style={{ display: 'grid', placeItems: 'center', minHeight: 160 }}>
-            <Spinner size="lg" label="매입전표 조회 중" />
+            <Spinner size="lg" label="입고전표 조회 중" />
           </div>
         ) : purchaseSlipsQuery.isError ? (
-          <div className="error-banner" role="alert">매입전표 목록을 불러오지 못했습니다.</div>
+          <div className="error-banner" role="alert">입고전표 목록을 불러오지 못했습니다.</div>
         ) : (
           <DataTable
             columns={columns}
             rows={purchaseSlipsQuery.data ?? []}
             rowKey={(row) => row.slipNo}
-            emptyMessage="매칭 가능한 매입전표가 없습니다."
+            emptyMessage="매칭 가능한 입고전표가 없습니다."
           />
         )}
       </Card>

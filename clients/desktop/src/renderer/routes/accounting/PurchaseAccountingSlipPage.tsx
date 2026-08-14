@@ -8,6 +8,7 @@ import {
   type PurchaseAccountingSlipResponse,
   type PurchaseAccountingSlipStatus,
 } from '../../api/purchaseAccountingSlipApi'
+import { listAccountingSlipLinkEligibility } from '../../api/accountingSlipLinkApi'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import { usePermissions } from '../../hooks/usePermissions'
 import { today, firstDayOfMonth } from '../../utils/dateUtils'
@@ -27,7 +28,7 @@ const SLIP_STATUS_LABEL: Record<PurchaseAccountingSlipStatus, string> = {
 }
 
 export function PurchaseAccountingSlipPage() {
-  usePageTitle('매입전표')
+  usePageTitle('입고전표')
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { canAccess } = usePermissions()
@@ -49,6 +50,20 @@ export function PurchaseAccountingSlipPage() {
       }),
   })
 
+  const eligibilityQuery = useQuery({
+    queryKey: ['purchase-accounting-slip-eligibility', query.data?.map((row) => row.slipNo).join('|')],
+    enabled: Boolean(query.data?.length),
+    queryFn: () => listAccountingSlipLinkEligibility(
+      [...new Set((query.data ?? []).flatMap((row) => row.lines.flatMap((line) =>
+        line.allocations.map((allocation) => allocation.sourceSlipNo))))]
+        .map((sourceSlipNo) => ({ sourceSlipNo, sourceSlipType: 'INBOUND' as const })),
+    ),
+  })
+  const eligibilityBySlipNo = useMemo(
+    () => new Map((eligibilityQuery.data ?? []).map((item) => [item.sourceSlipNo, item])),
+    [eligibilityQuery.data],
+  )
+
   const postMutation = useMutation({
     mutationFn: postPurchaseSlip,
     onSuccess: () => {
@@ -60,6 +75,23 @@ export function PurchaseAccountingSlipPage() {
     () => [
       { key: 'slipNo', header: '전표번호', width: '160px', mobilePriority: 'primary' },
       { key: 'partnerName', header: '거래처', mobilePriority: 'secondary' },
+      {
+        key: 'eligibility',
+        header: '연결 판정',
+        width: '180px',
+        mobilePriority: 'secondary',
+        render: (row) => {
+          const items = row.lines.flatMap((line) => line.allocations
+            .map((allocation) => eligibilityBySlipNo.get(allocation.sourceSlipNo))
+            .filter(Boolean))
+          const blocked = items.find((item) => item && !item.allowed)
+          return blocked ? (
+            <span title={blocked.reasonMessages.join(' ')} style={{ color: '#B42318' }}>
+              생성 차단: {blocked.reasons[0] ?? '사유 확인'}
+            </span>
+          ) : items.length > 0 ? '생성 가능' : '판정 대기'
+        },
+      },
       {
         key: 'status',
         header: '상태',
@@ -105,14 +137,14 @@ export function PurchaseAccountingSlipPage() {
           ) : null,
       },
     ],
-    [canPost, postMutation],
+    [canPost, eligibilityBySlipNo, postMutation],
   )
 
   return (
     <div data-testid="purchase-accounting-slip-page">
       <Card style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
-          <h3 style={{ margin: 0 }}>매입전표</h3>
+          <h3 style={{ margin: 0 }}>입고전표</h3>
           {canCreate ? (
             <Button variant="primary" onClick={() => navigate('/accounting/purchase-slips/new')}>
               작성
@@ -139,16 +171,16 @@ export function PurchaseAccountingSlipPage() {
       <Card>
         {query.isLoading ? (
           <div style={{ display: 'grid', placeItems: 'center', minHeight: 160 }}>
-            <Spinner size="lg" label="매입전표 로딩 중" />
+            <Spinner size="lg" label="입고전표 로딩 중" />
           </div>
         ) : query.isError ? (
-          <div className="error-banner" role="alert">매입전표 목록을 불러오지 못했습니다.</div>
+          <div className="error-banner" role="alert">입고전표 목록을 불러오지 못했습니다.</div>
         ) : (
           <DataTable
             columns={columns}
             rows={query.data ?? []}
             rowKey={(row) => row.slipNo}
-            emptyMessage="매입전표가 없습니다."
+            emptyMessage="입고전표가 없습니다."
           />
         )}
       </Card>

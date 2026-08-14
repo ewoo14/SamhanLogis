@@ -75,8 +75,8 @@ Capacitor 배포는 `cap:sync:release`만 사용합니다. 릴리스 wrapper는 
 | `/login` | 로그인 | Card, FormField, Button, Spinner |
 | `/` | 대시보드 | Card, Button |
 | `/warehouses` | 창고 목록 + 신규 등록 모달 | DataTable, Badge, Button, Modal, FormField |
-| `/slips` | 판매전표 목록 | DataTable, Badge, Button, SlipNumberDisplay, SlipStatusBadge |
-| `/slips/new` | 새 판매전표 작성 | WarehouseSelector, DeliveryTagSelector, FormField, PriceField, Button, Card |
+| `/slips` | 출고전표 목록 | DataTable, Badge, Button, SlipNumberDisplay, SlipStatusBadge |
+| `/slips/new` | 새 출고전표 작성 | WarehouseSelector, DeliveryTagSelector, FormField, PriceField, Button, Card |
 | `/messenger` | 수신자 칩 복수선택 발송 + 읽기 전용 수신함 | MultiSelectAutocomplete, TagChip, FormField, Button |
 
 총 디자인 시스템 컴포넌트 11 / 16 개 첫 실사용
@@ -118,7 +118,7 @@ Capacitor 배포는 `cap:sync:release`만 사용합니다. 릴리스 wrapper는 
 
 ## Phase F — print-renderer multi-entry 빌드 (2026-05-15)
 
-[D-DF-06](../../migration/decisions/DECISIONS.md#d-df-00) 적용 — 슬1에서 폐기된 `OutboundView.tsx` 대신 `DispatchView.tsx` 판매전표 양식을 arologis-service 의 in-process Playwright Chromium 으로 PNG 캡처. desktop 앱과 별도로 정적 HTML/JS 산출 (electron-vite 와 분리).
+[D-DF-06](../../migration/decisions/DECISIONS.md#d-df-00) 적용 — 슬1에서 폐기된 `OutboundView.tsx` 대신 `DispatchView.tsx` 출고전표 양식을 arologis-service 의 in-process Playwright Chromium 으로 PNG 캡처. desktop 앱과 별도로 정적 HTML/JS 산출 (electron-vite 와 분리).
 
 ```bash
 # print-renderer 정적 빌드 (Vite multi-entry)
@@ -133,7 +133,7 @@ npm run build:print-renderer
 | `vite.print-renderer.config.ts` | Vite multi-entry 설정 (electron-vite 와 분리) |
 | `print-renderer/index.html` | Playwright Chromium 진입점 — `?slipNo=&driverSig=&recipientSig=` 쿼리스트링 파싱 |
 | `print-renderer/main.tsx` | React 진입점 (PrintRendererApp 마운트) |
-| `print-renderer/PrintRendererApp.tsx` | DispatchView 판매전표 a4-portrait variant 래핑 + 서명 2개 props 주입 |
+| `print-renderer/PrintRendererApp.tsx` | DispatchView 출고전표 a4-portrait variant 래핑 + 서명 2개 props 주입 |
 
 **desktop 앱 본체 빌드 (`npm run build`) 와 별도** — 본 print-renderer 빌드는 arologis-service 배포 시점에만 필요.
 

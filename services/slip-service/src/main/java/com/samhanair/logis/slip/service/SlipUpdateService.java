@@ -34,7 +34,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 매입 전표 direct PUT 수정 서비스.
+ * 입고 전표 direct PUT 수정 서비스.
  *
  * <p>WAREHOUSE/MANAGER/MASTER 가 기존 SlipEditRequest 승인 흐름을 거치지 않고 INBOUND 전표를
  * 즉시 수정한다. stale {@code updatedAt} 은 409 로, 라인 검증 실패는 422 로 반환한다.
@@ -51,7 +51,7 @@ public class SlipUpdateService {
     private final SlipClosedDateGuard closedDateGuard;
 
     /**
-     * 매입 전표 헤더와 라인을 전체 교체한다.
+     * 입고 전표 헤더와 라인을 전체 교체한다.
      *
      * <p>처리 순서:
      * <ol>
@@ -229,7 +229,7 @@ public class SlipUpdateService {
     }
 
     /**
-     * [D-R8-6 · D-R8-9] 매입 전표 PUT 은 lineId 계약 선언을 의무화한다 — 판정은 공용
+     * [D-R8-6 · D-R8-9] 입고 전표 PUT 은 lineId 계약 선언을 의무화한다 — 판정은 공용
      * {@link LineIdContractGate} 단일 구현에 위임한다 (매입/매출/견적 비대칭 재발 차단).
      *
      * <p>D-R8-6 이 세운 계약(lineId 미전송 PUT = 400)은 그대로 유지되며, D-R8-9 는 그 400 의

@@ -14,7 +14,7 @@ import java.util.Set;
  * 매출 화면과 전표 단건 조회 API 가 동일한 정책을 사용하도록 한 곳에서 관리한다.
  *
  * <p>허용 역할: {@code SALES} / {@code MANAGER} / {@code MASTER}
- * <br>금지 역할: {@code INVENTORY} / {@code WAREHOUSE} — 매출 전표 조회 미허용 (403)
+ * <br>금지 역할: {@code INVENTORY} / {@code WAREHOUSE} — 출고 전표 조회 미허용 (403)
  * <br>정책 근거: SP-03 권한 매트릭스 §4.2 — 출고(OUTBOUND) 전표는 영업/관리 직군 전용.
  * 창고/재고 직군은 배송/검수 단계(ACCEPT~COMPLETE)만 처리권한, 목록 조회권 없음.
  *
@@ -44,6 +44,15 @@ final class SlipSalesAccessGuard {
             "00000000-0000-0000-0000-000000000100",  // MASTER  빌트인 그룹
             "00000000-0000-0000-0000-000000000101",  // MANAGER 빌트인 그룹
             "00000000-0000-0000-0000-000000000102"   // SALES   빌트인 그룹
+    );
+
+    /** QR 최소 문맥에만 허용하는 창고·재고 그룹 UUID (전체 영업 상세에는 사용하지 않는다). */
+    static final Set<String> OUTBOUND_SCAN_CONTEXT_GROUP_IDS = Set.of(
+            "00000000-0000-0000-0000-000000000100",
+            "00000000-0000-0000-0000-000000000101",
+            "00000000-0000-0000-0000-000000000102",
+            "00000000-0000-0000-0000-000000000103",
+            "00000000-0000-0000-0000-000000000105"
     );
 
     private SlipSalesAccessGuard() {
@@ -83,7 +92,7 @@ final class SlipSalesAccessGuard {
             return;
         }
         throw new BusinessException(ErrorCode.FORBIDDEN,
-                "매출 전표 조회는 SALES / MANAGER / MASTER 권한만 허용합니다.");
+                "출고 전표 조회는 SALES / MANAGER / MASTER 권한만 허용합니다.");
     }
 
     /** 검수 결재선 개인이 검수 완료 후 상세를 재조회할 수 있는 상태 범위. */
@@ -102,6 +111,29 @@ final class SlipSalesAccessGuard {
     static void guardOutboundSalesRead(SlipType slipType, String role,
                                        String userGroups, String isSystemMaster) {
         guardOutboundSalesRead(slipType, null, role, userGroups, isSystemMaster, false);
+    }
+
+    /**
+     * 창고 QR 출고 전용 최소 문맥 조회 권한.
+     * 전체 매출 상세 권한은 열지 않고 WAREHOUSE/INVENTORY만 별도 표면에 허용한다.
+     */
+    static void guardOutboundScanContext(SlipType slipType, String role,
+                                          String userGroups, String isSystemMaster) {
+        if (slipType != SlipType.OUTBOUND) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "QR 출고 문맥은 출고 전표만 허용합니다.");
+        }
+        if ("true".equalsIgnoreCase(isSystemMaster)
+                || "SALES".equals(role) || "MANAGER".equals(role) || "MASTER".equals(role)
+                || "WAREHOUSE".equals(role) || "INVENTORY".equals(role)) {
+            return;
+        }
+        for (String groupId : PermissionAspect.parseGroupsHeader(userGroups)) {
+            if (OUTBOUND_SCAN_CONTEXT_GROUP_IDS.contains(groupId)) {
+                return;
+            }
+        }
+        throw new BusinessException(ErrorCode.FORBIDDEN,
+                "QR 출고 문맥 조회는 WAREHOUSE / INVENTORY / SALES / MANAGER / MASTER 권한만 허용합니다.");
     }
 
     /**
@@ -173,7 +205,7 @@ final class SlipSalesAccessGuard {
         }
         // 기존 role 경로 — behavior-preserving (병행 유지)
         // ACCOUNTANT 제외 — SP-03 권한 매트릭스 §4.2 (ACCOUNTANT 는 INBOUND 확정 권한만 보유)
-        // INVENTORY / WAREHOUSE 제외 — 배송/검수 단계 처리 권한만 있고 매출 전표 열람 불가
+        // INVENTORY / WAREHOUSE 제외 — 배송/검수 단계 처리 권한만 있고 출고 전표 열람 불가
         if ("SALES".equals(role) || "MANAGER".equals(role) || "MASTER".equals(role)) {
             return true;
         }
@@ -188,7 +220,7 @@ final class SlipSalesAccessGuard {
     }
 
     /**
-     * 주어진 역할이 OUTBOUND 매출 전표를 조회할 수 있는지 여부.
+     * 주어진 역할이 OUTBOUND 출고 전표를 조회할 수 있는지 여부.
      *
      * <p>하위 호환 오버로드 — role 만으로 판정.
      *
