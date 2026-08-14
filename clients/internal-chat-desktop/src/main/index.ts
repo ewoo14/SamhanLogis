@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path'
 import { registerAutoUpdateIpcHandlers } from './auto-update.js'
 import Store from 'electron-store'
 import { getConversationBounds, saveConversationBounds, type WindowBounds, type WindowStateMap } from './conversation-window-state.js'
+import { resolveCertificateFixtureQuery } from '../../../../scripts/certificate-expiry-fixtures.cjs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -101,7 +102,10 @@ function createMainWindow(): void {
 
   const rendererUrl = process.env['ELECTRON_RENDERER_URL']
   if (rendererUrl) void mainWindow.loadURL(rendererUrl)
-  else void mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+  else {
+    const fixtureQuery = resolveCertificateFixtureQuery(app.isPackaged, process.env['CERTIFICATE_FIXTURE'])
+    void mainWindow.loadFile(join(__dirname, '../renderer/index.html'), fixtureQuery ? { query: fixtureQuery } : undefined)
+  }
 }
 
 function conversationKey(request: { roomCode?: string; sessionCode?: string }): string | null {

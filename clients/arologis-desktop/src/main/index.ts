@@ -21,6 +21,7 @@ import { dirname, join } from 'node:path'
 import { registerAuthIpcHandlers } from './ipc/auth-token.js'
 import { registerAutoUpdateIpcHandlers } from './auto-update.js'
 import { promptForTrustRoot, registerTrustRootIpcHandlers } from './certificate-trust.js'
+import { resolveCertificateFixtureQuery } from '../../../../scripts/certificate-expiry-fixtures.cjs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -100,7 +101,8 @@ function createMainWindow(): void {
     mainWindow.loadURL(devUrl)
     mainWindow.webContents.openDevTools({ mode: 'detach' })
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    const fixtureQuery = resolveCertificateFixtureQuery(app.isPackaged, process.env['CERTIFICATE_FIXTURE'])
+    void mainWindow.loadFile(join(__dirname, '../renderer/index.html'), fixtureQuery ? { query: fixtureQuery } : undefined)
   }
 
   mainWindow.on('closed', () => {

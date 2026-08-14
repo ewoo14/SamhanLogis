@@ -17,6 +17,13 @@ export default defineConfig({
   test: {
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
     environment: 'node',
+    // Windows CI에서 기본 worker pool이 테스트 완료 후 child worker 정리를 지연시켜
+    // 62/62 PASS가 shell timeout으로 위장한 적이 있다. desktop 가드는 파일 전체를
+    // 병렬 실행할 이득보다 단일 fork의 명시적 종료가 중요하다.
+    pool: 'forks',
+    poolOptions: {
+      forks: { singleFork: true },
+    },
     reporters: 'default',
     passWithNoTests: false,
   },

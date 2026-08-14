@@ -4,9 +4,17 @@ import { AppUpdateNotice } from '@samhan/design-system'
 import registry from '../../../../scripts/certificate-registry.cjs'
 // @ts-ignore 순수 판정 유틸리티는 renderer와 Node 테스트가 공유한다.
 import { classifyCertificateExpiry } from '../../../../scripts/certificate-expiry.cjs'
+// @ts-ignore 개발 renderer에서만 URL fixture를 허용하는 QA 경계다.
+import { resolveCertificateMetadata } from '../../../../scripts/certificate-expiry-fixtures.cjs'
 
-export function CertificateExpiryNotice({ now = new Date(), metadata = registry }: { now?: Date; metadata?: typeof registry }): JSX.Element | null {
-  const result = classifyCertificateExpiry({ ...metadata, now })
+export function CertificateExpiryNotice({ now = new Date(), metadata }: { now?: Date; metadata?: typeof registry }): JSX.Element | null {
+  const resolvedMetadata = metadata ?? resolveCertificateMetadata(
+    registry,
+    typeof window === 'undefined' ? '' : window.location.search,
+    true,
+    now,
+  )
+  const result = classifyCertificateExpiry({ ...resolvedMetadata, now })
   useEffect(() => {
     if (result.operationalIssue) console.warn('[certificate-expiry] registry 상태를 확인할 수 없습니다.')
   }, [result.operationalIssue])
