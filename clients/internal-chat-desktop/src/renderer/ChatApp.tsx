@@ -21,6 +21,8 @@ import {
   claudeErrorMessage,
   createClaudeSession,
   listClaudeSessions,
+  runApprovalListTool,
+  type ClaudeToolResult,
   type ClaudeSession,
 } from "./claude/claude-api";
 import * as chatApi from "./api/chat-api";
@@ -185,6 +187,7 @@ function ConversationRoom({ roomCode, sessionCode, title, onBack }: { roomCode?:
   const [body, setBody] = useState("");
   const [answer, setAnswer] = useState("");
   const [error, setError] = useState("");
+  const [toolResult, setToolResult] = useState<ClaudeToolResult | null>(null);
   const messages = useQuery({
     queryKey: [sessionCode ? "claude" : "messages", sessionCode ?? roomCode],
     queryFn: () => chatApi.fetchMessages(roomCode!),
@@ -208,6 +211,11 @@ function ConversationRoom({ roomCode, sessionCode, title, onBack }: { roomCode?:
     onSuccess: (value) => { setAnswer(value); setBody(""); },
     onError: (value) => setError(claudeErrorMessage(value)),
   });
+  const runTool = useMutation({
+    mutationFn: () => runApprovalListTool(),
+    onSuccess: (value) => { setToolResult(value); setError(""); },
+    onError: (value) => setError(claudeErrorMessage(value)),
+  });
   const claude = Boolean(sessionCode);
   return (
     <main className="conversation-window" data-testid="conversation-window">
@@ -216,7 +224,26 @@ function ConversationRoom({ roomCode, sessionCode, title, onBack }: { roomCode?:
         <div><h1>{title || (claude ? "클로드 대화" : "대화")}</h1><p>{claude ? "클로드 세션" : "삼한 메신저"}</p></div>
       </header>
       <div className="message-scroll">
-        {claude ? (answer ? <p>{answer}</p> : null) : (
+        {claude ? (
+          <>
+            {answer ? <p>{answer}</p> : null}
+            <section aria-label="Claude 도구 호출">
+              <Button type="button" onClick={() => runTool.mutate()} disabled={runTool.isPending}>
+                {runTool.isPending ? "도구 실행 중" : "결재 문서 목록 도구 실행"}
+              </Button>
+              {toolResult ? (
+                <div aria-label="Claude 도구 결과">
+                  <p>{toolResult.toolDisplayName} · {toolResult.method} {toolResult.path}</p>
+                  <ul>
+                    {toolResult.result.map((room) => (
+                      <li key={room.approvalNo}>{room.approvalNo} · {room.title || "제목 없음"}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </section>
+          </>
+        ) : (
           <ul aria-label="대화 내용" className="message-list">{(messages.data ?? []).map((m, index, all) => {
             const previous = all[index - 1];
             const continued = Boolean(previous && previous.senderEmployeeCode === m.senderEmployeeCode && new Date(previous.sentAt).getTime() + 120000 >= new Date(m.sentAt).getTime());
@@ -397,6 +424,8 @@ function sessionTitle(session: ClaudeSession): string {
 function ClaudePage() {
   const client = useQueryClient();
   const [mobileConversation, setMobileConversation] = useState<ConversationRequest | null>(null);
+  const [toolResult, setToolResult] = useState<ClaudeToolResult | null>(null);
+  const [toolError, setToolError] = useState("");
   const sessions = useQuery({
     queryKey: ["claude-sessions"],
     queryFn: () => listClaudeSessions(),
@@ -408,6 +437,11 @@ function ClaudePage() {
       openConversation({ sessionCode: s.sessionCode, title: sessionTitle(s) }, () => setMobileConversation({ sessionCode: s.sessionCode, title: sessionTitle(s) }));
     },
   });
+  const runTool = useMutation({
+    mutationFn: () => runApprovalListTool(),
+    onSuccess: (value) => { setToolResult(value); setToolError(""); },
+    onError: (value) => setToolError(claudeErrorMessage(value)),
+  });
   if (mobileConversation) return <ConversationRoom {...mobileConversation} onBack={() => setMobileConversation(null)} />;
   return (
     <main className="claude-app" data-testid="claude-app">
@@ -417,6 +451,22 @@ function ClaudePage() {
         </div>
         <Button onClick={() => create.mutate()}>새 세션</Button>
       </header>
+      <section aria-label="Claude 도구 호출">
+        <Button type="button" onClick={() => runTool.mutate()} disabled={runTool.isPending}>
+          {runTool.isPending ? "도구 실행 중" : "결재 문서 목록 도구 실행"}
+        </Button>
+        {toolError ? <p role="alert">{toolError}</p> : null}
+        {toolResult ? (
+          <div aria-label="Claude 도구 결과">
+            <p>{toolResult.toolDisplayName} · {toolResult.method} {toolResult.path}</p>
+            <ul>
+              {toolResult.result.map((approval) => (
+                <li key={approval.approvalNo}>{approval.approvalNo} · {approval.title || "제목 없음"}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+      </section>
       <ul className="session-list" aria-label="클로드 세션 목록">
         {(sessions.data ?? []).map((s) => (
           <li key={s.sessionCode}><button type="button" onClick={() => openConversation({ sessionCode: s.sessionCode, title: sessionTitle(s) }, () => setMobileConversation({ sessionCode: s.sessionCode, title: sessionTitle(s) }))}>

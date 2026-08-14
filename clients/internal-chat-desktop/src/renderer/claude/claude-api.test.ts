@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { askClaude, claudeErrorMessage, createClaudeSession, listClaudeSessions } from './claude-api'
+import { askClaude, claudeErrorMessage, createClaudeSession, listClaudeSessions, runApprovalListTool } from './claude-api'
 
 describe('Claude conversation API boundary', () => {
   it('preserves the server 403 denial instead of fabricating a response', async () => {
@@ -49,5 +49,22 @@ describe('Claude conversation API boundary', () => {
     }), { status: 200 }))
 
     await expect(askClaude('라이브 QA', { request })).resolves.toContain('[가상 에이전트]')
+  })
+
+  it('calls only the server-owned read-only approval tool and never exposes UUIDs', async () => {
+    const request = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ data: {
+      toolName: 'groupware.approval-list', toolDisplayName: '결재 문서 목록 조회', method: 'GET',
+      path: '/admin/groupware/approvals', readOnly: true,
+      result: [{ approvalNo: '2026/08/15-1', title: '출장 신청', status: 'PENDING' }],
+    } }), { status: 200 }))
+
+    await expect(runApprovalListTool({ request })).resolves.toMatchObject({
+      toolName: 'groupware.approval-list', readOnly: true,
+    })
+    expect(request).toHaveBeenCalledWith(
+      expect.stringContaining('/admin/groupware/claude-tools/approval-list'),
+      expect.objectContaining({ credentials: 'include' }),
+    )
+    expect(JSON.stringify(request.mock.calls)).not.toMatch(/[0-9a-f]{8}-[0-9a-f-]{27}/i)
   })
 })
