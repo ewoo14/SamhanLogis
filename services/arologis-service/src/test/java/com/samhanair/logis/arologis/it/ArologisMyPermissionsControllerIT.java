@@ -39,15 +39,17 @@ import org.springframework.web.client.RestClient;
  * 실 HTTP 변환 경로를 검증한다.
  */
 @SpringBootTest(
-        classes = {
-                ArologisServiceApplication.class,
-                ArologisMyPermissionsControllerIT.RestClientMockConfig.class
-        },
+                classes = {
+                        ArologisServiceApplication.class,
+                        ArologisMyPermissionsControllerIT.RestClientMockConfig.class,
+                        GatewayAttestationMockMvcConfig.class
+                },
         properties = {
                 "samhan.auth-service.url=http://auth-service-stub",
                 "app.security.internal.token=test-internal-token",
                 "spring.main.allow-bean-definition-overriding=true",
-                "eureka.client.enabled=false"
+                "eureka.client.enabled=false",
+                "samhan.security.gateway-attestation=test-gateway-attestation"
         })
 @AutoConfigureMockMvc
 @ActiveProfiles("local")
