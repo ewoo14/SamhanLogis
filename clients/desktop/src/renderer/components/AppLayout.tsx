@@ -1419,26 +1419,6 @@ export function AppLayout() {
             >
               메신저
             </SidebarLink>
-            {/*
-             * 🚫 채팅 사이드바 진입점 비노출 (2026-08-12 개발책임자 결정)
-             *
-             * 채팅은 본체 메뉴가 아니라 **별도 패키징 앱**으로 간다.
-             *   "채팅창은 메뉴로 만들게 아니라 따로 카톡처럼 창을 띄워야지"
-             *   "별도 패키징 앱으로 하고 접속 중인지 여부도 알 수 있게 하자"
-             *
-             * #894 S1 은 서버·통신 토대(REST·SSE·방/메시지/참여자·권한)만 머지됐고
-             * 그 위에 얹을 클라이언트는 S2 에서 별도 앱으로 만든다.
-             * 그때까지 사용자에게 폐기 예정 형태를 노출하지 않는다.
-             *
-             * 라우트(/chat · /chat/:roomCode)는 개발·QA 용으로 살려 둔다.
-             */}
-            <SidebarLink
-              to="/chat"
-              show={showMessengerSend}
-              data-testid="sidebar-chat"
-            >
-              채팅
-            </SidebarLink>
             <SidebarLink
               to="/admin/chat-rooms"
               show={showChatRoomAdmin}
