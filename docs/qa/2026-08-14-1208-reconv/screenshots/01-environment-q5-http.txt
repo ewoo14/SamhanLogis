@@ -1,0 +1,37 @@
+PR #1208 재수렴 SOL — 환경·Q5 실 HTTP 원문
+검증일: 2026-08-14 Asia/Seoul
+
+LOCAL_BRANCH=feat/1144-accounting-slip-link
+LOCAL_SHA=1c4bcd3d400aba5e8e0ffc24a2ddbc1152ff9467
+PR_BRANCH=feat/1144-accounting-slip-link
+PR_SHA=1c4bcd3d400aba5e8e0ffc24a2ddbc1152ff9467
+MATCH=True
+
+격리 DB
+container=qa1208-reconv-pg
+endpoint=127.0.0.1:55433/accounting_db
+database=accounting_db
+db_user=qa1208
+server_encoding=UTF8
+client_encoding=UTF8
+korean_roundtrip=한글 HTTP 재수렴
+flyway_version=102
+flyway_description=quarantine orphan accounting allocations
+
+APP_READY|jar=services/accounting-service/build/libs/accounting-service.jar|url=http://localhost:19091
+
+fixture
+tax_invoice_no=20260814-QA01
+status=ISSUED
+supply_amount=100000.00
+vat_amount=10000.00
+total_amount=110000.00
+
+Q5_UNVERIFIED|HTTP=409|BODY={"success":false,"code":"CONFLICT","message":"일마감 금액 검증이 완료되지 않았습니다","data":null}
+closings_after_rejected_request=0
+
+Q5_VERIFIED|HTTP=201|BODY={"success":true,"code":"OK","message":"성공","data":{"closingDate":"2026-08-14","bizNo":"","partnerCode":null,"closingKind":"SALES","sourceKind":"TAX_INVOICE","totalSupply":100000.00,"totalVat":10000.00,"totalAmount":110000.00,"slipCount":1,"isLocked":true,"lockedBy":"qa1208-sol"}}
+DB|closing_date=2026-08-14|total_supply=100000.00|total_vat=10000.00|total_amount=110000.00|slip_count=1|is_locked=true|locked_by=qa1208-sol
+
+APP_STOPPED=True
+

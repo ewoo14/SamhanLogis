@@ -1,0 +1,55 @@
+PR #1208 재수렴 SOL — CI 6건 fixture diff·로컬 강제 재실행 원문
+
+직전 red CI
+run=31766538990
+head_sha=3768975b9d0caec65ade1df5f2e10f0c1e8a9f98
+job=94663518987 slip-it-core
+result=725 tests completed, 6 failed
+failed:
+1. SlipControllerIT > confirm_accountantRole_returns200()
+2. SlipInspectControllerIT > outbound_fullLifecycle_includingInspecting()
+3. SlipLifecycleControllerIT > outbound_fullLifecycle_DraftToConfirmed()
+4. SlipLifecycleControllerIT > inbound_lifecycle_skipsShipDeliver()
+5. SlipOutboundApprovalEnforcementIT > outboundInspectApprovalMember_canShipDeliverAndConfirmAfterInspection()
+6. SlipQueryPurchaseIT > R2: CONFIRMED 매입 상세는 검수 가능 READY 상태를 반환한다
+
+fix commit 1c4bcd3d4 fixture patch
+changed fixture files=5
+- SlipControllerIT.java: +5/-0, PartnerInternalClient @MockBean + resolvePartnerCode -> Optional.of("P-IT-001")
+- SlipInspectControllerIT.java: +6/-0, 같은 stub
+- SlipLifecycleControllerIT.java: +5/-0, 같은 stub
+- SlipOutboundApprovalEnforcementIT.java: +9/-1, reset 목록에 client 추가 + 같은 stub
+- SlipQueryPurchaseIT.java: +2/-0, 같은 stub
+test method/assertion hunks changed=0
+assertion deletion/완화=0
+
+local forced run:
+command=.\gradlew.bat :services:slip-service:test --tests '*SlipControllerIT' --tests '*SlipInspectControllerIT' --tests '*SlipLifecycleControllerIT' --tests '*SlipOutboundApprovalEnforcementIT' --tests '*SlipPartnerBackfillIT' --tests '*SlipQueryPurchaseIT' --tests '*SlipSalesQueryControllerIT' --tests '*SlipServiceTest' --rerun-tasks --no-daemon --console=plain
+BUILD SUCCESSFUL in 1m 49s
+TOTAL|suites=9|tests=162|failures=0|errors=0|skipped=0
+
+selected suites:
+SlipControllerIT|25|0|0|0
+SlipInspectControllerIT|9|0|0|0
+SlipLifecycleControllerIT|3|0|0|0
+SlipOutboundApprovalEnforcementIT|11|0|0|0
+SlipQueryPurchaseIT|21|0|0|0
+SlipPartnerBackfillIT|7|0|0|0
+SlipSalesQueryControllerIT|9|0|0|0
+SlipServiceTest|72|0|0|0
+
+CONFIRMED guards:
+confirm_lookupFailure_blocksTransition_andKeepsCodeBlank()=PASS
+outbound_fullLifecycle_DraftToConfirmed()=PASS
+inbound_lifecycle_skipsShipDeliver()=PASS
+confirm_accountantRole_returns200()=PASS
+
+accounting forced run:
+BUILD SUCCESSFUL in 1m 33s
+TOTAL|suites=5|tests=26|failures=0|errors=0|skipped=0
+DailyClosingIT|17|0|0|0
+AccountingSlipLinkEligibilityTest|6|0|0|0
+AccountingSlipLinkControllerTest|1|0|0|0
+AccountingSlipIntegrityMigrationIT|1|0|0|0
+AccountingSlipLinkAllocationRepositoryIT|1|0|0|0
+
