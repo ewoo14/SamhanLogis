@@ -22,8 +22,10 @@ $password = $null
 $certThumbprint = $null
 $script:RetainCertificateForTrustSetup = $false
 $script:CertificateOwnedByRun = $false
+$script:QaUninstallRegistryPath = $null
 $feedProcess = $null
 $appProcesses = @()
+. (Join-Path $PSScriptRoot 'internal-chat-release-feed-cleanup.ps1')
 
 function Write-Step([string]$Message) { Write-Host "[910-feed] $Message" }
 function Assert-True([bool]$Condition, [string]$Message) {
@@ -80,19 +82,6 @@ function Remove-Tracked([string]$Description, [scriptblock]$Action) {
     Write-Host $message
   }
 }
-function Remove-DirectoryWithRetry([string]$Path) {
-  for ($attempt = 1; $attempt -le 5; $attempt++) {
-    if (-not (Test-Path -LiteralPath $Path)) { return }
-    try {
-      Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction Stop
-      return
-    } catch {
-      if ($attempt -eq 5) { throw }
-      Start-Sleep -Seconds 2
-    }
-  }
-}
-
 function New-RandomPassword {
   $bytes = New-Object byte[] 32
   $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
@@ -200,11 +189,19 @@ try {
   $firstVersion = "$ReleaseDate-$FirstReleaseNumber"
   $firstInstaller = Get-Installer $firstVersion
   $installDir = Join-Path $installRoot $firstVersion
+  $uninstallRoot = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall'
+  $preexistingUninstallKeys = @(Get-ChildItem -LiteralPath $uninstallRoot -ErrorAction SilentlyContinue | Select-Object -ExpandProperty PSPath)
   New-Item -ItemType Directory -Path $installDir -Force | Out-Null
   Write-Step "9101 silent install: $firstInstaller"
   $installerProcess = Start-Process -FilePath $firstInstaller -ArgumentList @('/S', "/D=$installDir") -Wait -PassThru
   Write-Host "InstallerExit=$($installerProcess.ExitCode)"
   Assert-True ($installerProcess.ExitCode -eq 0) '9101 installer failed.'
+  $newUninstallRecord = Get-ChildItem -LiteralPath $uninstallRoot -ErrorAction SilentlyContinue |
+    Where-Object { $preexistingUninstallKeys -notcontains $_.PSPath } |
+    ForEach-Object { Get-ItemProperty -LiteralPath $_.PSPath -ErrorAction SilentlyContinue } |
+    Where-Object { $_.DisplayName -like 'Samhan Internal Chat *' } |
+    Select-Object -First 1
+  if ($newUninstallRecord) { $script:QaUninstallRegistryPath = $newUninstallRecord.PSPath }
   $installedExe = Join-Path $installDir 'Samhan Internal Chat.exe'
   Assert-True (Test-Path -LiteralPath $installedExe) "installed app missing: $installedExe"
   $beforeAsar = Join-Path $installDir 'resources\app.asar'
@@ -246,7 +243,9 @@ try {
   if ($feedProcess) { Remove-Tracked -Description "feed process" -Action ([scriptblock] { if (-not $feedProcess.HasExited) { Stop-Process -Id $feedProcess.Id -Force } }) }
   Get-Process -Name "Samhan Internal Chat" -ErrorAction SilentlyContinue | ForEach-Object {
     $pidToStop = $_.Id
-    Remove-Tracked -Description "app process $pidToStop" -Action ([scriptblock] { Stop-Process -Id $pidToStop -Force })
+    Remove-Tracked -Description "app process $pidToStop" -Action ([scriptblock] {
+      Stop-TrackedProcessAndWait -ProcessId $pidToStop -Description "app process $pidToStop"
+    })
   }
   if ($certThumbprint) {
     if (-not $script:CertificateOwnedByRun) {
@@ -259,6 +258,13 @@ try {
     }
   }
   Remove-Tracked -Description "temporary work $work" -Action ([scriptblock] { Remove-DirectoryWithRetry $work })
+  if ($script:QaUninstallRegistryPath) {
+    Remove-Tracked -Description 'QA uninstall registry entry' -Action ([scriptblock] {
+      if (Test-Path -LiteralPath $script:QaUninstallRegistryPath) {
+        Remove-Item -LiteralPath $script:QaUninstallRegistryPath -Recurse -Force
+      }
+    })
+  }
   if ($script:CleanupErrors.Count -gt 0) {
     Write-Host "cleanup failures=$($script:CleanupErrors.Count)"
     $script:Failed = $true
