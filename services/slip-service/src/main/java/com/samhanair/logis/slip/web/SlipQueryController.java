@@ -5,11 +5,13 @@ import com.samhanair.logis.slip.domain.DeliveryTag;
 import com.samhanair.logis.slip.domain.SlipStatus;
 import com.samhanair.logis.slip.domain.SlipType;
 import com.samhanair.logis.slip.service.SlipQueryService;
+import com.samhanair.logis.slip.service.DailyClosingQueryService;
 import com.samhanair.logis.slip.service.InOutAnalysisService;
 import com.samhanair.logis.slip.web.dto.InOutAnalysisResponse;
 import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.slip.web.dto.SlipResponse;
+import com.samhanair.logis.slip.web.dto.DailyClosingRowResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -52,6 +54,15 @@ public class SlipQueryController {
 
     private final SlipQueryService slipQueryService;
     private final InOutAnalysisService inOutAnalysisService;
+    private final DailyClosingQueryService dailyClosingQueryService;
+
+    /** 출고일 기준 일마감 S1 원본행 조회. */
+    @RequirePermission(page = "accounting.daily-closing", action = PermissionAction.VIEW)
+    @GetMapping("/daily-closing")
+    public ApiResponse<List<DailyClosingRowResponse>> dailyClosing(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate slipDate) {
+        return ApiResponse.ok(dailyClosingQueryService.findRows(slipDate));
+    }
 
     /** 확정 입출고를 모델코드별로 집계한다. 매입 기록이 없으면 이익률은 null이다. */
     @Operation(summary = "입출고 분석 조회", description = "확정 전표의 모델코드별 입고·출고·이익률 조회")

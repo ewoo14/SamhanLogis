@@ -4,17 +4,21 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.mock;
 
 import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.domain.DeliveryTag;
 import com.samhanair.logis.slip.domain.Slip;
+import com.samhanair.logis.slip.domain.SlipLine;
 import com.samhanair.logis.slip.domain.SlipStatus;
 import com.samhanair.logis.slip.domain.SlipType;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.web.dto.SlipResponse;
+import com.samhanair.logis.slip.web.dto.DailyClosingRowResponse;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +29,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -49,6 +54,9 @@ class SlipQueryServiceTest {
 
     @InjectMocks
     private SlipQueryService service;
+
+    @InjectMocks
+    private DailyClosingQueryService dailyClosingQueryService;
 
     @Test
     void listForQuery는_페이지의_distinct_UUID를_한번에_resolve하고_salesPersonName에_성명을_넣는다() {
@@ -103,6 +111,68 @@ class SlipQueryServiceTest {
 
         assertThat(query().getContent().get(0).salesPersonName()).isEqualTo("—");
         verifyNoInteractions(userInternalClient);
+    }
+
+    @Test
+    void 일마감_날짜조회는_확정된_세_상태만_남기고_나머지_상태를_제외한다() {
+        SlipStatus[] statuses = {
+            SlipStatus.CONFIRMED,
+            SlipStatus.DELIVERED,
+            SlipStatus.COMPLETED,
+            SlipStatus.DRAFT,
+            SlipStatus.INSPECTING,
+            SlipStatus.PROCESSING,
+            SlipStatus.SENT,
+            SlipStatus.CANCELED
+        };
+        Slip[] slips = new Slip[statuses.length];
+        SlipLine line = mock(SlipLine.class);
+        when(line.getProductName()).thenReturn("테스트 품목");
+        for (int i = 0; i < statuses.length; i++) {
+            slips[i] = slip("2026/08/14-" + (i + 1), "dev_sales");
+            ReflectionTestUtils.setField(slips[i], "status", statuses[i]);
+            ReflectionTestUtils.setField(slips[i], "lines", List.of(line));
+        }
+        when(slipRepository.findDailyClosingOutboundSlips(any(), anyCollection()))
+                .thenReturn(List.of(slips));
+
+        List<DailyClosingRowResponse> rows = dailyClosingQueryService.findRows(
+                LocalDate.of(2026, 8, 14));
+
+        assertThat(rows).hasSize(3);
+        assertThat(rows).extracting(DailyClosingRowResponse::sourceStatus)
+                .containsExactlyInAnyOrder(
+                        SlipStatus.CONFIRMED,
+                        SlipStatus.DELIVERED,
+                        SlipStatus.COMPLETED);
+        verify(slipRepository).findDailyClosingOutboundSlips(
+                eq(LocalDate.of(2026, 8, 14)),
+                eq(java.util.EnumSet.of(SlipStatus.CONFIRMED, SlipStatus.DELIVERED, SlipStatus.COMPLETED)));
+    }
+
+    @Test
+    void 일마감_원본행은_VAT포함_단가와_공급가액_부가세로_합계를_계산하고_null은_0으로_낸다() {
+        Slip slip = slip("2026/08/14-99", "dev_sales");
+        ReflectionTestUtils.setField(slip, "status", SlipStatus.CONFIRMED);
+        SlipLine line = mock(SlipLine.class);
+        when(line.getProductName()).thenReturn("품목 A");
+        when(line.getQuantity()).thenReturn(2);
+        when(line.getUnitPriceWithVat()).thenReturn(new java.math.BigDecimal("1100"));
+        when(line.getSupplyAmount()).thenReturn(new java.math.BigDecimal("2000"));
+        when(line.getVatAmount()).thenReturn(new java.math.BigDecimal("200"));
+        ReflectionTestUtils.setField(slip, "lines", List.of(line));
+        when(slipRepository.findDailyClosingOutboundSlips(any(), anyCollection()))
+                .thenReturn(List.of(slip));
+
+        DailyClosingRowResponse row = dailyClosingQueryService
+                .findRows(LocalDate.of(2026, 8, 14)).get(0);
+
+        assertThat(row.productName()).isEqualTo("품목 A");
+        assertThat(row.quantity()).isEqualTo(2);
+        assertThat(row.unitPriceWithVat()).isEqualByComparingTo("1100");
+        assertThat(row.total()).isEqualByComparingTo("2200");
+        assertThat(row.confirmation()).isEqualTo(DailyClosingRowResponse.Confirmation.UNDETERMINED);
+        assertThat(row.confirmationReason()).contains("원천");
     }
 
     private Page<SlipResponse> query() {

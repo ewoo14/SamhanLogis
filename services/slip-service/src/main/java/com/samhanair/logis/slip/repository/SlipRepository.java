@@ -244,6 +244,20 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
             @org.springframework.data.repository.query.Param("to") LocalDate to,
             @org.springframework.data.repository.query.Param("partnerId") UUID partnerId);
 
+    /** 일마감 S1: 출고일과 확정 상태만으로 라인까지 읽는 원본행 source. */
+    @EntityGraph(attributePaths = "lines")
+    @org.springframework.data.jpa.repository.Query("""
+            SELECT DISTINCT s FROM Slip s
+            WHERE s.isDeleted = false
+              AND s.slipType = com.samhanair.logis.slip.domain.SlipType.OUTBOUND
+              AND s.slipDate = :slipDate
+              AND s.status IN :statuses
+            ORDER BY s.seqNo ASC
+            """)
+    List<Slip> findDailyClosingOutboundSlips(
+            @org.springframework.data.repository.query.Param("slipDate") LocalDate slipDate,
+            @org.springframework.data.repository.query.Param("statuses") Collection<SlipStatus> statuses);
+
     /**
      * 거래처별 원장 출고전표 read projection source.
      *
