@@ -16,6 +16,9 @@ vi.mock('../api/messengerApi', () => ({
   ]),
   sendChatMessage: vi.fn(),
   createDirectChatRoom: vi.fn(),
+  createGroupChatRoom: vi.fn(),
+  editGroupChatRoom: vi.fn(),
+  fetchGroupChatRooms: vi.fn().mockResolvedValue([]),
   searchRecipients: vi.fn(),
   sanitizeInternalLabel: (value: string | null | undefined) => value?.replace(/^\[DEV-SEED\]\s*/i, '').trim() || value,
 }))
@@ -88,5 +91,29 @@ describe('room 기반 1:1 채팅 fix1 화면 계약', () => {
     renderWithQuery(<MemoryRouter initialEntries={['/chat/CHAT-20260812-000017']}><Routes><Route path="/chat/:roomCode" element={<ChatRoomPage />} /></Routes></MemoryRouter>)
     expect(await screen.findByRole('heading', { name: '개발매니저' })).toBeTruthy()
     expect(screen.queryByText(/\[DEV-SEED\]/)).toBeNull()
+  })
+
+  it('GROUP 신설은 방 이름과 선택한 참여자를 함께 제출한다', async () => {
+    const api = await import('../api/messengerApi')
+    vi.mocked(api.searchRecipients).mockResolvedValue([
+      { userId: 'user-2', name: '김개발', department: '플랫폼팀', employeeCode: 'E001' },
+    ])
+    vi.mocked(api.createGroupChatRoom).mockResolvedValue({ roomCode: 'CHAT-GROUP-1', type: 'GROUP', roomName: '운영방' })
+    renderWithQuery(<MemoryRouter><ChatRoomsPage /></MemoryRouter>)
+    fireEvent.click(screen.getAllByRole('button', { name: '그룹방 만들기' }).at(-1)!)
+    fireEvent.change(screen.getByRole('textbox', { name: '그룹방 이름' }), { target: { value: '운영방' } })
+    fireEvent.change(screen.getByRole('textbox', { name: '대화 상대 검색' }), { target: { value: '김개발' } })
+    fireEvent.click(await screen.findByRole('button', { name: /김개발/ }))
+    fireEvent.click(screen.getAllByRole('button', { name: '그룹방 만들기' }).at(-1)!)
+    await waitFor(() => expect(api.createGroupChatRoom).toHaveBeenCalledWith({ roomName: '운영방', employeeCodes: ['E001'] }))
+  })
+
+  it('DIRECT 방에는 그룹방 편집 경로가 나타나지 않는다', async () => {
+    vi.mocked((await import('../api/messengerApi')).fetchChatRooms).mockResolvedValue([
+      { roomCode: 'CHAT-20260812-000017', type: 'DIRECT', roomName: null, partnerName: '김개발', partnerDepartment: '플랫폼팀', partnerEmployeeCode: 'E001' },
+    ])
+    renderWithQuery(<MemoryRouter initialEntries={['/chat/CHAT-20260812-000017']}><Routes><Route path="/chat/:roomCode" element={<ChatRoomPage />} /></Routes></MemoryRouter>)
+    await screen.findByRole('heading', { name: /김개발/ })
+    expect(screen.queryByRole('button', { name: '그룹방 편집' })).toBeNull()
   })
 })

@@ -30,4 +30,5 @@ public class ChatRoomParticipant extends BaseEntity {
     }
     public boolean isActive() { return leftAt == null; }
     public void leave() { if (owner) throw new IllegalStateException("방 소유자는 먼저 소유권을 이전해야 합니다"); leftAt = LocalDateTime.now(); }
+    public void rejoin() { leftAt = null; }
 }

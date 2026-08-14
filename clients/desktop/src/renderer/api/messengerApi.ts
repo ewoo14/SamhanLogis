@@ -85,6 +85,8 @@ export async function markMessageRead(messageId: string): Promise<MessageRespons
 }
 
 export interface ChatRoom { roomCode: string; type: 'DIRECT' | 'GROUP' | 'SYSTEM'; roomName: string | null; partnerName?: string | null; partnerDepartment?: string | null; partnerEmployeeCode?: string | null }
+export interface GroupParticipant { name: string; departmentName: string | null; employeeCode: string | null }
+export interface GroupChatRoom extends ChatRoom { type: 'GROUP'; participants: GroupParticipant[]; unreadCount?: number; latestMessageAt?: string | null }
 export interface ChatMessage { roomCode: string; sequence: number; body: string; sentAt: string; senderName?: string | null; senderDepartment?: string | null; senderEmployeeCode?: string | null; mine?: boolean }
 
 /** 개발용 seed provenance는 데이터 보존 대상이지만 사용자 표시 경계에서는 제거한다. */
@@ -119,4 +121,28 @@ export async function createDirectChatRoom(participantId: string): Promise<ChatR
   const response = await apiClient.post<ApiEnvelope<ChatRoom>>('/admin/groupware/chat/rooms/direct', { participantId })
   const room = response.data.data
   return { ...room, roomName: sanitizeInternalLabel(room.roomName) ?? null, partnerName: sanitizeInternalLabel(room.partnerName) }
+}
+
+export interface GroupChatRoomRequest { roomName: string; employeeCodes: string[] }
+
+export async function createGroupChatRoom(request: GroupChatRoomRequest): Promise<ChatRoom> {
+  const response = await apiClient.post<ApiEnvelope<ChatRoom>>('/admin/groupware/chat/rooms/groups', request)
+  return response.data.data
+}
+
+export async function fetchGroupChatRooms(): Promise<GroupChatRoom[]> {
+  const response = await apiClient.get<ApiEnvelope<GroupChatRoom[]>>('/admin/groupware/chat/rooms/groups')
+  return response.data.data.map((room) => ({
+    ...room,
+    roomName: sanitizeInternalLabel(room.roomName) ?? null,
+    participants: room.participants.map((participant) => ({
+      ...participant,
+      name: sanitizeInternalLabel(participant.name) ?? '알 수 없는 사용자',
+    })),
+  }))
+}
+
+export async function editGroupChatRoom(roomCode: string, request: GroupChatRoomRequest): Promise<ChatRoom> {
+  const response = await apiClient.patch<ApiEnvelope<ChatRoom>>(`/admin/groupware/chat/rooms/${encodeURIComponent(roomCode)}`, request)
+  return response.data.data
 }

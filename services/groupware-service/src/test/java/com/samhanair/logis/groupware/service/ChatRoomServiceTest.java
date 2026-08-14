@@ -61,12 +61,57 @@ class ChatRoomServiceTest {
         when(roomRepository.saveAndFlush(any(ChatRoom.class))).thenAnswer(invocation -> invocation.getArgument(0));
         ChatRoomService service = new ChatRoomService(roomRepository, participantRepository, userClient, null);
 
-        ChatRoom room = service.createGroup(creator, List.of("E001"), null);
+        ChatRoom room = service.createGroup(creator, List.of("E001"), "운영방");
 
         assertThat(room.getType()).isEqualTo(com.samhanair.logis.groupware.domain.ChatRoomType.GROUP);
         assertThat(room.getParticipants()).extracting(ChatRoomParticipant::getUserId)
                 .containsExactlyInAnyOrder(creator, member);
         verify(userClient).resolveUserIdByEmployeeCode("E001");
+    }
+
+    @Test
+    void creating_group_room_requires_a_non_blank_name() {
+        UUID creator = UUID.randomUUID();
+        UUID member = UUID.randomUUID();
+        ChatRoomService service = new ChatRoomService(roomRepository, participantRepository, userClient, null);
+
+        assertThatThrownBy(() -> service.createGroup(creator, List.of("E001"), "  "))
+                .hasMessageContaining("방 이름");
+    }
+
+    @Test
+    void editing_group_room_renames_and_replaces_members_but_keeps_creator() {
+        UUID creator = UUID.randomUUID();
+        UUID oldMember = UUID.randomUUID();
+        UUID newMember = UUID.randomUUID();
+        ChatRoom room = ChatRoom.groupShell("CHAT-20260815-000001", creator, "기존방");
+        room.addParticipant(creator, true);
+        room.addParticipant(oldMember, false);
+        when(roomRepository.findByRoomCode(room.getRoomCode())).thenReturn(Optional.of(room));
+        when(participantRepository.findAllByRoomId(room.getId())).thenReturn(room.getParticipants());
+        when(userClient.resolveUserIdByEmployeeCode("E002")).thenReturn(Optional.of(newMember));
+        when(userClient.verifyActiveBulk(any())).thenReturn(java.util.Map.of(creator, true, newMember, true));
+        ChatRoomService service = new ChatRoomService(roomRepository, participantRepository, userClient, null);
+
+        ChatRoom edited = service.editGroup(creator, room.getRoomCode(), List.of("E002"), "새 운영방");
+
+        assertThat(edited.getRoomName()).isEqualTo("새 운영방");
+        assertThat(room.getParticipants()).filteredOn(ChatRoomParticipant::isActive)
+                .extracting(ChatRoomParticipant::getUserId).containsExactlyInAnyOrder(creator, newMember);
+        assertThat(room.getParticipants()).filteredOn(p -> p.getUserId().equals(oldMember))
+                .allMatch(p -> !p.isActive());
+    }
+
+    @Test
+    void editing_direct_room_is_rejected_instead_of_being_silently_ignored() {
+        UUID creator = UUID.randomUUID();
+        UUID other = UUID.randomUUID();
+        ChatRoom room = ChatRoom.directShell("CHAT-20260815-000002", creator, other);
+        when(roomRepository.findByRoomCode(room.getRoomCode())).thenReturn(Optional.of(room));
+        ChatRoomService service = new ChatRoomService(roomRepository, participantRepository, userClient, null);
+
+        assertThatThrownBy(() -> service.editGroup(creator, room.getRoomCode(), List.of("E003"), "그룹으로 변경"))
+                .hasMessageContaining("1:1");
     }
 
     @Test

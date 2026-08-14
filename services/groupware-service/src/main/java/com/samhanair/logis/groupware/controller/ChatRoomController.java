@@ -72,6 +72,16 @@ public class ChatRoomController {
         return ApiResponse.ok(result);
     }
 
+    @PatchMapping("/{roomCode}")
+    @RequirePermission(page = "messenger.send", action = PermissionAction.UPDATE)
+    public ApiResponse<ChatRoomResponse> editGroup(
+            @PathVariable String roomCode,
+            @RequestHeader(HttpHeaderConstants.CALLER_ID_HEADER) UUID actor,
+            @Valid @RequestBody ChatGroupRoomEditRequest request) {
+        return ApiResponse.ok(ChatRoomResponse.from(roomService.editGroup(actor, roomCode,
+                request.employeeCodes(), request.roomName())));
+    }
+
     @PostMapping("/{roomCode}/messages")
     @RequirePermission(page = "messenger.send", action = PermissionAction.CREATE)
     public ResponseEntity<ApiResponse<ChatMessageResponse>> sendMessage(
