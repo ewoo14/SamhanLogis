@@ -118,3 +118,32 @@ WHERE serial_key='SI-WPSRJG' AND is_deleted=FALSE;
 이번 보완은 API 오류 경로를 추가 검증한 라운드이므로 새 캡처는 만들지 않았다. 기존 tracked 캡처 2장은 `docs/qa/pr-1210-qr-scan-live/screenshots`에 그대로 보존되어 있으며 SHA-256은 각각 `1B8A9C512A31636815094B2F55442E9A1CC82C05336D6D68EE7DC618D2AF4324`, `5C0ED0C25E8938D545D87D45B01155B8C4A359651C1F52A56C52BD57F6B10982`, `total=2 unique=2 duplicateCount=0`이다. `observation.txt`와 `vite.pid`는 잡파일로 제거했고, capture harness는 유지하면서 `resolveQaShotsDir`를 통과하도록 했다.
 
 최신 재배포 대상은 `slip-service`, `inventory-service`뿐이며 postgres/eureka/rabbitmq/elasticsearch는 recreate하지 않았다. GitGuardian은 PM의 오탐 판정 범위로 건드리지 않았다.
+
+## 2026-08-15 CI clean DB 회귀 보완
+
+원격 실패의 원인은 ①과 ②의 중간 형태가 아니라 fixture 생성 방식의 상태 의존이다. 테스트는 fixture를 만들고 있었지만 `TODAY`를 사용했고, `SlipNumberService`는 날짜·전표 유형별 시퀀스를 공유한다. 따라서 다른 테스트가 같은 날짜의 INBOUND 또는 OUTBOUND 시퀀스를 먼저 소비하면 두 생성 결과가 동번호가 되지 않아 `SlipQuerySalesIT.java:541`의 `assertThat(inboundNo).isEqualTo(outboundNo)`에서 실패한다. 로컬 DB에 남은 동번호가 이 결함을 가렸다.
+
+수정은 검증을 약화하지 않고, 테스트 전용 고유 날짜 `2099-01-01`을 사용하도록 fixture만 격리한 것이다. INBOUND와 OUTBOUND를 계속 테스트에서 직접 생성하고, 동번호 단정과 충돌 endpoint의 409·메시지·data 부재 검증은 그대로 유지한다.
+
+```text
+.\gradlew.bat :services:slip-service:test --tests '*collidingInboundAndOutboundSlipNumberIsRejected' --tests '*inboundSlipIdIsRejectedWithOutboundOnlyReason' --no-daemon
+tests=2 skipped=0 failures=0 errors=0
+BUILD SUCCESSFUL
+```
+
+### Internal Chat Desktop 판정
+
+이번 변경은 `clients/internal-chat-desktop`을 수정하지 않았다. `installer failed`는 해당 앱의 `src/main/auto-update.test.ts`가 `quitAndInstall()` 예외를 의도적으로 발생시키는 테스트 원문이며, `auto-update.ts`가 상세 오류를 `console.error('[internal-chat-auto-update] ...')`로 남긴다. 실패가 아니라 테스트의 stderr 관측이다.
+
+CI와 같은 순서로 `npm ci` 후 실행한 결과:
+
+```text
+npm run typecheck  exit 0
+npm run lint       exit 0
+npm run test       exit 0 — Test Files 4 passed, Tests 26 passed
+npm run build      exit 0
+```
+
+### 전체 테스트 관측 한계
+
+`.\gradlew.bat :services:slip-service:test --no-daemon`은 5분 제한에서 완료 원문 없이 종료되었고, `--max-workers=1` 재실행도 422초 후 최종 결과 없이 종료되었다. 따라서 이 라운드에서 slip-service 전체의 `tests / failures / errors / skipped` 수치는 관측 불가이며 통과로 세지 않는다. 단독 회귀 2건만 위 원문으로 통과를 확인했다. 관련 서비스의 기존 런타임·HTTP 불변식은 코드 변경 없이 유지되며, 이번 수정 범위는 테스트 fixture 날짜 하나다.

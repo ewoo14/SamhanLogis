@@ -76,6 +76,8 @@ class SlipQuerySalesIT extends AbstractPostgresIT {
     private static final String SLIPS_PATH = "/slips";
     private static final String SLIPS_QUERY_PATH = "/slips/query";
     private static final LocalDate TODAY = LocalDate.now(ZoneId.of("Asia/Seoul"));
+    /** 다른 테스트가 오늘 날짜의 유형별 채번을 소비해도 동번호 fixture가 흔들리지 않도록 격리한다. */
+    private static final LocalDate COLLISION_FIXTURE_DATE = LocalDate.of(2099, 1, 1);
     private static final UUID TEST_USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000002");
 
     @Autowired
@@ -534,8 +536,8 @@ class SlipQuerySalesIT extends AbstractPostgresIT {
     @Test
     @DisplayName("#1210 RED: 입고·출고 동번호는 출고 화면에서 자동 선택하지 않는다")
     void collidingInboundAndOutboundSlipNumberIsRejected() throws Exception {
-        String inboundId = createSlip("INBOUND", TODAY, "RED-COLLISION-INBOUND");
-        String outboundId = createSlip("OUTBOUND", TODAY, "RED-COLLISION-OUTBOUND");
+        String inboundId = createSlip("INBOUND", COLLISION_FIXTURE_DATE, "RED-COLLISION-INBOUND");
+        String outboundId = createSlip("OUTBOUND", COLLISION_FIXTURE_DATE, "RED-COLLISION-OUTBOUND");
         String inboundNo = slipRepository.findById(UUID.fromString(inboundId)).orElseThrow().getSlipNo();
         String outboundNo = slipRepository.findById(UUID.fromString(outboundId)).orElseThrow().getSlipNo();
         assertThat(inboundNo).isEqualTo(outboundNo);
