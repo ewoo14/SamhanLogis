@@ -501,6 +501,19 @@ export function EstimateListPage() {
       ),
     },
     {
+      key: 'writtenAt',
+      header: '작성일',
+      width: '120px',
+      mobilePriority: 'secondary',
+      render: (row) => (
+        <span style={row.isDeleted ? DELETED_ROW_TEXT_STYLE : undefined}>
+          {row.source === 'web-quote-snapshot' || row.source === 'web-partner-order-draft'
+            ? (row.writtenAt ? row.writtenAt.slice(0, 10) : '')
+            : ''}
+        </span>
+      ),
+    },
+    {
       key: 'partnerName',
       header: '거래처',
       mobilePriority: 'secondary',

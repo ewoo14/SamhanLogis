@@ -20,6 +20,7 @@ import { getLegacyEstimateUrl } from './legacy-asset.js'
 import { isAllowedExternalUrl } from './external-url.js'
 import { registerAutoUpdateIpcHandlers } from './auto-update.js'
 import { DetailWindowRegistry, type DetailWindowRequest } from './detail-window-registry.js'
+import { isAllowedDetailWindowRoute } from './detail-window-route.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -174,7 +175,7 @@ app.whenReady().then(() => {
     app.quit()
   })
   ipcMain.handle('detail-window:open', (_event, payload: DetailWindowRequest) => {
-    if (!payload?.documentId || !payload.route || !/^\/(sales|purchases|accounting\/tax-invoices|transfers|warehouse\/audit)\/[A-Za-z0-9-]+$/.test(payload.route)) {
+    if (!payload?.documentId || !payload.route || !isAllowedDetailWindowRoute(payload.route)) {
       throw new Error('Invalid detail window route')
     }
     detailWindowRegistry.open(payload)

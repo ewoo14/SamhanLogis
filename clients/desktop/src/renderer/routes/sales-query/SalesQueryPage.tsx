@@ -296,7 +296,7 @@ export function SalesQueryPage() {
   const dataGridColumns: DataGridColumn<SlipQueryRow>[] = useMemo(
     () => [
       { key: 'slipNo',            label: '판매번호',    filter: 'text',
-        render: (row: SlipQueryRow) => <DocumentNumberLink number={row.slipNo} to={row.id ? `/sales/${row.id}` : ''} /> },
+        render: (row: SlipQueryRow) => <DocumentNumberLink number={row.slipNo} to={row.id ? `/sales/${row.id}` : ''} detailWindow={row.id ? { documentType: 'OUTBOUND_SLIP', documentId: row.id } : undefined} /> },
       { key: 'partnerName',       label: '거래처',      filter: 'text' },
       { key: 'businessNumber',    label: '거래처코드',   filter: 'text' },
       { key: 'deliveryAddress',   label: '배송주소',    filter: 'text' },
@@ -328,7 +328,11 @@ export function SalesQueryPage() {
             size="sm"
             onClick={(e) => {
               e.stopPropagation()
-              navigate(`/sales/${row.id}`)
+              if (row.id && window.samhanDetailWindow) {
+                void window.samhanDetailWindow.open({ documentType: 'OUTBOUND_SLIP', documentId: row.id, route: `/sales/${row.id}` })
+              } else if (row.id) {
+                navigate(`/sales/${row.id}`)
+              }
             }}
             aria-label={`${row.slipNo} 상세 보기`}
             data-testid={`sales-query-detail-${toPublicTestId(row.slipNo)}`}
@@ -738,7 +742,7 @@ export function SalesQueryPage() {
                     {/* 순번 */}
                     <Td align="center">{rowIndex}</Td>
                     {/* 판매번호 — UUID 비공개: slipNo 만 표시 */}
-                    <Td><DocumentNumberLink number={row.slipNo} to={row.id ? `/sales/${row.id}` : ''} /></Td>
+                    <Td><DocumentNumberLink number={row.slipNo} to={row.id ? `/sales/${row.id}` : ''} detailWindow={row.id ? { documentType: 'OUTBOUND_SLIP', documentId: row.id } : undefined} /></Td>
                     {/* 거래처 */}
                     <Td>{row.partnerName ?? '—'}</Td>
                     {/* 거래처코드 = businessNumber (사업자등록번호) */}

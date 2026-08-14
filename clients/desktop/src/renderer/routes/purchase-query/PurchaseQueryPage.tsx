@@ -191,7 +191,7 @@ export function PurchaseQueryPage() {
   const dataGridColumns: DataGridColumn<SlipQueryRow>[] = useMemo(
     () => [
       { key: 'slipNo',                 label: '구매번호',    filter: 'text',
-        render: (row: SlipQueryRow) => <DocumentNumberLink number={row.slipNo} to={row.id ? `/purchases/${row.id}` : ''} /> },
+        render: (row: SlipQueryRow) => <DocumentNumberLink number={row.slipNo} to={row.id ? `/purchases/${row.id}` : ''} detailWindow={row.id ? { documentType: 'INBOUND_SLIP', documentId: row.id } : undefined} /> },
       { key: 'partnerName',            label: '거래처',      filter: 'text' },
       { key: 'businessNumber',         label: '거래처코드',   filter: 'text' },
       { key: 'totalAmount',            label: '금액',        align: 'right' as const, filter: false as const,
@@ -540,7 +540,7 @@ export function PurchaseQueryPage() {
                     {/* 순번 */}
                     <Td align="center">{rowIndex}</Td>
                     {/* 구매번호 — UUID 비공개: slipNo 만 표시 */}
-                    <Td><DocumentNumberLink number={row.slipNo} to={row.id ? `/purchases/${row.id}` : ''} /></Td>
+                    <Td><DocumentNumberLink number={row.slipNo} to={row.id ? `/purchases/${row.id}` : ''} detailWindow={row.id ? { documentType: 'INBOUND_SLIP', documentId: row.id } : undefined} /></Td>
                     {/* 거래처 */}
                     <Td>{row.partnerName ?? '—'}</Td>
                     {/* 거래처코드 = businessNumber (사업자등록번호) */}
@@ -570,7 +570,11 @@ export function PurchaseQueryPage() {
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation()
-                          navigate(`/purchases/${row.id}`)
+                          if (row.id && window.samhanDetailWindow) {
+                            void window.samhanDetailWindow.open({ documentType: 'INBOUND_SLIP', documentId: row.id, route: `/purchases/${row.id}` })
+                          } else if (row.id) {
+                            navigate(`/purchases/${row.id}`)
+                          }
                         }}
                         aria-label={`${row.slipNo} 상세 보기`}
                         data-testid={`purchase-query-detail-${toPublicTestId(row.slipNo)}`}
