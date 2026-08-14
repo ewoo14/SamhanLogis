@@ -440,6 +440,7 @@ services:
       SAMHAN_DC_CONFIG_DB_USER: samhan
       SAMHAN_DC_CONFIG_DB_PASSWORD: samhan_dev_pw
       SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
+      SAMHAN_GATEWAY_ATTESTATION: ${SAMHAN_GATEWAY_ATTESTATION:-}
     ports:
       - "127.0.0.1:8089:8089"
     depends_on: *service-depends
@@ -501,6 +502,7 @@ services:
       SAMHAN_GROUPWARE_DB_PASSWORD: samhan_dev_pw
       SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
       SAMHAN_USER_SERVICE_URL: http://user-service:8083
+      SAMHAN_GATEWAY_ATTESTATION: ${SAMHAN_GATEWAY_ATTESTATION:-}
     ports:
       - "127.0.0.1:8092:8092"
     depends_on: *service-depends
