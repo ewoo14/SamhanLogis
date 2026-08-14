@@ -34,6 +34,21 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $repoRoot
 
+# 로컬 자격은 저장소 밖 infrastructure/.env.local 에서만 읽는다.
+# compose 파일/소스에 값을 복사하지 않고 현재 프로세스 환경으로만 전달한다.
+$localEnvPath = Join-Path $repoRoot 'infrastructure/.env.local'
+if (Test-Path $localEnvPath) {
+    foreach ($line in Get-Content -LiteralPath $localEnvPath -Encoding UTF8) {
+        if ($line -match '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$') {
+            $name = $matches[1]
+            $value = $matches[2].Trim()
+            if ($value.StartsWith('"') -and $value.EndsWith('"')) { $value = $value.Substring(1, $value.Length - 2) }
+            if ($value.StartsWith("'") -and $value.EndsWith("'")) { $value = $value.Substring(1, $value.Length - 2) }
+            [Environment]::SetEnvironmentVariable($name, $value, 'Process')
+        }
+    }
+}
+
 $services = @($Service | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() })
 if ($services.Count -eq 0 -or $services -contains '') {
     throw '서비스 이름이 비어 있습니다.'

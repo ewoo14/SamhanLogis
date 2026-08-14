@@ -764,6 +764,9 @@ eureka:
 
 app:
   security:
+    # gateway ingress attestation은 service-to-service internal token과 별도 자격이다.
+    # 값은 로컬 infrastructure/.env.local 또는 운영 secret manager에서만 주입한다.
+    gateway-attestation: ${SAMHAN_GATEWAY_ATTESTATION:}
     jwt:
       # Phase 8 2차 — SAMHAN_JWT_SECRET 우선, JWT_SECRET legacy fallback (Phase 10 cutover 시점 단일화)
       secret: ${SAMHAN_JWT_SECRET:${JWT_SECRET:dev-secret-change-me-in-production-32bytes-min!}}

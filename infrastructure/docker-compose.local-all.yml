@@ -108,6 +108,7 @@ services:
       SERVER_PORT: "8080"
       EUREKA_URL: http://eureka-server:8761/eureka/
       SAMHAN_JWT_SECRET: dev-only-secret-must-be-64-chars-or-longer-for-hmac-sha256-min-x
+      SAMHAN_GATEWAY_ATTESTATION: ${SAMHAN_GATEWAY_ATTESTATION:?SAMHAN_GATEWAY_ATTESTATION must be supplied by infrastructure/.env.local}
       JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70.0 -XX:InitialRAMPercentage=30.0 -Duser.timezone=Asia/Seoul"
     ports:
       - "127.0.0.1:8080:8080"
@@ -626,6 +627,7 @@ services:
       SAMHAN_AROLOGIS_CLIENT_SKELETON_MODE: "false"
       SAMHAN_AROLOGIS_SEED_TEST_DATA: "true"
       SAMHAN_AROLOGIS_JWT_SECRET: dev-only-secret-must-be-64-chars-or-longer-for-hmac-sha256-min-x
+      SAMHAN_GATEWAY_ATTESTATION: ${SAMHAN_GATEWAY_ATTESTATION:?SAMHAN_GATEWAY_ATTESTATION must be supplied by infrastructure/.env.local}
       SAMHAN_PARTNER_SERVICE_URL: http://partner-service:8095
       SAMHAN_USER_SERVICE_URL: http://user-service:8083
       SAMHAN_SLIP_SERVICE_URL: http://slip-service:8086
