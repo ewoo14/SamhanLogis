@@ -57,7 +57,7 @@ public class SecurityConfig {
                 // W10-4 (PR #99) DV-3: shared:security InternalTokenFilter 등록
                 .addFilterBefore(internalTokenFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(publicIdentityHeaderSanitizingFilter, InternalTokenFilter.class)
-                .addFilterBefore(headerAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterAfter(headerAuthenticationFilter, InternalTokenFilter.class);
         return http.build();
     }
 

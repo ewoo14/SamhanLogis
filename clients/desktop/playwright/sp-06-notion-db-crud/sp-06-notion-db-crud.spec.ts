@@ -124,7 +124,7 @@ test.describe('SP-06 Notion-origin data is Samhan Public DB CRUD', () => {
     //   한 뒤 HeaderAuthenticationFilter 를 그 다음에 배선한다(2단 체인). 구 단일 addFilterBefore(HeaderAuthenticationFilter)
     //   박제를 새 배선으로 갱신 — HeaderAuthenticationFilter 는 여전히 체인에 존재해 X-User-* 다운스트림 처리 보존.
     expect(partnerAuthSecurityConfig).toContain('addFilterBefore(internalTokenFilter, UsernamePasswordAuthenticationFilter.class)')
-    expect(partnerAuthSecurityConfig).toContain('addFilterAfter(new HeaderAuthenticationFilter(), InternalTokenFilter.class)')
+    expect(partnerAuthSecurityConfig).toContain('addFilterAfter(headerFilter, InternalTokenFilter.class)')
     expect(partnerAuthHeaderFilter).toContain('X-User-Id')
     // C5 후속: role header 는 무시하고 groups header 로 GROUP_ authority 만 생성한다.
     expect(partnerAuthHeaderFilter).toContain('X-User-Groups')

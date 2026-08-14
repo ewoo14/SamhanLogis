@@ -54,7 +54,7 @@ public class SecurityConfig {
                         .anyRequest().authenticated())
                 .addFilterBefore(internalTokenFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(sanitizer, InternalTokenFilter.class)
-                .addFilterBefore(headerFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterAfter(headerFilter, InternalTokenFilter.class);
         return http.build();
     }
 

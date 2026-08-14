@@ -50,7 +50,7 @@ public class SecurityConfig {
                         .anyRequest().authenticated())
                 .addFilterBefore(internalTokenFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(publicIdentityHeaderSanitizingFilter, InternalTokenFilter.class)
-                .addFilterBefore(headerAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterAfter(headerAuthenticationFilter, InternalTokenFilter.class);
         return http.build();
     }
 
