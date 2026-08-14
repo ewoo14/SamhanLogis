@@ -3,6 +3,7 @@ import { AxiosError } from 'axios'
 import {
   extractApiErrorMessage,
   extractApiErrorResponseMessage,
+  extractSalesSlipUserReason,
   getApiErrorInfo,
   isPartnerLookupUnavailableError,
 } from './apiError'
@@ -24,6 +25,36 @@ function axiosError(status: number, data: unknown): AxiosError {
 }
 
 describe('apiError helpers', () => {
+  it('매출전표 저장 409의 사용자용 사유를 반환한다', () => {
+    expect(extractSalesSlipUserReason(axiosError(409, {
+      success: false,
+      code: 'CONFLICT',
+      message: '일마감 금액 검증이 완료되지 않았습니다. 금액 검증을 완료해 주세요.',
+    }))).toBe('일마감 금액 검증이 완료되지 않았습니다. 금액 검증을 완료해 주세요.')
+  })
+
+  it('매출전표 저장 사유가 없거나 내부 문자열이면 null을 반환한다', () => {
+    expect(extractSalesSlipUserReason(axiosError(409, {
+      success: false,
+      code: 'CONFLICT',
+      message: '  ',
+    }))).toBeNull()
+    expect(extractSalesSlipUserReason(axiosError(409, {
+      success: false,
+      code: 'CONFLICT',
+      message: 'java.lang.IllegalStateException: source=00000000-0000-4000-8000-000000000001',
+    }))).toBeNull()
+  })
+
+  it('409가 아닌 오류와 다른 오류 코드는 사용자용 사유로 취급하지 않는다', () => {
+    expect(extractSalesSlipUserReason(axiosError(422, {
+      success: false,
+      code: 'SAS_LINE_AMOUNT_MISMATCH',
+      message: '라인 합계가 일치하지 않습니다.',
+    }))).toBeNull()
+    expect(extractSalesSlipUserReason(new Error('boom'))).toBeNull()
+  })
+
   it('extracts backend message before axios message', () => {
     const err = axiosError(409, {
       success: false,
