@@ -2,6 +2,7 @@ const assert = require('node:assert/strict')
 const http = require('node:http')
 const path = require('node:path')
 const fs = require('node:fs')
+const os = require('node:os')
 const { _electron: electron } = require('@playwright/test')
 
 const PORT = 18080
@@ -42,7 +43,8 @@ const server = http.createServer((req, res) => {
 
 async function main() {
   await new Promise((resolve) => server.listen(PORT, '127.0.0.1', resolve))
-  const app = await electron.launch({ args: ['out/main/index.js'], cwd: path.resolve(__dirname, '..'), env: { ...process.env, ELECTRON_DISABLE_SANDBOX: '1' } })
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'samhan-electron-contract-'))
+  const app = await electron.launch({ args: [`--user-data-dir=${userDataDir}`, 'out/main/index.js'], cwd: path.resolve(__dirname, '..'), env: { ...process.env, ELECTRON_DISABLE_SANDBOX: '1' } })
   const page = await app.firstWindow()
   await page.waitForSelector('[data-testid="messenger-app"]')
   await page.screenshot({ path: path.join(screenshotDir, 'round-fix-1-entry-real-electron.png'), fullPage: true })
@@ -78,8 +80,18 @@ async function main() {
   await page.getByText('배차 일정 요약').waitFor()
   await page.screenshot({ path: path.join(screenshotDir, 'round-fix-5-claude-session-list-real-electron.png'), fullPage: true })
 
-  await app.evaluate(({ app: electronApp }) => electronApp.quit())
-  await app.close()
+  await page.getByRole('button', { name: '개별' }).click()
+  await page.getByRole('button', { name: /김대리/ }).waitFor()
+  const persistenceChildPromise = app.waitForEvent('window')
+  await page.getByRole('button', { name: /김대리/ }).click()
+  const persistenceChild = await persistenceChildPromise
+  await persistenceChild.waitForSelector('[data-testid="conversation-window"]')
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].close())
+  await page.waitForTimeout(150)
+  assert.equal(app.windows().length, 1)
+  assert.equal(observed.leave, 0)
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].close())
+  await new Promise((resolve) => setTimeout(resolve, 2_500))
   assert.equal(observed.leave, 1)
   console.log(`ELECTRON_CONTRACT|direct=${observed.direct}|windows=deduped|group=metadata|presence=reflected|join=${observed.join}|childCloseLeave=${childCloseLeave}|leave=${observed.leave}`)
 }

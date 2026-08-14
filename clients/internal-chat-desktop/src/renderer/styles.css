@@ -20,8 +20,8 @@ button, textarea, input { font: inherit; }
 .messenger-topbar p, .claude-topbar p { margin: var(--space-1) 0 0; color: var(--color-ink-500); font-size: var(--font-size-sm); }
 .brand-mark, .avatar { display: grid; place-items: center; flex: 0 0 auto; width: 40px; height: 40px; border-radius: var(--radius-lg); color: var(--color-surface-0); background: var(--color-brand-500); font-weight: var(--font-weight-700); }
 .messenger-topbar .brand-mark { width: 48px; height: 48px; border-radius: var(--radius-xl); font-size: var(--font-size-xl); }
-.messenger-grid { min-height: 650px; overflow: hidden; border: 1px solid var(--color-line-200); border-radius: var(--radius-xl); background: var(--color-surface-0); }
-.conversation-sidebar { display: flex; flex-direction: column; min-width: 0; background: var(--color-surface-50); }
+.messenger-grid { min-height: 650px; overflow: hidden; background: transparent; }
+.conversation-sidebar { display: flex; flex-direction: column; min-width: 0; background: transparent; }
 .profile-row, .sidebar-title, .conversation-header { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-5); }
 .profile-row { border-bottom: 1px solid var(--color-line-200); }
 .profile-status-control { position: relative; padding: var(--space-3) var(--space-5); }
@@ -34,30 +34,35 @@ button, textarea, input { font: inherit; }
 .sidebar-title h2, .conversation-header h2, .claude-empty h3 { margin: 0; font-size: var(--font-size-lg); font-weight: var(--font-weight-700); }
 .conversation-sidebar > input, .conversation-sidebar > .input { margin: 0 var(--space-4) var(--space-3); }
 .conversation-list, .message-list, .session-list { list-style: none; margin: 0; padding: 0; }
-.conversation { display: flex; align-items: center; gap: var(--space-3); width: 100%; padding: var(--space-3) var(--space-5); border: 0; border-left: 3px solid transparent; background: transparent; text-align: left; cursor: pointer; }
-.conversation:hover, .conversation.active { border-color: var(--color-brand-500); background: var(--color-surface-0); }
+.conversation { display: flex; align-items: center; gap: var(--space-3); width: 100%; padding: var(--space-3) var(--space-5); border: 0; border-radius: var(--radius-lg); background: transparent; text-align: left; cursor: pointer; }
+.conversation:hover, .conversation.active { background: var(--color-surface-100); }
 .grouped-directory .directory-group { list-style: none; padding: var(--space-3) var(--space-5) 0; }
 .directory-group h3 { margin: 0 0 var(--space-1); color: var(--color-ink-500); font-size: var(--font-size-xs); font-weight: var(--font-weight-600); }
 .directory-group .conversation { width: calc(100% + var(--space-10)); margin-left: calc(var(--space-5) * -1); padding-left: var(--space-5); }
 .group-room-list > li { margin: var(--space-2) 0; }
-.group-room { position: relative; align-items: flex-start; border: 0; border-radius: var(--radius-md); }
-.group-room > span:nth-child(2) { min-width: 0; }
+.group-room { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "avatar copy time"; align-items: center; position: relative; padding-block: var(--space-4); }
+.group-room .room-avatar { grid-area: avatar; }
+.group-room .room-copy { grid-area: copy; min-width: 0; }
 .group-room strong { display: block; }
+.room-copy em { margin-left: var(--space-1); color: var(--color-ink-500); font-size: var(--font-size-xs); font-style: normal; font-weight: var(--font-weight-400); }
+.room-copy small { display: block; overflow: hidden; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; }
 .member-count { display: inline; margin-left: var(--space-1); color: var(--color-ink-500); font-size: var(--font-size-xs); font-weight: var(--font-weight-400); }
 .last-message { max-width: 230px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.group-room time { margin-left: auto; color: var(--color-ink-500); font-size: var(--font-size-xs); white-space: nowrap; }
+.group-room time { grid-area: time; align-self: start; margin-left: var(--space-3); color: var(--color-ink-500); font-size: var(--font-size-xs); white-space: nowrap; }
 .group-avatar { border-radius: var(--radius-md); }
 .conversation strong, .conversation small { display: block; }
 .conversation small, .directory-list small, .session small { margin-top: var(--space-1); color: var(--color-ink-500); font-size: var(--font-size-xs); }
 .conversation b { margin-left: auto; min-width: 20px; padding: var(--space-1); border-radius: var(--radius-full); color: var(--color-surface-0); background: var(--color-brand-500); text-align: center; font-size: var(--font-size-xs); }
-.directory-list { display: grid; gap: var(--space-1); margin-top: auto; padding: var(--space-4); border-top: 1px solid var(--color-line-200); }
+.directory-list { display: grid; gap: var(--space-1); margin-top: auto; padding: var(--space-4); }
 .directory-list button { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2); border: 0; background: transparent; text-align: left; cursor: pointer; }
 .directory-list small { margin-left: auto; }
 .new-chat-box { margin: 0 var(--space-4); padding: var(--space-3); border: 1px solid var(--color-brand-200); border-radius: var(--radius-md); background: var(--color-brand-50); }
 .new-chat-box p { margin: 0 0 var(--space-2); font-size: var(--font-size-sm); }
 .conversation-window { display: grid; grid-template-rows: auto 1fr auto; min-height: 100vh; background: var(--color-surface-0); }
-.conversation-window-header { display: flex; align-items: center; padding: var(--space-5); border-bottom: 1px solid var(--color-line-200); }
+.conversation-window-header { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-5); background: var(--color-surface-0); }
 .conversation-window-header h1 { margin: 0; font-size: var(--font-size-xl); }
+.conversation-window-header p { margin: var(--space-1) 0 0; color: var(--color-ink-500); font-size: var(--font-size-xs); }
+.conversation-back { border: 0; background: transparent; color: var(--color-ink-500); font-size: var(--font-size-3xl); line-height: 1; cursor: pointer; }
 .conversation-header { border-bottom: 1px solid var(--color-line-200); }
 .conversation-header p { margin: var(--space-1) 0 0; color: var(--color-ink-500); font-size: var(--font-size-sm); }
 .avatar.large { width: 48px; height: 48px; }
@@ -65,8 +70,11 @@ button, textarea, input { font: inherit; }
 .message-list { display: grid; gap: var(--space-4); align-content: start; }
 .message-list li { justify-self: start; max-width: 70%; padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg) var(--radius-lg) var(--radius-lg) var(--radius-sm); background: var(--color-surface-0); box-shadow: var(--shadow-sm); }
 .message-list li.mine { justify-self: end; border-radius: var(--radius-lg) var(--radius-lg) var(--radius-sm) var(--radius-lg); background: var(--color-brand-50); }
+.message-list li.continued { margin-top: calc(var(--space-4) * -1); }
+.message-avatar { display: inline-grid; place-items: center; width: var(--space-8); height: var(--space-8); margin-right: var(--space-2); border-radius: var(--radius-full); background: var(--color-surface-200); color: var(--color-ink-700); font-size: var(--font-size-xs); }
 .message-author, .message-list time { display: block; color: var(--color-ink-500); font-size: var(--font-size-xs); }
 .message-list p { margin: var(--space-2) 0; white-space: pre-wrap; line-height: var(--line-height-relaxed); }
+.message-list time { margin-left: var(--space-2); text-align: right; }
 .composer { display: flex; align-items: end; gap: var(--space-3); padding: var(--space-4); border-top: 1px solid var(--color-line-200); background: var(--color-surface-0); }
 .composer textarea { flex: 1; min-height: 56px; resize: vertical; padding: var(--space-3); border: 1px solid var(--color-line-300); border-radius: var(--radius-md); color: var(--color-ink-900); background: var(--color-surface-0); }
 .claude-topbar { padding: var(--space-6); border-radius: var(--radius-xl); background: var(--color-brand-700); color: var(--color-surface-0); }

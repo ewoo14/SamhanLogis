@@ -149,12 +149,21 @@ function sortedGroups(directory: Employee[]) {
 }
 function formatRoomTime(value?: string | null) {
   if (!value) return "";
+  const date = new Date(value);
+  const dateParts = (input: Date) => new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Seoul", year: "numeric", month: "numeric", day: "numeric" }).format(input);
+  const today = new Date();
+  const yesterday = new Date(today.getTime() - 86400000);
+  if (dateParts(date) !== dateParts(today)) {
+    if (dateParts(date) === dateParts(yesterday)) return "어제";
+    const parts = new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", month: "numeric", day: "numeric" }).formatToParts(date);
+    return `${parts.find((part) => part.type === "month")?.value ?? ""}월 ${parts.find((part) => part.type === "day")?.value ?? ""}일`;
+  }
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "Asia/Seoul",
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
-  }).formatToParts(new Date(value));
+  }).formatToParts(date);
   const period = parts.find((part) => part.type === "dayPeriod")?.value === "AM" ? "오전" : "오후";
   const hour = parts.find((part) => part.type === "hour")?.value ?? "";
   const minute = parts.find((part) => part.type === "minute")?.value ?? "";
@@ -214,6 +223,7 @@ function ConversationRoom({ roomCode, sessionCode, title, onBack }: { roomCode?:
             const next = all[index + 1];
             const sameMinute = Boolean(next && new Date(next.sentAt).toISOString().slice(0, 16) === new Date(m.sentAt).toISOString().slice(0, 16));
             return <li key={`${m.sequence}-${m.sentAt}`} className={`${m.mine ? "mine" : ""}${continued ? " continued" : ""}`}>
+              {!continued ? <span className="message-avatar" aria-hidden="true">{m.mine ? "나" : displayName(m.senderName).slice(0, 1)}</span> : null}
               {!continued ? <span className="message-author">{m.mine ? "나" : displayName(m.senderName)}</span> : null}
               <p>{m.body}</p>{!sameMinute ? <time>{formatRoomTime(m.sentAt)}</time> : null}
             </li>;

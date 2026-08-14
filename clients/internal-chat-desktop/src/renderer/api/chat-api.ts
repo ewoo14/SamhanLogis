@@ -38,7 +38,17 @@ export function subscribe(roomCode: string, onEvent: () => void): () => void {
   void fetch(`${base}/admin/groupware/chat/rooms/${encodeURIComponent(roomCode)}/stream`, { credentials: 'include', headers: { Accept: 'text/event-stream' }, signal: controller.signal }).then(async (response) => {
     if (!response.ok || !response.body) return
     const reader = response.body.pipeThrough(new TextDecoderStream()).getReader()
-    while (!controller.signal.aborted) { const chunk = await reader.read(); if (chunk.done) break; onEvent() }
+    let buffer = ''
+    while (!controller.signal.aborted) {
+      const chunk = await reader.read()
+      if (chunk.done) break
+      buffer += chunk.value
+      const events = buffer.split(/\r?\n\r?\n/)
+      buffer = events.pop() ?? ''
+      for (const raw of events) {
+        if (raw.split(/\r?\n/).some((line) => line.startsWith('data:'))) onEvent()
+      }
+    }
   }).catch(() => undefined)
   return () => controller.abort()
 }

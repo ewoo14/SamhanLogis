@@ -16,6 +16,22 @@ let mainWindowClosed = false
 const conversationWindows = new Map<string, BrowserWindow>()
 const windowStateStore = new Store<{ conversationWindows: WindowStateMap }>({ name: 'window-state' })
 
+function flushPresenceAndExit(): void {
+  if (quitFlushStarted) return
+  quitFlushStarted = true
+  mainWindow?.webContents.send('internal-chat:will-quit')
+  let completed = false
+  const finish = () => {
+    if (completed) return
+    completed = true
+    clearTimeout(timeout)
+    ipcMain.removeListener('internal-chat:quit-ack', finish)
+    app.exit(0)
+  }
+  ipcMain.once('internal-chat:quit-ack', finish)
+  const timeout = setTimeout(finish, 2_000)
+}
+
 function validateDeepLink(link: unknown): string | null {
   if (typeof link !== 'string') return null
   try {
@@ -135,7 +151,7 @@ function openConversationWindow(request: { roomCode?: string; sessionCode?: stri
     if (conversationWindows.get(key) === child) conversationWindows.delete(key)
     if (mainWindowClosed && conversationWindows.size === 0) {
       isQuitting = true
-      app.quit()
+      flushPresenceAndExit()
     }
   })
   const titleQuery = request.title ? `?title=${encodeURIComponent(request.title)}` : ''
@@ -176,20 +192,8 @@ if (!hasLock) {
   app.on('activate', () => showMainWindow())
   app.on('before-quit', (event) => {
     isQuitting = true
-    if (quitFlushStarted) return
-    quitFlushStarted = true
     event.preventDefault()
-    mainWindow?.webContents.send('internal-chat:will-quit')
-    let completed = false
-    const finish = () => {
-      if (completed) return
-      completed = true
-      clearTimeout(timeout)
-      ipcMain.removeListener('internal-chat:quit-ack', finish)
-      app.exit(0)
-    }
-    ipcMain.once('internal-chat:quit-ack', finish)
-    const timeout = setTimeout(finish, 2_000)
+    flushPresenceAndExit()
   })
   app.on('window-all-closed', () => {})
 }
