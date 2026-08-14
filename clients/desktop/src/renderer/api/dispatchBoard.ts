@@ -130,7 +130,7 @@ export async function listUnDispatchedSlips(
  * 배차보드 미리보기 전용 endpoint 를 사용한다. UUID 는 path param 전용으로만 사용한다.
  *
  * @param id 전표 UUID
- * @return 판매전표 미리보기용 상세 응답
+ * @return 출고전표 미리보기용 상세 응답
  */
 export async function getDispatchBoardSlipDetail(id: string): Promise<SlipDetail> {
   const res = await apiClient.get<ApiEnvelope<SlipDetail>>(

@@ -181,7 +181,7 @@ class EcountTaxInvoiceImporterTest {
 
     private static String taxCsv(String rows) {
         return """
-                "데이터관리>판매전표-Excel다운로드"
+                "데이터관리>출고전표-Excel다운로드"
                 "거래처코드\t","종사업장번호\t","거래처명\t","대표자명\t","주소1\t","업태\t","종목\t","Email\t","공급가액\t","부가세\t","일자\t","품목명[규격]\t","수량\t","단가\t","회계전표일자-No.\t",""
                 """ + rows;
     }

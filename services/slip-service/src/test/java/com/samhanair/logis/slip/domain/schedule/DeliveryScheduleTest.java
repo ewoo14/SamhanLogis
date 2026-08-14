@@ -68,9 +68,9 @@ class DeliveryScheduleTest {
 
     @Test
     void computeUnloadDate_비적용태그_null() {
-        // DAY 태그는 배송일정 미적용 → null
+        // SALE 태그는 배송일정 미적용 → null
         LocalDate m = LocalDate.of(2026, 6, 24);
-        assertThat(DeliverySchedule.computeUnloadDate(m, DeliveryTag.DAY)).isNull();
+        assertThat(DeliverySchedule.computeUnloadDate(m, DeliveryTag.SALE)).isNull();
         assertThat(DeliverySchedule.computeUnloadDate(m, DeliveryTag.LOGEN)).isNull();
         assertThat(DeliverySchedule.computeUnloadDate(m, null)).isNull();
     }
@@ -117,7 +117,7 @@ class DeliveryScheduleTest {
     void scheduleLabel_비적용태그_null() {
         LocalDate m = LocalDate.of(2026, 6, 25);
         LocalDate n = LocalDate.of(2026, 6, 26);
-        assertThat(DeliverySchedule.scheduleLabel(m, n, DeliveryTag.DAY)).isNull();
+        assertThat(DeliverySchedule.scheduleLabel(m, n, DeliveryTag.SALE)).isNull();
         assertThat(DeliverySchedule.scheduleLabel(m, n, null)).isNull();
     }
 
@@ -131,7 +131,7 @@ class DeliveryScheduleTest {
     void isScheduled_지방야적만_true() {
         assertThat(DeliverySchedule.isScheduled(DeliveryTag.REGION)).isTrue();
         assertThat(DeliverySchedule.isScheduled(DeliveryTag.STACK)).isTrue();
-        assertThat(DeliverySchedule.isScheduled(DeliveryTag.DAY)).isFalse();
+        assertThat(DeliverySchedule.isScheduled(DeliveryTag.SALE)).isFalse();
         assertThat(DeliverySchedule.isScheduled(DeliveryTag.LOGEN)).isFalse();
         assertThat(DeliverySchedule.isScheduled(null)).isFalse();
     }

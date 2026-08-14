@@ -54,10 +54,10 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>{@code GET  /accounting/hometax-export/history/{batchId}}        — 저장 이력 단건</li>
  * </ul>
  *
- * <p>SP-SAS-3 이후 신규 매출전표 N:1 세금계산서 묶음 발행 endpoint 를 함께 제공합니다.
+ * <p>SP-SAS-3 이후 신규 출고전표 N:1 세금계산서 묶음 발행 endpoint 를 함께 제공합니다.
  */
 @Tag(name = "세금계산서 배치",
-        description = "매출전표 묶음 발행 및 deprecated 홈택스 일괄발행 호환 endpoint")
+        description = "출고전표 묶음 발행 및 deprecated 홈택스 일괄발행 호환 endpoint")
 @RestController
 @RequestMapping
 @RequiredArgsConstructor
@@ -72,12 +72,12 @@ public class TaxInvoiceBatchController {
     private final TaxInvoiceBatchFromSalesSlipsService batchFromSalesSlipsService;
 
     /**
-     * 매출전표 N장 → 세금계산서 1장 묶음 발행.
+     * 출고전표 N장 → 세금계산서 1장 묶음 발행.
      *
-     * <p>동일 거래처 / 동일월 / POSTED / 미연결 매출전표만 허용합니다.
+     * <p>동일 거래처 / 동일월 / POSTED / 미연결 출고전표만 허용합니다.
      */
-    @Operation(summary = "매출전표 묶음 세금계산서 발행",
-            description = "POSTED 매출전표 N장을 동일 거래처·동일월 기준으로 세금계산서 1장에 연결하고 ISSUED 상태로 발행합니다.")
+    @Operation(summary = "출고전표 묶음 세금계산서 발행",
+            description = "POSTED 출고전표 N장을 동일 거래처·동일월 기준으로 세금계산서 1장에 연결하고 ISSUED 상태로 발행합니다.")
     @RequirePermission(page = "accounting.tax-invoice.batch-issue", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     @PostMapping("/admin/tax-invoices/batch-from-sales-slips")
     public ResponseEntity<TaxInvoiceFromSalesSlipsResponse> createFromSalesSlips(
@@ -86,8 +86,8 @@ public class TaxInvoiceBatchController {
         return ResponseEntity.ok(batchFromSalesSlipsService.createFromSalesSlips(req, userId));
     }
 
-    @Operation(summary = "매출전표 묶음 발행 후보 조회",
-            description = "POSTED + taxInvoice 미연결 매출전표를 거래처·월 기준으로 그룹화합니다.")
+    @Operation(summary = "출고전표 묶음 발행 후보 조회",
+            description = "POSTED + taxInvoice 미연결 출고전표를 거래처·월 기준으로 그룹화합니다.")
     @RequirePermission(page = "accounting.tax-invoice.batch-issue", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     @GetMapping("/admin/tax-invoices/batch-from-sales-slips/candidates")
     public ResponseEntity<List<TaxInvoiceBatchCandidateResponse>> listSalesSlipCandidates(

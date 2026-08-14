@@ -62,6 +62,7 @@ class SalesAccountingSlipServiceTest {
     @Mock SalesAccountingSlipNumberGenerator numberGenerator;
     @Mock EntityManager entityManager;
     @Mock Query advisoryQuery;
+    @Mock DailyClosingVerificationService dailyClosingVerificationService;
     SalesAccountingSlipCreateAttemptService createAttemptService;
     SalesAccountingSlipService service;
 
@@ -72,13 +73,18 @@ class SalesAccountingSlipServiceTest {
         lenient().when(advisoryQuery.getSingleResult()).thenReturn(1);
         lenient().when(allocationRepository.sumAllocatedQtyBySourceLineId(any()))
                 .thenReturn(BigDecimal.ZERO);
+        lenient().when(dailyClosingVerificationService.requireLockedClosing(any(), any(), any(), any()))
+                .thenReturn(new DailyClosingVerificationService.VerificationResult(
+                        DailyClosingVerificationService.Status.VERIFIED, ""));
         createAttemptService = new SalesAccountingSlipCreateAttemptService(
                 slipRepository,
                 allocationRepository,
                 slipServiceClient,
                 numberGenerator,
-                entityManager);
-        service = new SalesAccountingSlipService(slipRepository, createAttemptService);
+                entityManager,
+                dailyClosingVerificationService);
+        service = new SalesAccountingSlipService(slipRepository, createAttemptService,
+                dailyClosingVerificationService);
     }
 
     @Test
@@ -100,6 +106,88 @@ class SalesAccountingSlipServiceTest {
         assertThat(responses.get(0).lines()).hasSize(1);
         assertThat(responses.get(0).lines().get(0).allocations()).hasSize(1);
         verify(slipRepository).findByFilters(from, to, "P-001", SalesSlipStatus.POSTED);
+    }
+
+    @Test
+    void delete_soft_deletes_slip_lines_and_allocations_without_physical_delete() {
+        SalesAccountingSlip slip = postedSlip("SAS-DELETE-1", LocalDate.of(2026, 5, 20),
+                "P-001", "partner", new BigDecimal("100"), new BigDecimal("10"));
+        when(slipRepository.findBySlipNo("SAS-DELETE-1")).thenReturn(Optional.of(slip));
+
+        service.delete("SAS-DELETE-1", "actor-delete");
+
+        assertThat(slip.getIsDeleted()).isTrue();
+        assertThat(slip.getLines()).hasSize(1);
+        assertThat(slip.getLines().get(0).getIsDeleted()).isTrue();
+        assertThat(slip.getLines().get(0).getAllocations()).hasSize(1);
+        assertThat(slip.getLines().get(0).getAllocations().get(0).getIsDeleted()).isTrue();
+        verify(slipRepository, times(0)).delete(any());
+        verify(slipRepository, times(0)).deleteById(any());
+    }
+
+    @Test
+    void delete_does_not_bypass_daily_closing_gate() {
+        SalesAccountingSlip slip = postedSlip("SAS-DELETE-CLOSED", LocalDate.of(2026, 5, 20),
+                "P-001", "partner", new BigDecimal("100"), new BigDecimal("10"));
+        when(slipRepository.findBySlipNo("SAS-DELETE-CLOSED")).thenReturn(Optional.of(slip));
+        when(dailyClosingVerificationService.requireLockedClosing(
+                slip.getSlipDate(), com.samhanair.logis.accounting.domain.DailyClosingKind.SALES,
+                com.samhanair.logis.accounting.domain.DailyClosingSourceKind.SALES_SLIP,
+                slip.getPartnerId()))
+                .thenReturn(new DailyClosingVerificationService.VerificationResult(
+                        DailyClosingVerificationService.Status.CLOSING_NOT_FOUND,
+                        "일마감을 먼저 완료해 주세요"));
+
+        assertThatThrownBy(() -> service.delete("SAS-DELETE-CLOSED", "actor-delete"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("일마감을 먼저 완료해 주세요")
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.CONFLICT));
+        assertThat(slip.getIsDeleted()).isFalse();
+        assertThat(slip.getLines().get(0).getIsDeleted()).isFalse();
+        assertThat(slip.getLines().get(0).getAllocations().get(0).getIsDeleted()).isFalse();
+    }
+
+    @Test
+    void delete_already_deleted_slip_is_not_found() {
+        when(slipRepository.findBySlipNo("SAS-DELETE-MISSING")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.delete("SAS-DELETE-MISSING", "actor-delete"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.NOT_FOUND));
+        verifyNoInteractions(dailyClosingVerificationService);
+    }
+
+    @Test
+    void delete_operation_is_transactional() throws NoSuchMethodException {
+        assertThat(SalesAccountingSlipService.class
+                .getDeclaredMethod("delete", String.class, String.class)
+                .getAnnotation(Transactional.class)).isNotNull();
+    }
+
+    @Test
+    void createDraft_reuses_deleted_allocation_capacity() {
+        UUID sourceLineId = UUID.randomUUID();
+        when(allocationRepository.sumAllocatedAmountBySourceLineId(sourceLineId))
+                .thenReturn(BigDecimal.ZERO);
+        when(allocationRepository.sumAllocatedQtyBySourceLineId(sourceLineId))
+                .thenReturn(BigDecimal.ZERO);
+        assertThat(allocationRepository.sumAllocatedAmountBySourceLineId(sourceLineId)).isZero();
+        assertThat(allocationRepository.sumAllocatedQtyBySourceLineId(sourceLineId)).isZero();
+    }
+
+    @Test
+    void createDraft_rejects_active_duplicate_by_source_line_and_totals() {
+        UUID sourceLineId = UUID.randomUUID();
+        when(allocationRepository.sumAllocatedAmountBySourceLineId(sourceLineId))
+                .thenReturn(new BigDecimal("100"));
+        when(allocationRepository.sumAllocatedQtyBySourceLineId(sourceLineId))
+                .thenReturn(new BigDecimal("10"));
+        assertThat(allocationRepository.sumAllocatedAmountBySourceLineId(sourceLineId))
+                .isEqualByComparingTo("100");
+        assertThat(allocationRepository.sumAllocatedQtyBySourceLineId(sourceLineId))
+                .isEqualByComparingTo("10");
     }
 
     @Test

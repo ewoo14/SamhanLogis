@@ -113,7 +113,7 @@ class Phase26cSlipImmutableIT extends AbstractPostgresIT {
         Slip slip = slipRepository.findBySlipNo(slipNo).orElseThrow();
         UUID slipId = slip.getId();
 
-        // 매출 전표 수정 endpoint — 실제 URL: PUT /slips/{id}/sales
+        // 출고 전표 수정 endpoint — 실제 URL: PUT /slips/{id}/sales
         // SlipUpdateRequest 는 updatedAt + lines(@NotEmpty) 필수
         // lines 내 productId 가 없으면 validateLines()에서 422 반환 → SENT 상태 가드(409)에 도달 불가
         // PRODUCT_ID 를 포함하여 validateLines() 통과 후 requireEditable()→409 경로 확보
@@ -151,7 +151,7 @@ class Phase26cSlipImmutableIT extends AbstractPostgresIT {
         Slip slip = slipRepository.findBySlipNo(slipNo).orElseThrow();
         UUID slipId = slip.getId();
 
-        // 매출 전표 삭제 endpoint — 실제 URL: DELETE /slips/{id}/sales
+        // 출고 전표 삭제 endpoint — 실제 URL: DELETE /slips/{id}/sales
         // SlipDeleteRequest 는 updatedAt 필수 (request body)
         Map<String, Object> deleteReq = new LinkedHashMap<>();
         deleteReq.put("updatedAt", slip.getModifiedAt() != null

@@ -198,7 +198,7 @@ test('C2: 세금계산서 미리보기 — 양식 본문 + 상단 인쇄 버튼'
 // ────────────────────────────────────────────────────────────────────────────
 // CASE 3: 매입(입고)전표 미리보기 (/purchases/:id/print/purchase)
 // ────────────────────────────────────────────────────────────────────────────
-test('C3: 매입전표 미리보기 — 양식 본문 + 상단 인쇄 버튼', async ({ page }) => {
+test('C3: 입고전표 미리보기 — 양식 본문 + 상단 인쇄 버튼', async ({ page }) => {
   const token = await fetchRealToken()
   await installRealAuth(page, token)
   await setupApiProxy(page, token)
@@ -220,7 +220,7 @@ test('C3: 매입전표 미리보기 — 양식 본문 + 상단 인쇄 버튼', a
 
   const bodyText = await page.locator('body').textContent() ?? ''
   const hasPurchaseLabel = bodyText.includes('매입') || bodyText.includes('입고') || bodyText.includes('2026/04/08')
-  console.log('[CHECK] 매입전표 라벨:', hasPurchaseLabel)
+  console.log('[CHECK] 입고전표 라벨:', hasPurchaseLabel)
   console.log('[CHECK] 양식 텍스트 샘플:', bodyText.slice(0, 200).replace(/\s+/g, ' '))
 
   expect(hasPrintBtn || bodyText.includes('인쇄')).toBeTruthy()

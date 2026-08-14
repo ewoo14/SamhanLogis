@@ -48,7 +48,7 @@ import org.springframework.transaction.annotation.Transactional;
  * <ol>
  *   <li>마감 전 REGION 수동 생성 → 200</li>
  *   <li>마감 후 REGION 수동 생성 → 409</li>
- *   <li>미설정 태그(DAY, 시드 없음) 생성 → 통과</li>
+ *   <li>미설정 태그(SALE, 시드 없음) 생성 → 통과</li>
  *   <li>slipDate=내일 REGION 생성 → 통과(미래 전표)</li>
  *   <li>발행 경로(태그 null) 마감 후 생성 → 통과(태그 확정 전)</li>
  *   <li>DRAFT 생성 후 마감 후 editHeader REGION 태그 설정 → 409</li>
@@ -150,7 +150,7 @@ class OutboundCutoffGuardIT extends com.samhanair.logis.slip.it.AbstractPostgres
     }
 
     /**
-     * [시나리오 3] 미설정 태그(DAY, V51 기본 시드 없음) → 마감 후에도 통과(opt-in).
+     * [시나리오 3] 미설정 태그(SALE, V51 기본 시드 없음) → 마감 후에도 통과(opt-in).
      */
     @Test
     void create_dayTag_noCutoffSeed_returnsOk() throws Exception {
@@ -159,7 +159,7 @@ class OutboundCutoffGuardIT extends com.samhanair.logis.slip.it.AbstractPostgres
 
         mvc.perform(post("/slips")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(buildCreateRequest("DAY", today))
+                        .content(buildCreateRequest("SALE", today))
                         .header("X-User-Id", USER_ID)
                         .header("X-User-Role", USER_ROLE))
                 .andExpect(status().isCreated());

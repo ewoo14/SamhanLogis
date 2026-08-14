@@ -34,6 +34,7 @@ public class PurchaseAccountingSlipCreateAttemptService {
     private final SlipServiceClient slipServiceClient;
     private final PurchaseAccountingSlipNumberGenerator numberGenerator;
     private final EntityManager entityManager;
+    private final DailyClosingVerificationService dailyClosingVerificationService;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public PurchaseAccountingSlipResponse createDraftAttempt(
@@ -42,13 +43,13 @@ public class PurchaseAccountingSlipCreateAttemptService {
         validateRequest(req);
         if (req.partnerId() == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
-                    "매입전표 대상 거래처는 필수입니다");
+                    "입고전표 대상 거래처는 필수입니다");
         }
         AllocationRequest firstAllocation = null;
         for (LineRequest lr : req.lines()) {
             if (lr.allocations() == null || lr.allocations().isEmpty()) {
                 throw new BusinessException(ErrorCode.SAS_LINE_AMOUNT_MISMATCH,
-                        "매입전표 라인 배분이 비어 있습니다");
+                        "입고전표 라인 배분이 비어 있습니다");
             }
             if (firstAllocation == null) {
                 firstAllocation = lr.allocations().get(0);
@@ -56,7 +57,7 @@ public class PurchaseAccountingSlipCreateAttemptService {
         }
         if (firstAllocation == null) {
             throw new BusinessException(ErrorCode.SAS_LINE_AMOUNT_MISMATCH,
-                    "매입전표 라인 배분이 비어 있습니다");
+                    "입고전표 라인 배분이 비어 있습니다");
         }
         Map<UUID, AllocationTotals> allocationTotals = new HashMap<>();
         List<UUID> sourceLineIds = req.lines().stream()
@@ -76,6 +77,7 @@ public class PurchaseAccountingSlipCreateAttemptService {
         }
 
         SourceState firstState = sourceCache.get(firstAllocation.sourceLineId());
+        requireDailyClosing(firstState.snapshot(), req.slipDate());
         verifyAndAccumulate(firstAllocation, firstState, allocationTotals);
         String slipNo = numberGenerator.next(req.slipDate());
         PurchaseAccountingSlip slip = PurchaseAccountingSlip.createDraft(
@@ -110,6 +112,17 @@ public class PurchaseAccountingSlipCreateAttemptService {
         return PurchaseAccountingSlipResponse.of(slip);
     }
 
+    private void requireDailyClosing(SlipLineSnapshot source, java.time.LocalDate slipDate) {
+        DailyClosingVerificationService.VerificationResult result =
+                dailyClosingVerificationService.requireLockedClosing(
+                        slipDate, com.samhanair.logis.accounting.domain.DailyClosingKind.PURCHASE,
+                        com.samhanair.logis.accounting.domain.DailyClosingSourceKind.PURCHASE_SLIP,
+                        source.partnerId());
+        if (!result.allowed()) {
+            throw new BusinessException(ErrorCode.CONFLICT, result.userMessage());
+        }
+    }
+
     private SourceState loadSourceState(UUID sourceLineId, UUID headerPartnerId) {
         SlipLineSnapshot src = slipServiceClient.getSlipLine(sourceLineId);
         if (!sourceLineId.equals(src.lineId())) {
@@ -118,7 +131,7 @@ public class PurchaseAccountingSlipCreateAttemptService {
         }
         if (!"INBOUND".equals(src.slipType())) {
             throw new BusinessException(ErrorCode.SAS_SOURCE_SLIP_TYPE_MISMATCH,
-                    "매입전표는 입고전표만 원천으로 사용할 수 있습니다 (전표="
+                    "입고전표는 입고전표만 원천으로 사용할 수 있습니다 (전표="
                             + src.slipNo() + ", 유형=" + slipTypeDisplayName(src.slipType()) + ")");
         }
         if (!"CONFIRMED".equals(src.slipStatus())) {

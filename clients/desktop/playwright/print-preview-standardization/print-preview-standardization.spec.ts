@@ -62,7 +62,7 @@ test.describe('print preview standardization slice 1 source contract', () => {
     const purchase = read('clients/desktop/src/renderer/print/PurchaseSlipPrintPage.tsx')
     const quote = read('clients/desktop/src/renderer/print/QuoteView.tsx')
 
-    // 매입 전표는 설정기반 결재란을 사용하지만 결재문서 골격(PrintLayout approvalDoc)은 사용하지 않는다.
+    // 입고 전표는 설정기반 결재란을 사용하지만 결재문서 골격(PrintLayout approvalDoc)은 사용하지 않는다.
     expect(purchase).not.toContain('approvalDoc')
     expect(purchase).not.toContain('approvalSteps')
     expect(purchase).not.toContain('closingNote')

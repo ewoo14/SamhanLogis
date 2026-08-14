@@ -253,7 +253,7 @@ class RevisionRestoreVatAuthorityIT extends AbstractPostgresIT {
                 new CreateSlipRequest(
                         SlipType.OUTBOUND, LocalDate.of(2026, 7, 16),
                         UUID.randomUUID(), null, partnerId, "권위값 거래처",
-                        DeliveryTag.DAY, "16b 계열 sweep",
+                        DeliveryTag.SALE, "16b 계열 sweep",
                         null, null, null, null, null, null, null, null, null, null,
                         null, null, null, null, null, null, null, null, null, null,
                         List.of(new CreateSlipRequest.SlipLineRequest(

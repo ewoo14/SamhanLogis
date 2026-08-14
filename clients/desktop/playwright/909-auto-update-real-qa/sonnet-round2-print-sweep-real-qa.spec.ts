@@ -472,7 +472,7 @@ test.describe('인쇄 관점 sweep', () => {
 /**
  * U-3(#909 SONNET5 라운드2, PM 반증 2026-07-24) — "사용자가 인쇄하려는 내용을 지우지 않는다".
  *
- * PM 이 발견: SlipDetailModal(배차보드 전표 row 클릭 → "판매전표 미리보기" 모달) 은
+ * PM 이 발견: SlipDetailModal(배차보드 전표 row 클릭 → "출고전표 미리보기" 모달) 은
  * Modal children 안에 실제 인쇄 문서(DispatchDocument, .dispatch-page)를 렌더한다.
  * [data-testid='ds-modal-backdrop'] 를 통째로 숨기는 이전 fix 는 이 문서를 인쇄에서 지운다.
  * 여기서는 (a) 그 결함을 실제로 재현(RED, 블랭킷 규칙 주입) (b) 현재 소스(:has() 표적) 로
@@ -566,7 +566,7 @@ test.describe('U-3 Modal 안 인쇄 지면(SlipDetailModal) — PM 반증 확인
     })
 
     expect(backdropDisplay, 'SlipDetailModal 의 backdrop 이 인쇄에서 숨겨진다(과도한 일반화 회귀)').not.toBe('none')
-    expect(docVisible, 'U-3 위반 — 사용자가 보던 판매전표 문서가 인쇄에서 사라진다').toBe(true)
+    expect(docVisible, 'U-3 위반 — 사용자가 보던 출고전표 문서가 인쇄에서 사라진다').toBe(true)
     expect(pages, 'U-3 위반 — 문서가 인쇄 PDF 에 페이지로 나타나지 않는다').toBeGreaterThan(0)
 
     // ── (c) 회귀 없음 — 같은 세션의 다른 탭에서 업데이트 recommend 모달은 여전히 인쇄에서 빠진다 ──

@@ -49,7 +49,7 @@ const LIABILITY_TEXT = '서명 후 생긴 문제는 당사가 책임지지 않�
 const RECIPIENT_SIGN_TEXT = '인수자 서명'
 const LOGO_TEXT = 'SAMSUNG'
 const CHROME_TITLE_SUBSTR = '출고전표'
-const CHROME_DESC_TEXT = '판매전표 미리보기'
+const CHROME_DESC_TEXT = '출고전표 미리보기'
 const CHROME_CLOSE_TEXT = '닫기'
 const TAIL_MARKER_TEXT = 'SONNET-R2-TAIL-PAGEBREAK-MARKER-7e2d1'
 

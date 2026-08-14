@@ -12,7 +12,7 @@ const MOCK_PRODUCT_AJ040_ID = '2e40fa30-10b2-3a9b-a99c-570ac92287ad'
 
 async function gotoSlipNewPage(page: Page, requireDesktopLineTable = false): Promise<void> {
   await page.goto('/#/sales/new?mockRole=MANAGER', { waitUntil: 'domcontentloaded' })
-  await expect(page.getByTestId('header-page-title')).toHaveText('새 판매전표', { timeout: 15_000 })
+  await expect(page.getByTestId('header-page-title')).toHaveText('새 출고전표', { timeout: 15_000 })
   if (requireDesktopLineTable) {
     await expect(page.locator('.sfp-line-table')).toBeVisible()
   }

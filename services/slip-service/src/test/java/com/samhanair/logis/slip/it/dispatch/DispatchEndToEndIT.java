@@ -303,7 +303,7 @@ class DispatchEndToEndIT extends AbstractPostgresIT {
                 UUID.randomUUID(),
                 UUID.randomUUID(),
                 "배차 IT 거래처 %d".formatted(seq),
-                DeliveryTag.DAY,
+                DeliveryTag.SALE,
                 "배차 e2e IT",
                 "ewoo");
         ReflectionTestUtils.setField(slip, "partnerCode", "P-DEND-%03d".formatted(seq));

@@ -13,6 +13,7 @@ import {
   type CreateSalesAccountingSlipRequest,
   type SalesTaxType,
 } from '../../api/salesAccountingSlipApi'
+import { extractSalesSlipUserReason } from '../../api/apiError'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import { today } from '../../utils/dateUtils'
 import { splitVatInclusiveFromQtyUnitPrice } from '../../utils/vatRounding'
@@ -27,7 +28,7 @@ const inputStyle: CSSProperties = {
 }
 
 export function SalesAccountingSlipFormPage() {
-  usePageTitle('매출전표 작성')
+  usePageTitle('출고전표 작성')
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [slipDate, setSlipDate] = useState(today())
@@ -99,7 +100,7 @@ export function SalesAccountingSlipFormPage() {
     <div data-testid="sales-accounting-slip-form-page">
       <Card style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
-          <h3 style={{ margin: 0 }}>매출전표 작성</h3>
+          <h3 style={{ margin: 0 }}>출고전표 작성</h3>
           <Button variant="ghost" onClick={() => navigate('/accounting/sales-slips')}>
             목록
           </Button>
@@ -169,7 +170,7 @@ export function SalesAccountingSlipFormPage() {
         </div>
         {mutation.isError ? (
           <div className="error-banner" role="alert" style={{ marginTop: 8 }}>
-            매출전표 저장에 실패했습니다.
+            {extractSalesSlipUserReason(mutation.error) ?? '매출전표 저장에 실패했습니다.'}
           </div>
         ) : null}
         {sourcePartner.status !== 'valid' ? (

@@ -248,7 +248,7 @@ class SlipSignatureTest {
     private Slip newOutbound() {
         return Slip.createOutbound("2026/05/05-001", LocalDate.of(2026, 5, 5), 1,
                 SOURCE_WH, DEST_WH, PARTNER, "삼한공조",
-                DeliveryTag.DAY, null, "user-1");
+                DeliveryTag.SALE, null, "user-1");
     }
 
     /** 출고전표를 지정 status 까지 도달시킨다. */

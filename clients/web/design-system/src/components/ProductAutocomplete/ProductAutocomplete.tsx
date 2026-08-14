@@ -23,6 +23,8 @@ export interface ProductOption {
   id: string
   /** 모델명 (예: AJ040RXH4BC1) — 입력란 표시 / 비즈니스 식별자. */
   modelName: string
+  /** 재고·QR 계약에 사용하는 품목코드. */
+  productCode?: string | null
   /** 품목명 (예: 시스템에어컨 4Way 4HP). */
   productName: string
   /** 출고 단가 (선택 사항). */

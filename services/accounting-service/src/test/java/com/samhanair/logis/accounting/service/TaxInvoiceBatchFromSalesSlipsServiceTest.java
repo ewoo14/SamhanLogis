@@ -52,7 +52,7 @@ class TaxInvoiceBatchFromSalesSlipsServiceTest {
     }
 
     @Test
-    void listCandidates_POSTED_미연결_매출전표를_거래처_월별로_그룹화() {
+    void listCandidates_POSTED_미연결_출고전표를_거래처_월별로_그룹화() {
         LocalDate from = LocalDate.of(2026, 5, 1);
         LocalDate to = LocalDate.of(2026, 5, 31);
         UUID partnerId = UUID.randomUUID();
@@ -137,7 +137,7 @@ class TaxInvoiceBatchFromSalesSlipsServiceTest {
     }
 
     @Test
-    void B08_혼합_매출전표_묶음발행은_known_축과_공급가를_분리한다() {
+    void B08_혼합_출고전표_묶음발행은_known_축과_공급가를_분리한다() {
         UUID partnerId = UUID.randomUUID();
         UUID firstSlipId = UUID.randomUUID();
         UUID secondSlipId = UUID.randomUUID();
@@ -234,7 +234,7 @@ class TaxInvoiceBatchFromSalesSlipsServiceTest {
     }
 
     @Test
-    void createFromSalesSlips_이미_링크된_매출전표_SAS_TAX_INVOICE_ALREADY_LINKED() {
+    void createFromSalesSlips_이미_링크된_출고전표_SAS_TAX_INVOICE_ALREADY_LINKED() {
         UUID partnerId = UUID.randomUUID();
         SalesAccountingSlip linked = postedSlip("SAS-1", LocalDate.of(2026, 5, 1),
                 partnerId, "P-001", "A", "100000.00", "10000.00");
@@ -250,7 +250,7 @@ class TaxInvoiceBatchFromSalesSlipsServiceTest {
     }
 
     @Test
-    void createFromSalesSlips_POSTED_아닌_매출전표_SAS_SALES_SLIP_NOT_POSTED() {
+    void createFromSalesSlips_POSTED_아닌_출고전표_SAS_SALES_SLIP_NOT_POSTED() {
         SalesAccountingSlip draft = SalesAccountingSlip.createDraft("SAS-DRAFT",
                 LocalDate.of(2026, 5, 1), UUID.randomUUID(), "P-001", "A",
                 SalesTaxType.TAXABLE, null);
@@ -265,7 +265,7 @@ class TaxInvoiceBatchFromSalesSlipsServiceTest {
     }
 
     @Test
-    void createFromSalesSlips_VOIDED_매출전표_SAS_SALES_SLIP_NOT_POSTED() {
+    void createFromSalesSlips_VOIDED_출고전표_SAS_SALES_SLIP_NOT_POSTED() {
         SalesAccountingSlip voided = postedSlip("SAS-VOIDED",
                 LocalDate.of(2026, 5, 1), UUID.randomUUID(), "P-001", "A",
                 "100000.00", "10000.00");

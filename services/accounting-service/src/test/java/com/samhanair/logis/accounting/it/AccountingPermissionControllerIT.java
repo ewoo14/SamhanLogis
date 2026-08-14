@@ -325,6 +325,8 @@ class AccountingPermissionControllerIT {
                         () -> delete("/accounting/cash-receipts/{id}", ID)),
                 endpoint("sales accounting slip", "accounting.sales-slip.accounting", PermissionAction.VIEW, "ACCOUNTANT",
                         () -> get("/admin/sales-slips")),
+                endpoint("sales accounting slip delete", "accounting.sales-slip.accounting", PermissionAction.DELETE, "ACCOUNTANT",
+                        () -> delete("/admin/sales-slips/{slipNo}", "2026-05-19-1")),
                 endpoint("purchase accounting slip", "accounting.purchase-slip.accounting", PermissionAction.VIEW, "ACCOUNTANT",
                         () -> get("/admin/purchase-slips")),
                 endpoint("supplier profile list", "accounting.supplier-profiles", PermissionAction.VIEW, "ACCOUNTANT",

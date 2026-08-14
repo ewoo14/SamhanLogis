@@ -77,7 +77,7 @@ public class RegionalService {
         List<Entry> unmatched = new ArrayList<>();
 
         for (OutboundSlipSummary slip : slips) {
-            // 지방은 주소 표식이 아니라 판매전표 배송 태그 계약으로 판정한다.
+            // 지방은 주소 표식이 아니라 출고전표 배송 태그 계약으로 판정한다.
             if (!"REGION".equals(slip.deliveryTag())) {
                 continue;
             }

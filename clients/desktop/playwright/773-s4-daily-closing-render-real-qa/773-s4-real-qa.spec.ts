@@ -14,7 +14,7 @@ import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
  *
  * 단계별 캡처(docs/qa/773-s4-daily-closing-render/):
  *  01 일마감 조회 화면 진입
- *  02 필터 설정(2026-05-19 · 매출 · 매출전표)
+ *  02 필터 설정(2026-05-19 · 매출 · 출고전표)
  *  03 모델별 재검증 테이블 렌더(실 데이터·확인 배지·출고가·할인율)
  *  04 재검증 테이블 클로즈업
  */
@@ -91,9 +91,9 @@ test('일마감 모델별 재검증 렌더 — SALES_SLIP 2026-05-19 실 데이�
   await expect(page.getByRole('heading', { name: '일마감 조회' })).toBeVisible({ timeout: 30_000 })
   await capture(page, 'page-entry')
 
-  // 2) 필터: 날짜 2026-05-19 + 마감종류 매출(기본) + 원천 매출전표(SALES_SLIP)
+  // 2) 필터: 날짜 2026-05-19 + 마감종류 매출(기본) + 원천 출고전표(SALES_SLIP)
   await page.getByTestId('daily-closing-filter-date').fill('2026-05-19')
-  await page.getByRole('button', { name: '매출전표', exact: true }).click()
+  await page.getByRole('button', { name: '출고전표', exact: true }).click()
   await capture(page, 'filter-set-sales-slip-0519')
 
   // 3) 모델별 재검증 테이블 렌더 대기 (closingKind==='SALES' 게이트)

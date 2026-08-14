@@ -55,3 +55,48 @@ DELETE FROM flyway_schema_history WHERE version = '100';
 
 ## 관련
 [[feedback_parallel_backend_tracks_share_docker_stack]](이미지 판) · [[feedback_applied_migration_immutable]] · [[feedback_stale_deployment_looks_like_defect]] · PR #1010(#1009) · PR #1044(#1032)
+
+## 🆕 2026-08-15 — **되돌린 줄 알았는데 다시 적용돼 있었다** (#1210 → #1214·#1216 차단)
+
+낮에 V121 을 공유 DB 에서 되돌렸다(감사표 기준 UPDATE 61 · DELETE 61 · flyway history 1).
+그런데 밤에 다시 재보니 V121·V122 가 둘 다 `success` 로 들어가 있었다.
+
+```text
+공유 slip_db flyway 최신
+  122  redesign outbound delivery tags and cutoffs   success
+  121  normalize inbound purchase delivery tag       success
+
+활성 slips.delivery_tag
+  SALE 144 · PURCHASE 61 · REGION 8 · …
+```
+
+🔑 **배포된 slip-service 는 main 기반이라 enum 에 `SALE`·`PURCHASE` 가 없다.**
+그 값을 가진 행을 읽으면 매핑에 실패한다 ⟹ `GET /slips` 가 **500 INTERNAL_ERROR**.
+
+증상이 어떻게 보였나 — **완전히 다른 트랙의 UI 결함처럼 보였다.**
+
+```text
+#1214  "전표 목록이 안 뜬다 · 품목 입력 DOM 대기 실패"
+       ⟹ 셀렉터 문제로 파고들 뻔했다
+```
+
+### 왜 되돌리기가 유지되지 않았나
+
+되돌린 뒤에도 **그 브랜치의 라운드가 계속 돌았고**, 라이브QA 가 다시 마이그레이션을 태웠다.
+🚩 **되돌리기는 1회 조치이고, 브랜치가 살아 있는 한 재적용은 계속 일어난다.**
+
+### 적용
+
+```text
+미머지 마이그레이션을 공유 DB 에 태웠으면
+  ① 되돌리는 것으로 끝났다고 보지 마라 — 그 브랜치가 도는 동안 다시 들어온다
+  ② 그 브랜치의 라이브QA 를 격리 DB 로 돌리거나, 아니면 빨리 머지해서 정본화하라
+  ③ 다른 트랙에서 "목록이 500" · "화면이 안 뜬다" 가 나오면
+     flyway_schema_history 와 enum 컬럼 분포를 먼저 봐라
+🚨 행이 이미 새 값을 들고 있으면 되돌리기가 파괴적이다 — 그때는 머지가 유일한 출구다
+```
+
+
+
+관련: [[feedback_migration_number_three_counts]] · [[feedback_applied_migration_immutable]] ·
+[[feedback_parallel_backend_tracks_share_docker_stack]] · [[feedback_stale_deployment_looks_like_defect]]

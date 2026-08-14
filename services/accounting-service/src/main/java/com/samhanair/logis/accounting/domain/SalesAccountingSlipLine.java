@@ -14,7 +14,7 @@ import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UuidGenerator;
 
 /**
- * 매출전표 라인 — 전표 1건에 속하는 품목 단위 명세.
+ * 출고전표 라인 — 전표 1건에 속하는 품목 단위 명세.
  *
  * <p>spec: 2026-05-19-sales-purchase-accounting-slip-design.md §3-B
  */
@@ -69,7 +69,7 @@ public class SalesAccountingSlipLine extends BaseEntity {
                 supplyAmount, vatAmount, lineTotal);
     }
 
-    /** 판매 원천의 모델명·GAS 카테고리 축을 매출전표 라인에 snapshot한다. */
+    /** 판매 원천의 모델명·GAS 카테고리 축을 출고전표 라인에 snapshot한다. */
     public static SalesAccountingSlipLine create(SalesAccountingSlip slip, int lineNo,
             String productCode, String productName, String modelName, String categoryKey,
             BigDecimal qty, BigDecimal unitPrice,

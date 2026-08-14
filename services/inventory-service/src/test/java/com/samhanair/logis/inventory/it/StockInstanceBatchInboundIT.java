@@ -119,7 +119,7 @@ class StockInstanceBatchInboundIT extends AbstractPostgresIT {
 
         Map<String, Object> body = batchRequest(
                 serialProductId, "AC-S2", warehouseId, 3,
-                "구매", "S2-INB-001", new BigDecimal("500000"));
+                "PURCHASE", "S2-INB-001", new BigDecimal("500000"));
 
         mockMvc.perform(post("/inventory/instances/batch")
                         .header("X-User-Id", UUID.randomUUID().toString())
@@ -130,13 +130,13 @@ class StockInstanceBatchInboundIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.length()", is(3)))
                 .andExpect(jsonPath("$.data[0].productCode", is("AC-S2")))
                 .andExpect(jsonPath("$.data[0].status", is("AVAILABLE")))
-                .andExpect(jsonPath("$.data[0].inboundType", is("구매")));
+                .andExpect(jsonPath("$.data[0].inboundType", is("PURCHASE")));
 
         var rows = stockInstanceRepository.findByInboundSlipAndProduct("S2-INB-001", serialProductId);
         assertThat(rows).hasSize(3);
         assertThat(rows).allSatisfy(row -> {
             assertThat(row.getStatus()).isEqualTo(StockInstanceStatus.AVAILABLE);
-            assertThat(row.getInboundType()).isEqualTo("구매");
+            assertThat(row.getInboundType()).isEqualTo("PURCHASE");
         });
         assertThat(jdbcTemplate.queryForObject("""
                 SELECT count(*)
@@ -153,7 +153,7 @@ class StockInstanceBatchInboundIT extends AbstractPostgresIT {
 
         Map<String, Object> body = batchRequest(
                 serialProductId, "AC-S2", warehouseId, 3,
-                "구매", "S2-INB-002", new BigDecimal("500000"));
+                "PURCHASE", "S2-INB-002", new BigDecimal("500000"));
 
         postBatch(body);
         postBatch(body);
@@ -169,10 +169,10 @@ class StockInstanceBatchInboundIT extends AbstractPostgresIT {
 
         Map<String, Object> first = batchRequest(
                 serialProductId, "AC-S2", warehouseId, 1,
-                "구매", "S2-INB-DEFICIT", new BigDecimal("500000"));
+                "PURCHASE", "S2-INB-DEFICIT", new BigDecimal("500000"));
         Map<String, Object> target = batchRequest(
                 serialProductId, "AC-S2", warehouseId, 3,
-                "구매", "S2-INB-DEFICIT", new BigDecimal("500000"));
+                "PURCHASE", "S2-INB-DEFICIT", new BigDecimal("500000"));
 
         postBatch(first);
         assertThat(stockInstanceRepository.countByInboundSlipAndProduct("S2-INB-DEFICIT", serialProductId))
@@ -199,7 +199,7 @@ class StockInstanceBatchInboundIT extends AbstractPostgresIT {
 
         Map<String, Object> body = batchRequest(
                 batchProductId, "PIPE-S2", warehouseId, 2,
-                "구매", "S2-INB-003", new BigDecimal("10000"));
+                "PURCHASE", "S2-INB-003", new BigDecimal("10000"));
 
         mockMvc.perform(post("/inventory/instances/batch")
                         .header("X-User-Id", UUID.randomUUID().toString())

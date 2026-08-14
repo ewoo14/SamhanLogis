@@ -160,7 +160,7 @@ export interface StoredUnitPriceSource {
 }
 
 export interface ResolvedUnitPrices {
-  /** VAT 제외 공급단가 — 세금계산서·매입전표 인쇄의 "단가" 열 도메인. */
+  /** VAT 제외 공급단가 — 세금계산서·입고전표 인쇄의 "단가" 열 도메인. */
   supplyUnit: string
   /** VAT 포함 단가 — 상세/수정 화면·거래명세서의 "단가(VAT포함)" 도메인. */
   inclusiveUnit: string
@@ -221,7 +221,7 @@ function resolveAuthoredUnit(
  * 컬럼의 <b>성격은 서로 다르다</b>:
  * <ul>
  *   <li>{@code unit_price}(VAT 제외) = <b>파생값</b>. BE 가 {@code S ÷ Q} 로 계산해 넣는다 —
- *       세금계산서·매입전표의 "단가 × 수량 = 공급가액"이 이 컬럼의 항등식이다.</li>
+ *       세금계산서·입고전표의 "단가 × 수량 = 공급가액"이 이 컬럼의 항등식이다.</li>
  *   <li>{@code unit_price_with_vat}(VAT 포함) = <b>사용자 권위 입력</b>. 화면 단가(2026-06-09
  *       개발책임자 확정으로 VAT 포함)를 끝수까지 그대로 각인하며, 가격기억 각인 원천이다.
  *       2026-07-25 결정 P4 대로 어떤 경로에서도 역산하지 않는다({@link resolveAuthoredUnit}).</li>

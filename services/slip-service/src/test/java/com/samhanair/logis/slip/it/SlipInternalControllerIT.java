@@ -471,7 +471,7 @@ class SlipInternalControllerIT extends AbstractPostgresIT {
         body.put("partnerId", partnerId.toString());
         body.put("partnerCode", "P-TEST-SNAPSHOT");
         body.put("partnerName", "거래처");
-        body.put("deliveryTag", "DAY");
+        body.put("deliveryTag", "SALE");
         body.put("driverName", "기사");
         body.put("driverPhone", "010-1111-2222");
         body.put("lines", List.of(line));

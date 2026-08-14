@@ -1,7 +1,7 @@
 import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
- * 슬3 — 판매전표 결재란 설정기반 렌더 실 서버 QA.
+ * 슬3 — 출고전표 결재란 설정기반 렌더 실 서버 QA.
  *
  * [[no-fake-data-ever]] [[real-server-check-screenshot]] — 실 게이트웨이 :8080, mock off.
  * 결재란이 신규 비-admin 구조 엔드포인트(GET /auth/approval-line-configs/{docType}/structure)에서
@@ -57,7 +57,7 @@ async function setupApiProxy(page: Page, token: string): Promise<void> {
   })
 }
 
-test('S3: 판매전표 인쇄 결재란 — 설정 구조 기반 렌더 (출고자/검수자)', async ({ page }) => {
+test('S3: 출고전표 인쇄 결재란 — 설정 구조 기반 렌더 (출고자/검수자)', async ({ page }) => {
   const token = await fetchRealToken()
   await installRealAuth(page, token)
   await setupApiProxy(page, token)

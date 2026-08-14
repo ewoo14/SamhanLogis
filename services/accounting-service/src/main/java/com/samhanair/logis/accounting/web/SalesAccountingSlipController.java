@@ -42,7 +42,7 @@ public class SalesAccountingSlipController {
     }
 
     /**
-     * 매출전표를 회계 반영한다.
+     * 출고전표를 회계 반영한다.
      *
      * @param slipNo 전표번호 path 식별자. URL 단일 세그먼트용 {@code yyyy-MM-dd-N} 하이픈 slug 와
      *               내부 표준 {@code yyyy/MM/dd-N} 를 모두 수용한다.
@@ -54,6 +54,15 @@ public class SalesAccountingSlipController {
     public ResponseEntity<Void> post(@PathVariable String slipNo,
             @RequestHeader("X-User-Id") String userId) {
         service.post(DocumentNumberPathResolver.toSlashDocumentNo(slipNo), userId);
+        return ResponseEntity.noContent().build();
+    }
+
+    /** 매출전표와 line/allocation을 연쇄 soft-delete한다. */
+    @DeleteMapping("/{slipNo}")
+    @RequirePermission(page = "accounting.sales-slip.accounting", action = com.samhanair.logis.security.permission.PermissionAction.DELETE)
+    public ResponseEntity<Void> delete(@PathVariable String slipNo,
+            @RequestHeader("X-User-Id") String userId) {
+        service.delete(DocumentNumberPathResolver.toSlashDocumentNo(slipNo), userId);
         return ResponseEntity.noContent().build();
     }
 }

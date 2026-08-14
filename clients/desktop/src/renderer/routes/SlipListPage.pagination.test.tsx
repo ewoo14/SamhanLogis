@@ -57,7 +57,7 @@ describe('SlipListPage pagination', () => {
     }))
   })
 
-  it('삭제 포함 판매전표는 다음 페이지로 이동하고 토글 OFF는 첫 활성 페이지로 복귀한다', async () => {
+  it('삭제 포함 출고전표는 다음 페이지로 이동하고 토글 OFF는 첫 활성 페이지로 복귀한다', async () => {
     renderPage()
     const toggle = await screen.findByTestId('slip-list-include-deleted')
     fireEvent.click(toggle)

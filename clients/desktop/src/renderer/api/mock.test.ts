@@ -101,7 +101,7 @@ describe('SOL-1178 mock fail-closed 사용자 경로 회귀', () => {
       .toBe('요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.')
   })
 
-  it('SOL-1178-02 RED: 판매전표 저장 응답은 저장 후 화면이 소비하는 SlipDetailResponse shape다', () => {
+  it('SOL-1178-02 RED: 출고전표 저장 응답은 저장 후 화면이 소비하는 SlipDetailResponse shape다', () => {
     const response = getMockResponse({
       method: 'PUT',
       url: '/slips/slip-005/sales',
@@ -1234,7 +1234,7 @@ describe('mock business document number contract', () => {
     expect(collectedNos.filter((value) => OLD_PREFIX_FMT.test(value))).toEqual([])
   })
 
-  it('매출·매입전표 allocation sourceSlipNo 는 source API slipNo 와 cross-file 일치한다', async () => {
+  it('매출·입고전표 allocation sourceSlipNo 는 source API slipNo 와 cross-file 일치한다', async () => {
     vi.stubEnv('VITE_MOCK_MODE', '1')
 
     const outboundSources = await listSlipAllocationSources({

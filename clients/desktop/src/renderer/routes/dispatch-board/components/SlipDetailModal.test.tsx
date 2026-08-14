@@ -79,8 +79,8 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-describe('SlipDetailModal 판매전표 미리보기', () => {
-  it('전표 상세 조회를 유지하고 창고명/결재라인을 판매전표 문서에 주입한다', async () => {
+describe('SlipDetailModal 출고전표 미리보기', () => {
+  it('전표 상세 조회를 유지하고 창고명/결재라인을 출고전표 문서에 주입한다', async () => {
     getDispatchBoardSlipDetailMock.mockResolvedValue(sampleSlip)
     listWarehousesMock.mockResolvedValue([
       {

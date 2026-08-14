@@ -47,7 +47,7 @@ export function DashboardPage() {
       <div className="dashboard-grid">
         {canReadSales ? (
           <Card padding={4} shadow="sm">
-            <p className="stat-label">처리중 판매전표</p>
+            <p className="stat-label">처리중 출고전표</p>
             <p className="stat-value">
               {processingQuery.isLoading ? '...' : processingCount}
             </p>
@@ -81,7 +81,7 @@ export function DashboardPage() {
             onClick={() => navigate('/sales/new')}
             disabled={!canAccess('sales.slip.create', 'create')}
           >
-            새 판매전표
+            새 출고전표
           </Button>
           {canReadSales ? (
             <Button variant="secondary" onClick={() => navigate('/sales')}>

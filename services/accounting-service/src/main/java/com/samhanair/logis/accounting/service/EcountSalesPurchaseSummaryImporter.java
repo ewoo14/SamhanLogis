@@ -124,7 +124,7 @@ public class EcountSalesPurchaseSummaryImporter {
         for (SummaryMismatch row : rows) {
             result.mismatch(row.businessKey(), row.rawValue(), row.domainValue(),
                     ErrorCode.MIG4_SUMMARY_BALANCE_MISMATCH.name()
-                            + ": 매출매입내역 일별 매출 합계와 매출전표 합계가 다릅니다");
+                            + ": 매출매입내역 일별 매출 합계와 출고전표 합계가 다릅니다");
         }
     }
 

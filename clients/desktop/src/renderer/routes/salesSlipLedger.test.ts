@@ -14,8 +14,8 @@ const salesSlip = {
   slipDate: '2026-08-10',
 }
 
-describe('PR #1131 S1 판매전표 헤더·전잔·후잔', () => {
-  it('RED-A A-1 판매전표 헤더 거래처를 다시 입력하지 않아도 자동 채운다', () => {
+describe('PR #1131 S1 출고전표 헤더·전잔·후잔', () => {
+  it('RED-A A-1 출고전표 헤더 거래처를 다시 입력하지 않아도 자동 채운다', () => {
     expect(resolveSalesSlipPartnerHeader(salesSlip)).toEqual({
       name: '삼한공조',
       partnerCode: 'P-001',

@@ -60,14 +60,14 @@ public class TaxInvoiceInboundService {
             RegisterInboundTaxInvoiceRequest request, String actorUserId) {
         if (request == null || request.purchaseSlipIds() == null
                 || request.purchaseSlipIds().isEmpty()) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "매입전표 ID 목록은 필수입니다.");
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "입고전표 ID 목록은 필수입니다.");
         }
 
         LocalDate issuedDate = parseIssuedDate(request.issuedDate());
         List<PurchaseAccountingSlip> slips =
                 purchaseSlipRepository.findAllByIdsForBatch(request.purchaseSlipIds());
         if (slips.size() != request.purchaseSlipIds().size()) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "일부 매입전표를 찾을 수 없습니다.");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "일부 입고전표를 찾을 수 없습니다.");
         }
 
         PurchaseAccountingSlip first = slips.get(0);
@@ -136,20 +136,20 @@ public class TaxInvoiceInboundService {
         for (PurchaseAccountingSlip slip : slips) {
             if (!partnerId.equals(slip.getPartnerId())) {
                 throw new BusinessException(ErrorCode.SAS_PARTNER_MONTH_MISMATCH,
-                        "수신 등록은 동일 거래처 매입전표만 허용됩니다: " + slip.getSlipNo());
+                        "수신 등록은 동일 거래처 입고전표만 허용됩니다: " + slip.getSlipNo());
             }
             if (!slipMonth.equals(YearMonth.from(slip.getSlipDate()))) {
                 throw new BusinessException(ErrorCode.SAS_PARTNER_MONTH_MISMATCH,
-                        "수신 등록은 동일월 매입전표만 허용됩니다: " + slip.getSlipNo());
+                        "수신 등록은 동일월 입고전표만 허용됩니다: " + slip.getSlipNo());
             }
             if (slip.getStatus() != PurchaseSlipStatus.POSTED) {
                 throw new BusinessException(ErrorCode.SAS_PURCHASE_SLIP_NOT_POSTED,
                         PurchaseSlipStatus.POSTED.getDisplayName()
-                                + " 상태 매입전표만 수신 등록할 수 있습니다: " + slip.getSlipNo());
+                                + " 상태 입고전표만 수신 등록할 수 있습니다: " + slip.getSlipNo());
             }
             if (slip.getTaxInvoiceId() != null) {
                 throw new BusinessException(ErrorCode.SAS_TAX_INVOICE_ALREADY_LINKED,
-                        "이미 세금계산서와 매핑된 매입전표입니다: " + slip.getSlipNo());
+                        "이미 세금계산서와 매핑된 입고전표입니다: " + slip.getSlipNo());
             }
         }
     }

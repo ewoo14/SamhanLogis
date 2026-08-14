@@ -232,7 +232,7 @@ class SlipOutboundInstanceIT extends AbstractPostgresIT {
         body.put("partnerId", UUID.randomUUID().toString());
         body.put("partnerName", "S3 거래처");
         body.put("partnerCode", "P-S3-SLIP");
-        body.put("deliveryTag", "DAY");
+        body.put("deliveryTag", "SALE");
         body.put("lines", List.of(serialLine1, serialLine2, batchLine));
         return body;
     }

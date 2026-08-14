@@ -88,7 +88,7 @@ class CompensationRecoveryServiceTest {
                 UUID.randomUUID(),
                 UUID.randomUUID(),
                 "삼한상사",
-                DeliveryTag.DAY,
+                DeliveryTag.SALE,
                 null,
                 "unit-test");
         ReflectionTestUtils.setField(slip, "id", UUID.randomUUID());

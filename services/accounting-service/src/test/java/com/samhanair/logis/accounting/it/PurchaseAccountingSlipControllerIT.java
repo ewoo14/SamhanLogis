@@ -14,8 +14,12 @@ import com.samhanair.logis.accounting.client.ETaxClient;
 import com.samhanair.logis.accounting.client.KftcClient;
 import com.samhanair.logis.accounting.client.SlipLineSnapshot;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
+import com.samhanair.logis.accounting.domain.DailyClosing;
+import com.samhanair.logis.accounting.domain.DailyClosingKind;
+import com.samhanair.logis.accounting.domain.DailyClosingSourceKind;
 import com.samhanair.logis.accounting.domain.PurchaseSlipStatus;
 import com.samhanair.logis.accounting.domain.SalesTaxType;
+import com.samhanair.logis.accounting.repository.DailyClosingRepository;
 import com.samhanair.logis.accounting.repository.PurchaseAccountingSlipRepository;
 import com.samhanair.logis.accounting.service.PurchaseAccountingSlipNumberGenerator;
 import com.samhanair.logis.accounting.web.dto.CreatePurchaseAccountingSlipRequest;
@@ -25,6 +29,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -36,7 +42,10 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @SpringBootTest(classes = AccountingServiceApplication.class)
 @AutoConfigureMockMvc
@@ -49,12 +58,72 @@ class PurchaseAccountingSlipControllerIT extends AbstractPostgresIT {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper om;
     @Autowired PurchaseAccountingSlipRepository purchaseSlipRepository;
+    @Autowired DailyClosingRepository dailyClosingRepository;
+    @Autowired PlatformTransactionManager transactionManager;
 
     @MockBean SlipServiceClient slipServiceClient;
     @MockBean ETaxClient eTaxClient;
     @MockBean KftcClient kftcClient;
     @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class) DynamicPermissionClient dynamicPermissionClient;
     @MockBean PurchaseAccountingSlipNumberGenerator numberGenerator;
+
+    @BeforeEach
+    void seedLockedPurchaseClosing() {
+        requiresNewTransaction().executeWithoutResult(status -> {
+            DailyClosing closing = DailyClosing.createV2(
+                    LocalDate.of(2026, 5, 19), PARTNER_ID, DailyClosingKind.PURCHASE,
+                    DailyClosingSourceKind.PURCHASE_SLIP, BigDecimal.ZERO, BigDecimal.ZERO,
+                    BigDecimal.ZERO, 0);
+            closing.lock("test-accountant");
+            dailyClosingRepository.saveAndFlush(closing);
+        });
+    }
+
+    @AfterEach
+    void removePurchaseClosingFixture() {
+        requiresNewTransaction().executeWithoutResult(status -> {
+            dailyClosingRepository.findByClosingDateAndPartnerIdAndClosingKindAndSourceKind(
+                            LocalDate.of(2026, 5, 19), PARTNER_ID, DailyClosingKind.PURCHASE,
+                            DailyClosingSourceKind.PURCHASE_SLIP)
+                    .ifPresent(closing -> {
+                        closing.markDeleted("test-cleanup");
+                        dailyClosingRepository.saveAndFlush(closing);
+                    });
+                });
+    }
+
+    private TransactionTemplate requiresNewTransaction() {
+        TransactionTemplate template = new TransactionTemplate(transactionManager);
+        template.setPropagationBehavior(Propagation.REQUIRES_NEW.value());
+        return template;
+    }
+
+    @Test
+    void POST_admin_purchase_slips_일마감_미선행은_409로_차단한다() throws Exception {
+        UUID sourceSlipId = UUID.randomUUID();
+        UUID sourceLineId = UUID.randomUUID();
+        LocalDate dateWithoutClosing = LocalDate.of(2026, 5, 20);
+        when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
+                sourceSlipId, "IN-2026-05-0043", sourceLineId, PARTNER_ID,
+                "P-SOURCE-823", "원천 거래처", "상품", 10,
+                new BigDecimal("150000"), new BigDecimal("1500000"), "CONFIRMED", "INBOUND"));
+
+        CreatePurchaseAccountingSlipRequest req = new CreatePurchaseAccountingSlipRequest(
+                dateWithoutClosing, PARTNER_ID, "P-2026-0002", "원천 거래처", SalesTaxType.TAXABLE,
+                "gate", List.of(new CreatePurchaseAccountingSlipRequest.LineRequest(
+                        "상품", "상품", new BigDecimal("10"), new BigDecimal("150000"),
+                        List.of(new CreatePurchaseAccountingSlipRequest.AllocationRequest(
+                                sourceSlipId, "IN-2026-05-0043", sourceLineId, 1,
+                                new BigDecimal("10"), new BigDecimal("1500000"))))));
+
+        mvc.perform(post("/admin/purchase-slips")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000114")
+                        .header("X-User-Role", "MASTER")
+                        .content(om.writeValueAsString(req)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("일마감을 먼저 완료해 주세요"));
+    }
 
     @Test
     void POST_admin_purchase_slips_DRAFT_정상생성() throws Exception {

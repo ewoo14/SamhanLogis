@@ -16,7 +16,7 @@ async function selectMockPartner(page: import('@playwright/test').Page) {
   await page.getByText('엘에이시스템에어').last().click()
 }
 
-test.describe('1068 판매전표 헤더 자동채움 real-qa', () => {
+test.describe('1068 출고전표 헤더 자동채움 real-qa', () => {
   test('거래처 선택 시 헤더와 원장 전잔을 표시한다', async ({ page }) => {
     await openNewSalesSlip(page)
 

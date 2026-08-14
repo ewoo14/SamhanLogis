@@ -182,7 +182,7 @@ class SlipServiceCompensationTest {
 
     private Slip preparedOutboundMixed(SlipStatus status) {
         Slip slip = Slip.createOutbound("2026/06/03-1", LocalDate.of(2026, 6, 3), 1,
-                sourceWarehouseId, destinationWarehouseId, partnerId, "삼한공조", DeliveryTag.DAY, null, "u");
+                sourceWarehouseId, destinationWarehouseId, partnerId, "삼한공조", DeliveryTag.SALE, null, "u");
         ReflectionTestUtils.setField(slip, "id", slipId);
         slip.addLine(SlipLine.create(slip, serialProductId, "에어컨", "MODEL-SERIAL", null,
                 2, new BigDecimal("500000.00"), null));

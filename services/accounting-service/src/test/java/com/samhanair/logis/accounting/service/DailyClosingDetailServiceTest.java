@@ -681,7 +681,7 @@ class DailyClosingDetailServiceTest {
     }
 
     @Test
-    @DisplayName("매출전표 detail — 전표 라인 VAT 포함 유효단가로 재검증 필드를 노출한다")
+    @DisplayName("출고전표 detail — 전표 라인 VAT 포함 유효단가로 재검증 필드를 노출한다")
     void salesSlipDetailRevalidatesWithLineVatAmount() {
         UUID matched = UUID.randomUUID();
         SalesAccountingSlip slip = newPostedSalesSlip("SAS-RV-001", DATE, "AJ040RXH4BC1 [4멀티]",
@@ -861,7 +861,7 @@ class DailyClosingDetailServiceTest {
     }
 
     @Test
-    @DisplayName("매입전표 detail — 전표 라인 VAT 포함 유효단가로 재검증 필드를 노출한다")
+    @DisplayName("입고전표 detail — 전표 라인 VAT 포함 유효단가로 재검증 필드를 노출한다")
     void purchaseSlipDetailRevalidatesWithLineVatAmount() {
         UUID matched = UUID.randomUUID();
         PurchaseAccountingSlip slip = newPostedPurchaseSlip("PAS-RV-001", DATE, "AM160NXVHHH1 [AM상업멀티]",

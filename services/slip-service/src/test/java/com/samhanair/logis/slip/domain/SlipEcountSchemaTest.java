@@ -125,6 +125,6 @@ class SlipEcountSchemaTest {
     private Slip newOutbound(String memo) {
         return Slip.createOutbound("2026/05/04-1", LocalDate.of(2026, 5, 4), 1,
                 SOURCE_WH, DEST_WH, PARTNER, "삼한공조",
-                DeliveryTag.DAY, memo, "user-1");
+                DeliveryTag.SALE, memo, "user-1");
     }
 }

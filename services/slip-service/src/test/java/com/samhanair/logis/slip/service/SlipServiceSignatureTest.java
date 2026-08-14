@@ -62,7 +62,7 @@ class SlipServiceSignatureTest {
         // 미리 INSPECTING 까지 진행한 슬립 1건
         slip = Slip.createOutbound("2026/05/05-1", today, 1,
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "삼한",
-                DeliveryTag.DAY, null, "user");
+                DeliveryTag.SALE, null, "user");
         slip.save();
         slip.send();
         slip.accept("a");
@@ -213,7 +213,7 @@ class SlipServiceSignatureTest {
         // PROCESSING 단계 슬립 — 도메인이 CONFLICT 던짐
         Slip processingSlip = Slip.createOutbound("2026/05/05-2", LocalDate.now(), 2,
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "p",
-                DeliveryTag.DAY, null, "u");
+                DeliveryTag.SALE, null, "u");
         processingSlip.save();
         processingSlip.send();
         processingSlip.accept("a");

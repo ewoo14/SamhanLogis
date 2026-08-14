@@ -11,7 +11,11 @@ import com.samhanair.logis.accounting.client.ETaxClient;
 import com.samhanair.logis.accounting.client.KftcClient;
 import com.samhanair.logis.accounting.client.SlipLineSnapshot;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
+import com.samhanair.logis.accounting.domain.DailyClosing;
+import com.samhanair.logis.accounting.domain.DailyClosingKind;
+import com.samhanair.logis.accounting.domain.DailyClosingSourceKind;
 import com.samhanair.logis.accounting.domain.SalesTaxType;
+import com.samhanair.logis.accounting.repository.DailyClosingRepository;
 import com.samhanair.logis.accounting.repository.SalesAccountingSlipAllocationRepository;
 import com.samhanair.logis.accounting.repository.SalesAccountingSlipRepository;
 import com.samhanair.logis.accounting.service.SalesAccountingSlipNumberGenerator;
@@ -46,7 +50,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * #850 HIGH-1 매출전표 배분 동시성 실 IT (실 PostgreSQL Testcontainers).
+ * #850 HIGH-1 출고전표 배분 동시성 실 IT (실 PostgreSQL Testcontainers).
  *
  * <p>단일스레드 Mockito {@code InOrder} + lock mock 이 잡지 못하는 <b>실 경합</b>을 검증한다.
  * {@code createDraftAttempt} 는 {@code REQUIRES_NEW} 트랜잭션에서 {@code pg_advisory_xact_lock}
@@ -67,6 +71,7 @@ class SalesAccountingSlipConcurrencyIT extends AbstractPostgresIT {
     @Autowired SalesAccountingSlipService service;
     @Autowired SalesAccountingSlipRepository slipRepository;
     @Autowired SalesAccountingSlipAllocationRepository allocationRepository;
+    @Autowired DailyClosingRepository dailyClosingRepository;
     @Autowired JdbcTemplate jdbcTemplate;
     @Autowired DataSource dataSource;
 
@@ -79,6 +84,7 @@ class SalesAccountingSlipConcurrencyIT extends AbstractPostgresIT {
     @BeforeEach
     void resetSlipsAndNumberGenerator() {
         wipeSlips();
+        seedLockedClosing();
         AtomicInteger seq = new AtomicInteger();
         when(numberGenerator.next(any())).thenAnswer(inv -> "2099/12/31-" + seq.incrementAndGet());
     }
@@ -86,6 +92,26 @@ class SalesAccountingSlipConcurrencyIT extends AbstractPostgresIT {
     @AfterEach
     void cleanupLeakedSlips() {
         wipeSlips();
+        removeLockedClosing();
+    }
+
+    private void seedLockedClosing() {
+        DailyClosing closing = DailyClosing.createV2(
+                LocalDate.of(2099, 12, 31), PARTNER_ID, DailyClosingKind.SALES,
+                DailyClosingSourceKind.SALES_SLIP, BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, 0);
+        closing.lock("test-accountant");
+        dailyClosingRepository.saveAndFlush(closing);
+    }
+
+    private void removeLockedClosing() {
+        dailyClosingRepository.findByClosingDateAndPartnerIdAndClosingKindAndSourceKind(
+                        LocalDate.of(2099, 12, 31), PARTNER_ID, DailyClosingKind.SALES,
+                        DailyClosingSourceKind.SALES_SLIP)
+                .ifPresent(closing -> {
+                    closing.markDeleted("test-cleanup");
+                    dailyClosingRepository.saveAndFlush(closing);
+                });
     }
 
     /**

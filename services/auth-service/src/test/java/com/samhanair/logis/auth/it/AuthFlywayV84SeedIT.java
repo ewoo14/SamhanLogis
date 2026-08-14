@@ -9,7 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/** V84 sales.slip.list RESTORE 시드 검증 — E2 판매전표 목록 삭제행 복원. */
+/** V84 sales.slip.list RESTORE 시드 검증 — E2 출고전표 목록 삭제행 복원. */
 @SpringBootTest(
         classes = AuthServiceApplication.class,
         webEnvironment = SpringBootTest.WebEnvironment.NONE

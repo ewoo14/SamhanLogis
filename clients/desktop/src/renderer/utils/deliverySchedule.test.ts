@@ -15,7 +15,7 @@ test('KST 날짜는 실행 환경 타임존과 무관하게 한국 업무일을 
 describe('isScheduledTag', () => {
   test('REGION → true', () => expect(isScheduledTag('REGION')).toBe(true))
   test('STACK → true', () => expect(isScheduledTag('STACK')).toBe(true))
-  test('DAY → false', () => expect(isScheduledTag('DAY')).toBe(false))
+  test('SALE → false', () => expect(isScheduledTag('SALE')).toBe(false))
   test('null → false', () => expect(isScheduledTag(null)).toBe(false))
   test('undefined → false', () => expect(isScheduledTag(undefined)).toBe(false))
   test('LOGEN → false', () => expect(isScheduledTag('LOGEN')).toBe(false))
@@ -24,8 +24,8 @@ describe('isScheduledTag', () => {
 // ── computeUnloadDate ───────────────────────────────────────────────────────
 
 describe('computeUnloadDate', () => {
-  test('비적용 태그(DAY) → null', () => {
-    expect(computeUnloadDate('2026-06-24', 'DAY')).toBeNull()
+  test('비적용 태그(SALE) → null', () => {
+    expect(computeUnloadDate('2026-06-24', 'SALE')).toBeNull()
   })
 
   test('tag null → null', () => {
@@ -82,8 +82,8 @@ describe('computeUnloadDate', () => {
 // ── scheduleLabel ───────────────────────────────────────────────────────────
 
 describe('scheduleLabel', () => {
-  test('비적용 태그(DAY) → null', () => {
-    expect(scheduleLabel('2026-06-25', '2026-06-26', 'DAY')).toBeNull()
+  test('비적용 태그(SALE) → null', () => {
+    expect(scheduleLabel('2026-06-25', '2026-06-26', 'SALE')).toBeNull()
   })
 
   test('tag null → null', () => {

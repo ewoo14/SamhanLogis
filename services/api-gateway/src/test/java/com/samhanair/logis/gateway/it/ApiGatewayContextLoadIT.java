@@ -314,7 +314,7 @@ class ApiGatewayContextLoadIT {
     }
 
     /**
-     * #729 게이트웨이 매출/매입 전표 + 세금계산서 admin 라우트 계약 박제.
+     * #729 게이트웨이 매출/입고 전표 + 세금계산서 admin 라우트 계약 박제.
      *
      * <p>SalesAccountingSlipController({@code /admin/sales-slips}), PurchaseAccountingSlipController
      * ({@code /admin/purchase-slips}), 세금계산서 배치/수신 컨트롤러({@code /admin/tax-invoices})는
@@ -322,7 +322,7 @@ class ApiGatewayContextLoadIT {
      * JwtAuthentication 만 적용해야 한다. 라우트 누락 시 404, StripPrefix 오적용 시 컨트롤러 매핑 불일치.
      */
     @Test
-    @DisplayName("#729 매출/매입 전표 + 세금계산서 admin no-prefix 라우트 — Path + JwtAuthentication + no-strip")
+    @DisplayName("#729 매출/입고 전표 + 세금계산서 admin no-prefix 라우트 — Path + JwtAuthentication + no-strip")
     void accountingSalesPurchaseSlipAndTaxInvoiceAdminRoutes_areAuthenticatedNoStrip() {
         List<RouteDefinition> routes = routeDefinitionLocator.getRouteDefinitions()
                 .collectList()
@@ -333,7 +333,7 @@ class ApiGatewayContextLoadIT {
                 .isNotNull()
                 .isNotEmpty();
 
-        // [#729] 매출/매입 전표 admin — 4개 Path 패턴 전부 보유 + no-strip + JwtAuthentication.
+        // [#729] 매출/입고 전표 admin — 4개 Path 패턴 전부 보유 + no-strip + JwtAuthentication.
         assertRoutePath(routes, "accounting-sales-purchase-slip-admin-noprefix",
                 "/admin/sales-slips",
                 "/admin/sales-slips/**",

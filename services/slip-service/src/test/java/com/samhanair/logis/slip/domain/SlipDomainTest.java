@@ -22,7 +22,7 @@ class SlipDomainTest {
     void createOutbound_setsDraft_andRequiresSourceWarehouse() {
         Slip slip = Slip.createOutbound("2026/05/04-1", LocalDate.of(2026, 5, 4), 1,
                 SOURCE_WH, DEST_WH, PARTNER, "삼한공조",
-                DeliveryTag.DAY, "메모", "user-1");
+                DeliveryTag.SALE, "메모", "user-1");
 
         assertThat(slip.getStatus()).isEqualTo(SlipStatus.DRAFT);
         assertThat(slip.getSlipType()).isEqualTo(SlipType.OUTBOUND);
@@ -34,7 +34,7 @@ class SlipDomainTest {
     @Test
     void createOutbound_nullSourceWarehouse_throws() {
         assertThatThrownBy(() -> Slip.createOutbound("X-001", LocalDate.now(), 1,
-                null, DEST_WH, PARTNER, "p", DeliveryTag.DAY, null, "u"))
+                null, DEST_WH, PARTNER, "p", DeliveryTag.SALE, null, "u"))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.INVALID_INPUT))
@@ -51,6 +51,14 @@ class SlipDomainTest {
         assertThat(slip.getSourceWarehouseId()).isNull();
         assertThat(slip.getDestinationWarehouseId()).isEqualTo(DEST_WH);
         assertThat(slip.getSlipType()).isEqualTo(SlipType.INBOUND);
+    }
+
+    @Test
+    void createInbound_withoutDeliveryTag_defaultsToPurchase() {
+        Slip slip = Slip.createInbound("2026/05/04-2", LocalDate.of(2026, 5, 4), 2,
+                DEST_WH, PARTNER, "삼한공조", null, null, "user-1");
+
+        assertThat(slip.getDeliveryTag()).isEqualTo(DeliveryTag.PURCHASE);
     }
 
     @Test
@@ -472,7 +480,7 @@ class SlipDomainTest {
     private Slip newOutbound() {
         return Slip.createOutbound("2026/05/04-1", LocalDate.of(2026, 5, 4), 1,
                 SOURCE_WH, DEST_WH, PARTNER, "삼한공조",
-                DeliveryTag.DAY, null, "user-1");
+                DeliveryTag.SALE, null, "user-1");
     }
 
     private Slip newInbound() {

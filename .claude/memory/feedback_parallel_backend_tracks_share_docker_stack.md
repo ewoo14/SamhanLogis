@@ -70,4 +70,35 @@ infrastructure-partner-order-service   35 seconds ago
 
 🔑 **커밋을 하나라도 더 쌓았으면 재배포 없이 라이브QA 를 돌리지 않는다.**
 
-관련: [[feedback_parallel_agent_gradle_shared_tree_contention]] · [[feedback_qa_live_shared_data_readonly]] · [[feedback_pm_verify_what_measurement_proves]]
+## 🆕 세 번째 방향 — **재배포 창(window)이 남의 라이브QA 를 UI 결함으로 위장시킨다** (2026-08-15 #1215↔#1216)
+
+이미지가 덮인 것도, 낡은 것도 아니다. **재배포하는 그 몇 초 동안** 다른 트랙이 화면을 보고 있었다.
+
+```text
+#1215 트랙  slip-service · accounting-service 재배포 (자기 소유 서비스라 규칙 위반 아님)
+#1216 트랙  같은 시각 회계전표 화면에서 라이브QA
+            증상  "저장 버튼이 disabled 라 제출에 도달 못 함"
+            gateway 로그  slip-service 172.19.0.11:8086 Connection refused
+            실제 원인  sourcePartner.status !== 'valid'  (원천 조회가 401 로 실패)
+```
+
+🔑 **화면에서는 완벽하게 UI 결함으로 보인다.** "입력을 덜 했나" 로 읽히고, 버튼이 안 눌리는 이유가 폼 어디에도 없다.
+그런데 원인은 **뒤에서 남의 컨테이너가 교체되는 중**이었다. 재배포가 끝나면 증상도 사라져 재현도 안 된다.
+
+🚩 **각 트랙은 규칙을 지켰다.** "네 서비스만 재배포하라" 를 둘 다 따랐는데도 충돌했다.
+소유가 갈려 있어도 **두 트랙이 같은 서비스를 필요로 하면** — 한쪽은 배포 대상으로, 한쪽은 의존 대상으로 — 경합한다.
+
+### 적용
+
+```text
+백엔드 트랙을 둘 이상 열어야 하면, 라이브QA 는 조용한 창에서만 돌린다
+  ⟹ 재배포하는 트랙의 라운드가 끝난 뒤 PM 이 따로 지시한다
+그동안 대기 트랙은 서버가 필요 없는 일을 시킨다 (구현·단위/통합 테스트)
+  🔑 슬롯을 비우지 말고 일을 바꿔라
+"저장/조회가 안 된다" 류 증상은 gateway 로그를 먼저 본다
+  🚩 Connection refused 가 보이면 UI 를 파지 마라 — 그건 UI 얘기가 아니다
+```
+
+🚨 **IT 통과를 실 HTTP 통과로 세지 마라.** 스택이 흔들려 IT 로 대체했으면 보고서에 그렇게 적고, 조용한 창에서 실 HTTP 로 다시 밟는다. 같은 날 카나리에서 **IT 403 · 실 HTTP 401** 이 갈린 전례가 있다.
+
+관련: [[feedback_parallel_agent_gradle_shared_tree_contention]] · [[feedback_qa_live_shared_data_readonly]] · [[feedback_pm_verify_what_measurement_proves]] · [[feedback_live_qa_needs_renderer_running_first]]
