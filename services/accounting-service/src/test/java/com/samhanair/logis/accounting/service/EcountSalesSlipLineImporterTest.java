@@ -27,7 +27,7 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 
-/** MIG-4 판매전표 라인 importer behavior 회귀 가드. */
+/** MIG-4 출고전표 라인 importer behavior 회귀 가드. */
 @ExtendWith(MockitoExtension.class)
 class EcountSalesSlipLineImporterTest {
 
@@ -192,7 +192,7 @@ class EcountSalesSlipLineImporterTest {
 
     private static String salesCsv(String rows) {
         return """
-                "데이터관리>판매전표-Excel다운로드"
+                "데이터관리>출고전표-Excel다운로드"
                 "일자-No.\t","거래처코드\t","거래처명\t","품목명[규격]\t","수량\t","단가\t","공급가액\t","부가세\t","합계\t","입금예정일\t",""
                 """ + rows;
     }

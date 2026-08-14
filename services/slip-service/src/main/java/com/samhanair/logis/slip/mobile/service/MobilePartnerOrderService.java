@@ -111,7 +111,7 @@ public class MobilePartnerOrderService {
         }
         if (summaries.stream().anyMatch(BundleModePolicy::shouldExpand)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
-                    "세트 품목은 모바일 판매전표 라인으로 저장할 수 없습니다. 구성품으로 전개해 주세요.");
+                    "세트 품목은 모바일 출고전표 라인으로 저장할 수 없습니다. 구성품으로 전개해 주세요.");
         }
 
         // 3. 채번

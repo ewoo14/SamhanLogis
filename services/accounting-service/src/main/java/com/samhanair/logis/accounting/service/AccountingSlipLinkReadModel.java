@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 /**
- * 원천 판매·구매전표와 기존 회계전표 allocation 연결을 사용자용 값으로 표현하는 조회 모델.
+ * 원천 판매·입고전표와 기존 회계전표 allocation 연결을 사용자용 값으로 표현하는 조회 모델.
  *
  * <p>내부 조인에는 UUID를 사용하지만 이 계약에는 전표번호·상태·금액만 담아 UUID가 사용자에게
  * 노출되지 않는다.

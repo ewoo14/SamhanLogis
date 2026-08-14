@@ -4,7 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 /**
- * 판매/구매 전표 목록 레벨 실시간 동기화 채널 상수 (E2).
+ * 판매/입고 전표 목록 레벨 실시간 동기화 채널 상수 (E2).
  *
  * <p>개별 slip UUID 가 아닌 목록 전체 invalidate 용 well-known 합성 채널이다.
  */

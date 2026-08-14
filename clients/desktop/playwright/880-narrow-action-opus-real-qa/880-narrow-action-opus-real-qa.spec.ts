@@ -274,7 +274,7 @@ test('발송금지 375 — 차단 해제 클릭 → 확인 모달', async ({ pag
   await shot(page, 'blocked-partners-375-after-click')
 })
 
-test('매출전표 375 — DRAFT 전기 클릭 → post 요청 발화(도달·클릭 실행)', async ({ page }) => {
+test('출고전표 375 — DRAFT 전기 클릭 → post 요청 발화(도달·클릭 실행)', async ({ page }) => {
   const auth = await login(page)
   await injectAuth(page, auth)
   await open(page, '/accounting/sales-slips', 375, 'sales-accounting-slip-page')

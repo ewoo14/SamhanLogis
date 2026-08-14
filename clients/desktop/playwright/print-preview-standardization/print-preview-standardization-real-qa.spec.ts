@@ -8,7 +8,7 @@ import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
  * 검증 시나리오:
  *   C1: 입고전표 미리보기 — 출고전표와 통일된 전표 양식. 결재란 없음 + 전표번호 0제거
  *   C2: 견적 인쇄는 종합견적서 에픽에서 재작업(진입 버그 포함) — 슬라이스1 범위 외
- *   C3: 회귀 — 판매전표 미리보기는 작업지시서 양식으로 표시 + 전표번호 0제거 일관
+ *   C3: 회귀 — 출고전표 미리보기는 작업지시서 양식으로 표시 + 전표번호 0제거 일관
  *
  * 실 시드 데이터 (괄호=저장 원본 전표번호 / 화면은 stripSlipNoZeros 적용값 표시):
  *   - INBOUND CONFIRMED: 1c72f28a-4aae-4f1c-8522-b7e9a921aa0d (2026/04/08-001 → 표시 2026/04/08-1)
@@ -123,9 +123,9 @@ async function suppressPrint(page: Page): Promise<void> {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// C1: 매입 전표 미리보기 — 설정기반 결재란과 실 데이터 확인
+// C1: 입고 전표 미리보기 — 설정기반 결재란과 실 데이터 확인
 // ────────────────────────────────────────────────────────────────────────────
-test('C1: 매입 전표 미리보기 — 설정기반 결재란과 실 데이터 확인', async ({ page }) => {
+test('C1: 입고 전표 미리보기 — 설정기반 결재란과 실 데이터 확인', async ({ page }) => {
   const token = await fetchRealToken()
   await installRealAuth(page, token)
   await setupApiProxy(page, token)
@@ -141,14 +141,14 @@ test('C1: 매입 전표 미리보기 — 설정기반 결재란과 실 데이터
   const bodyText = await page.locator('body').textContent() ?? ''
   console.log('[BODY SAMPLE]', bodyText.slice(0, 400).replace(/\s+/g, ' '))
 
-  // 1) 매입 전표는 PrintLayout approvalDoc 이 아니라 설정기반 결재란을 렌더한다.
+  // 1) 입고 전표는 PrintLayout approvalDoc 이 아니라 설정기반 결재란을 렌더한다.
   const approvalDocSection = page.locator('[aria-label="전자서명 결재란"]')
   const approvalDocCount = await approvalDocSection.count()
   const hasApprovalGrid = bodyText.includes('결 재 란')
   console.log('[CHECK] 설정기반 결재란:', hasApprovalGrid)
 
-  // 2) 매입 전표 본문이 실 데이터로 표시되어야 한다.
-  const hasDocTitle = bodyText.includes('매 입 전 표') || bodyText.includes('매입 전표')
+  // 2) 입고 전표 본문이 실 데이터로 표시되어야 한다.
+  const hasDocTitle = bodyText.includes('매 입 전 표') || bodyText.includes('입고 전표')
   console.log('[CHECK] 문서 제목:', hasDocTitle)
   const hasSlipNo = bodyText.includes('2026/04/08-1') || bodyText.includes('2026/04/08')
   console.log('[CHECK] 전표번호 표시:', hasSlipNo)
@@ -178,9 +178,9 @@ test('C1: 매입 전표 미리보기 — 설정기반 결재란과 실 데이터
 // ────────────────────────────────────────────────────────────────────────────
 // C2: 견적 인쇄는 종합견적서 에픽에서 재작업(진입 버그 포함) — 슬라이스1 범위 외.
 // ────────────────────────────────────────────────────────────────────────────
-// C3: 회귀 — 판매전표 미리보기는 작업지시서 양식으로 표시 + 전표번호 0제거 일관
+// C3: 회귀 — 출고전표 미리보기는 작업지시서 양식으로 표시 + 전표번호 0제거 일관
 // ────────────────────────────────────────────────────────────────────────────
-test('C3: 회귀 — 판매전표 DispatchView 양식 표시 + 전표번호 0제거', async ({ page }) => {
+test('C3: 회귀 — 출고전표 DispatchView 양식 표시 + 전표번호 0제거', async ({ page }) => {
   const token = await fetchRealToken()
   await installRealAuth(page, token)
   await setupApiProxy(page, token)
@@ -196,10 +196,10 @@ test('C3: 회귀 — 판매전표 DispatchView 양식 표시 + 전표번호 0제
   const bodyText = await page.locator('body').textContent() ?? ''
   console.log('[BODY SAMPLE]', bodyText.slice(0, 400).replace(/\s+/g, ' '))
 
-  // 1) 판매전표 컨텐츠 표시 확인 (전표번호 또는 판매전표 화면명)
+  // 1) 출고전표 컨텐츠 표시 확인 (전표번호 또는 출고전표 화면명)
   //    화면 표시 전표번호는 stripSlipNoZeros 적용값(2026/02/18-1) — 저장 원본의 선행 0(-001)은 아님.
-  const hasSlipContent = bodyText.includes('2026/02/18-1') || bodyText.includes('2026/02/18') || bodyText.includes('판매전표')
-  console.log('[CHECK] 판매전표 컨텐츠:', hasSlipContent)
+  const hasSlipContent = bodyText.includes('2026/02/18-1') || bodyText.includes('2026/02/18') || bodyText.includes('출고전표')
+  console.log('[CHECK] 출고전표 컨텐츠:', hasSlipContent)
 
   // 2) 결재란 섹션이 없어야 함 (미적용 확인)
   const approvalSection = page.locator('[aria-label="전자서명 결재란"]')
@@ -222,15 +222,15 @@ test('C3: 회귀 — 판매전표 DispatchView 양식 표시 + 전표번호 0제
   const hasPrintBtn = await printBtn.count() > 0
   console.log('[CHECK] 인쇄 버튼 존재:', hasPrintBtn)
 
-  // 선행 단언: 판매전표 실 데이터가 로드되어야 함 — 에러/빈화면이 전자서명 결재문서 미적용 회귀검증을
+  // 선행 단언: 출고전표 실 데이터가 로드되어야 함 — 에러/빈화면이 전자서명 결재문서 미적용 회귀검증을
   // false-green 으로 통과하는 것을 방지(데이터가 안 떠도 결재란이 없으니 PASS 되던 갭 차단).
   expect(bodyText).not.toContain('불러오지 못')
   expect(hasSlipContent).toBeTruthy()
 
-  // 핵심 단언 1: 판매전표에 전자서명 결재문서 형식이 적용되지 않아야 함
+  // 핵심 단언 1: 출고전표에 전자서명 결재문서 형식이 적용되지 않아야 함
   expect(hasNoApprovalSection && hasNoApprovalDocClass).toBeTruthy()
 
-  // 핵심 단언 2: 전표번호 0제거(stripSlipNoZeros)가 입고전표와 일관되게 판매전표에도 적용 —
+  // 핵심 단언 2: 전표번호 0제거(stripSlipNoZeros)가 입고전표와 일관되게 출고전표에도 적용 —
   //             2026/02/18-001(저장 원본) → 2026/02/18-1(표시).
   expect(bodyText).toContain('2026/02/18-1')
 })

@@ -11,7 +11,7 @@ import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UuidGenerator;
 
 /**
- * 매출전표 라인 ↔ 출고전표 라인 N:M 배분 연결.
+ * 출고전표 라인 ↔ 출고전표 라인 N:M 배분 연결.
  *
  * <p>spec: 2026-05-19-sales-purchase-accounting-slip-design.md §3-C
  */
@@ -46,7 +46,7 @@ public class SalesAccountingSlipAllocation extends BaseEntity {
                 allocatedQty, allocatedAmount, null, null);
     }
 
-    /** 원천 판매전표 라인의 모델명·GAS 카테고리 축을 배분 snapshot에 보존한다. */
+    /** 원천 출고전표 라인의 모델명·GAS 카테고리 축을 배분 snapshot에 보존한다. */
     public static SalesAccountingSlipAllocation create(SalesAccountingSlipLine line,
             UUID sourceSlipId, String sourceSlipNo, UUID sourceLineId, int sourceLineNo,
             BigDecimal allocatedQty, BigDecimal allocatedAmount,

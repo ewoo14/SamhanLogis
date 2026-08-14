@@ -62,7 +62,7 @@ import org.springframework.transaction.interceptor.TransactionAspectSupport;
  * UUID = {@code UUID.nameUUIDFromBytes("samhan-seed:product:" + modelName)} — product-service 와 동일 namespace.
  *
  * <p>idempotency: {@code SlipRepository.findBySlipTypeAndSlipNoIncludingDeleted} EXISTS 체크
- * + 중복 시 skip. 판매/구매 전표는 같은 공개번호를 가질 수 있으므로 유형까지 함께 본다.
+ * + 중복 시 skip. 판매/입고 전표는 같은 공개번호를 가질 수 있으므로 유형까지 함께 본다.
  * UUID 비공개 가드 — 모든 외부 식별자는 slipNo / partnerCode / productCode 사용.
  */
 @Component
@@ -332,17 +332,17 @@ public class SlipSeeder implements CommandLineRunner {
         // ---- DAY tag OUTBOUND 50건 (DRAFT 5 + SAVED 8 + SENT 4 + ACCEPTED 4 + PROCESSING 4
         //                              + INSPECTING 4 + COMPLETED 4 + SHIPPING 5 + DELIVERED 7
         //                              + CONFIRMED 4 + REJECTED 1 = 50)
-        idx = appendN(specs, idx, 5, SlipType.OUTBOUND, DeliveryTag.DAY, SlipStatus.DRAFT);
-        idx = appendN(specs, idx, 8, SlipType.OUTBOUND, DeliveryTag.DAY, SlipStatus.SAVED);
-        idx = appendN(specs, idx, 4, SlipType.OUTBOUND, DeliveryTag.DAY, SlipStatus.SENT);
-        idx = appendN(specs, idx, 4, SlipType.OUTBOUND, DeliveryTag.DAY, SlipStatus.ACCEPTED);
-        idx = appendN(specs, idx, 4, SlipType.OUTBOUND, DeliveryTag.DAY, SlipStatus.PROCESSING);
-        idx = appendN(specs, idx, 4, SlipType.OUTBOUND, DeliveryTag.DAY, SlipStatus.INSPECTING);
-        idx = appendN(specs, idx, 4, SlipType.OUTBOUND, DeliveryTag.DAY, SlipStatus.COMPLETED);
-        idx = appendN(specs, idx, 5, SlipType.OUTBOUND, DeliveryTag.DAY, SlipStatus.SHIPPING);
-        idx = appendN(specs, idx, 7, SlipType.OUTBOUND, DeliveryTag.DAY, SlipStatus.DELIVERED);
-        idx = appendN(specs, idx, 4, SlipType.OUTBOUND, DeliveryTag.DAY, SlipStatus.CONFIRMED);
-        idx = appendN(specs, idx, 1, SlipType.OUTBOUND, DeliveryTag.DAY, SlipStatus.REJECTED);
+        idx = appendN(specs, idx, 5, SlipType.OUTBOUND, DeliveryTag.SALE, SlipStatus.DRAFT);
+        idx = appendN(specs, idx, 8, SlipType.OUTBOUND, DeliveryTag.SALE, SlipStatus.SAVED);
+        idx = appendN(specs, idx, 4, SlipType.OUTBOUND, DeliveryTag.SALE, SlipStatus.SENT);
+        idx = appendN(specs, idx, 4, SlipType.OUTBOUND, DeliveryTag.SALE, SlipStatus.ACCEPTED);
+        idx = appendN(specs, idx, 4, SlipType.OUTBOUND, DeliveryTag.SALE, SlipStatus.PROCESSING);
+        idx = appendN(specs, idx, 4, SlipType.OUTBOUND, DeliveryTag.SALE, SlipStatus.INSPECTING);
+        idx = appendN(specs, idx, 4, SlipType.OUTBOUND, DeliveryTag.SALE, SlipStatus.COMPLETED);
+        idx = appendN(specs, idx, 5, SlipType.OUTBOUND, DeliveryTag.SALE, SlipStatus.SHIPPING);
+        idx = appendN(specs, idx, 7, SlipType.OUTBOUND, DeliveryTag.SALE, SlipStatus.DELIVERED);
+        idx = appendN(specs, idx, 4, SlipType.OUTBOUND, DeliveryTag.SALE, SlipStatus.CONFIRMED);
+        idx = appendN(specs, idx, 1, SlipType.OUTBOUND, DeliveryTag.SALE, SlipStatus.REJECTED);
 
         // ---- STACK tag OUTBOUND 10건 ("NIGHT" 대체 — STACK 야적 도 OUTBOUND-only).
         //   DRAFT 1 / SAVED 2 / ACCEPTED 1 / PROCESSING 1 / INSPECTING 1 / COMPLETED 1
@@ -360,15 +360,15 @@ public class SlipSeeder implements CommandLineRunner {
         //   RETURN_RENTAL=반납 이 OUTBOUND 회수 의미로 적합).
         //   DRAFT 1 / SAVED 1 / SENT 2 / ACCEPTED 1 / PROCESSING 1 / INSPECTING 1
         //   / COMPLETED 1 / DELIVERED 1 / REJECTED 1 = 10
-        idx = appendN(specs, idx, 1, SlipType.OUTBOUND, DeliveryTag.RETURN_RENTAL, SlipStatus.DRAFT);
-        idx = appendN(specs, idx, 1, SlipType.OUTBOUND, DeliveryTag.RETURN_RENTAL, SlipStatus.SAVED);
-        idx = appendN(specs, idx, 2, SlipType.OUTBOUND, DeliveryTag.RETURN_RENTAL, SlipStatus.SENT);
-        idx = appendN(specs, idx, 1, SlipType.OUTBOUND, DeliveryTag.RETURN_RENTAL, SlipStatus.ACCEPTED);
-        idx = appendN(specs, idx, 1, SlipType.OUTBOUND, DeliveryTag.RETURN_RENTAL, SlipStatus.PROCESSING);
-        idx = appendN(specs, idx, 1, SlipType.OUTBOUND, DeliveryTag.RETURN_RENTAL, SlipStatus.INSPECTING);
-        idx = appendN(specs, idx, 1, SlipType.OUTBOUND, DeliveryTag.RETURN_RENTAL, SlipStatus.COMPLETED);
-        idx = appendN(specs, idx, 1, SlipType.OUTBOUND, DeliveryTag.RETURN_RENTAL, SlipStatus.DELIVERED);
-        idx = appendN(specs, idx, 1, SlipType.OUTBOUND, DeliveryTag.RETURN_RENTAL, SlipStatus.REJECTED);
+        idx = appendN(specs, idx, 1, SlipType.OUTBOUND, DeliveryTag.BORROW_RETURN, SlipStatus.DRAFT);
+        idx = appendN(specs, idx, 1, SlipType.OUTBOUND, DeliveryTag.BORROW_RETURN, SlipStatus.SAVED);
+        idx = appendN(specs, idx, 2, SlipType.OUTBOUND, DeliveryTag.BORROW_RETURN, SlipStatus.SENT);
+        idx = appendN(specs, idx, 1, SlipType.OUTBOUND, DeliveryTag.BORROW_RETURN, SlipStatus.ACCEPTED);
+        idx = appendN(specs, idx, 1, SlipType.OUTBOUND, DeliveryTag.BORROW_RETURN, SlipStatus.PROCESSING);
+        idx = appendN(specs, idx, 1, SlipType.OUTBOUND, DeliveryTag.BORROW_RETURN, SlipStatus.INSPECTING);
+        idx = appendN(specs, idx, 1, SlipType.OUTBOUND, DeliveryTag.BORROW_RETURN, SlipStatus.COMPLETED);
+        idx = appendN(specs, idx, 1, SlipType.OUTBOUND, DeliveryTag.BORROW_RETURN, SlipStatus.DELIVERED);
+        idx = appendN(specs, idx, 1, SlipType.OUTBOUND, DeliveryTag.BORROW_RETURN, SlipStatus.REJECTED);
 
         // ---- INBOUND 30건 (no tag, INBOUND 단계는 SHIPPING/DELIVERED 미지원).
         //   DRAFT 3 / SAVED 4 / SENT 4 / ACCEPTED 4 / PROCESSING 4 / INSPECTING 4

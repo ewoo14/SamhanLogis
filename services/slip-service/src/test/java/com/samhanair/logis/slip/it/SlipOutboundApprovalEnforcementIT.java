@@ -399,7 +399,7 @@ class SlipOutboundApprovalEnforcementIT extends AbstractPostgresIT {
         body.put("destinationWarehouseId", UUID.randomUUID().toString());
         if ("OUTBOUND".equals(slipType)) {
             body.put("sourceWarehouseId", UUID.randomUUID().toString());
-            body.put("deliveryTag", "DAY");
+            body.put("deliveryTag", "SALE");
         } else {
             body.put("deliveryTag", "RETURN_TRIP");
         }

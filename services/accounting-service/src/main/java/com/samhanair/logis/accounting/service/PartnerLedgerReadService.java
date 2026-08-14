@@ -25,7 +25,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 출고 판매전표와 확정 입금보고서를 거래처별 원장 read 모델로 합친다. */
+/** 출고 출고전표와 확정 입금보고서를 거래처별 원장 read 모델로 합친다. */
 @Service
 public class PartnerLedgerReadService {
     private final PartnerLedgerSalesClient salesClient;
@@ -53,7 +53,7 @@ public class PartnerLedgerReadService {
         return read(partnerCode, from, to, null);
     }
 
-    /** 판매전표 상세가 지정한 저장 대상 slipNo를 read model에 전달한다. */
+    /** 출고전표 상세가 지정한 저장 대상 slipNo를 read model에 전달한다. */
     @Transactional(readOnly = true)
     public PartnerLedgerResponse read(String partnerCode, LocalDate from, LocalDate to,
                                       String targetSlipNo) {
@@ -74,7 +74,7 @@ public class PartnerLedgerReadService {
         PartnerSummary selected = null;
         UUID partnerId = null;
         if (partnerCode != null && !partnerCode.isBlank()) {
-            // 목록에는 partner master가 이미 사라진 legacy code-only 판매전표도 포함된다.
+            // 목록에는 partner master가 이미 사라진 legacy code-only 출고전표도 포함된다.
             // master가 있으면 기존 UUID 필터를 유지하고, 없으면 slip-service의 partnerCode
             // 조건으로 같은 기존 전표를 읽어 목록 행의 상세 도달성을 보존한다.
             selected = PartnerLookupSupport.foundOrNull(

@@ -176,7 +176,7 @@ class SlipQueryPurchaseIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("R1: type=INBOUND + from/to 로 기간 밖 매입 전표를 제외한다")
+    @DisplayName("R1: type=INBOUND + from/to 로 기간 밖 입고 전표를 제외한다")
     void testListInboundFilterByDate() throws Exception {
         createSlip("INBOUND", TODAY.minusDays(10), "SP0851-기간밖");
         String inRangeId = createSlip("INBOUND", TODAY, "SP0851-기간안");

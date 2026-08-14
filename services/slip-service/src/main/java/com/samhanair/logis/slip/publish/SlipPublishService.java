@@ -783,7 +783,7 @@ public class SlipPublishService {
             // 부모 productId가 slip_lines에 영속되므로, 전표 라인 저장 전에 명시적으로 거부한다.
             if (BundleModePolicy.shouldExpand(summary)) {
                 throw new BusinessException(ErrorCode.INVALID_INPUT,
-                        "세트 품목은 판매전표 라인으로 저장할 수 없습니다. 구성품으로 전개해 주세요.");
+                        "세트 품목은 출고전표 라인으로 저장할 수 없습니다. 구성품으로 전개해 주세요.");
             }
             int qty = parseQty(l.qty());
             BigDecimal unitPrice = l.unitPriceVat() != null

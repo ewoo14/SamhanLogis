@@ -6,7 +6,8 @@ const os = require('node:os')
 const { _electron: electron } = require('@playwright/test')
 const { resolveQaShotsDir } = require('../../../scripts/lib/qa-shots-dir.cjs')
 
-const PORT = 18080
+const PORT = Number(process.env.ELECTRON_CONTRACT_PORT)
+if (!Number.isInteger(PORT) || PORT <= 0) throw new Error('ELECTRON_CONTRACT_PORT must be a positive integer')
 const api = `http://127.0.0.1:${PORT}`
 const screenshotDir = resolveQaShotsDir(
   process.env.ELECTRON_CONTRACT_OUTPUT ?? path.resolve(__dirname, '../../../docs/qa/2026-08-14-1180-reconv/screenshots'),
@@ -15,7 +16,9 @@ fs.mkdirSync(screenshotDir, { recursive: true })
 const stepLog = (value) => { const line = `ELECTRON_STEP|${value}`; console.log(line); fs.appendFileSync(path.join(screenshotDir, 'execution.log'), `${line}\n`) }
 const sseClients = new Set()
 const observed = { direct: 0, join: 0, leave: 0 }
-const sessions = [{ sessionCode: 'CLD-1', title: '배차 일정 요약', messageCount: 2, lastMessage: '내일 오전 배차를 정리했습니다.', lastMessageAt: '2026-08-14T08:36:00+09:00', summaryMode: 'REAL' }]
+const kstToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+const todayAt0836Kst = `${kstToday}T08:36:00+09:00`
+const sessions = [{ sessionCode: 'CLD-1', title: '배차 일정 요약', messageCount: 2, lastMessage: '내일 오전 배차를 정리했습니다.', lastMessageAt: todayAt0836Kst, summaryMode: 'REAL' }]
 
 const employee = (employeeCode, name, status) => ({ employeeCode, name, jobTitle: '대리', departmentName: '개발팀', employmentStatus: 'ACTIVE', presenceStatus: status })
 function json(res, data, status = 200) {
@@ -35,8 +38,8 @@ const server = http.createServer((req, res) => {
     req.on('close', () => sseClients.delete(res))
     return
   }
-  if (url.pathname === '/admin/groupware/chat/rooms/groups') return json(res, [{ roomCode: 'GROUP-1', type: 'GROUP', roomName: '운영방', participants: [{ name: '홍길동' }, { name: '김대리' }, { name: '박개발' }, { name: '이과장' }], unreadCount: 0, latestMessageAt: '2026-08-14T08:36:00+09:00' }])
-  if (url.pathname === '/admin/groupware/chat/rooms/GROUP-1/messages') return json(res, [{ roomCode: 'GROUP-1', sequence: 1, body: '오늘 일정 공유드립니다', sentAt: '2026-08-14T08:36:00+09:00' }])
+  if (url.pathname === '/admin/groupware/chat/rooms/groups') return json(res, [{ roomCode: 'GROUP-1', type: 'GROUP', roomName: '운영방', participants: [{ name: '홍길동' }, { name: '김대리' }, { name: '박개발' }, { name: '이과장' }], unreadCount: 0, latestMessageAt: todayAt0836Kst }])
+  if (url.pathname === '/admin/groupware/chat/rooms/GROUP-1/messages') return json(res, [{ roomCode: 'GROUP-1', sequence: 1, body: '오늘 일정 공유드립니다', sentAt: todayAt0836Kst }])
   if (url.pathname === '/api/v1/admin/groupware/chat/rooms/direct/by-employee-code' && req.method === 'POST') { observed.direct++; return json(res, { roomCode: 'DIRECT-1', type: 'DIRECT' }, 201) }
   if (url.pathname === '/api/v1/admin/groupware/chat/rooms/direct/by-employee-code') return json(res, null, 404)
   if (url.pathname === '/admin/groupware/chat/rooms') return json(res, [])
@@ -46,14 +49,17 @@ const server = http.createServer((req, res) => {
 })
 
 async function main() {
-  stepLog('server-start')
-  await new Promise((resolve) => server.listen(PORT, '127.0.0.1', resolve))
-  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'samhan-electron-contract-'))
-  stepLog('launching-electron')
-  const app = await electron.launch({ args: [`--user-data-dir=${userDataDir}`, 'out/main/index.js'], cwd: path.resolve(__dirname, '..'), env: { ...process.env, ELECTRON_DISABLE_SANDBOX: '1' } })
-  stepLog('electron-launched')
-  const page = await app.firstWindow()
-  stepLog('entry-window')
+  let app
+  let userDataDir
+  try {
+    stepLog('server-start')
+    await new Promise((resolve) => server.listen(PORT, '127.0.0.1', resolve))
+    userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'samhan-electron-contract-'))
+    stepLog('launching-electron')
+    app = await electron.launch({ args: [`--user-data-dir=${userDataDir}`, 'out/main/index.js'], cwd: path.resolve(__dirname, '..'), env: { ...process.env, ELECTRON_DISABLE_SANDBOX: '1' } })
+    stepLog('electron-launched')
+    const page = await app.firstWindow()
+    stepLog('entry-window')
   await page.waitForSelector('[data-testid="messenger-app"]')
   await page.screenshot({ path: path.join(screenshotDir, 'round-fix-1-entry-real-electron.png'), fullPage: true })
 
@@ -123,7 +129,13 @@ async function main() {
   })
   await new Promise((resolve) => setTimeout(resolve, 2_500))
   assert.equal(observed.leave, 1)
-  console.log(`ELECTRON_CONTRACT|direct=${observed.direct}|windows=deduped|group=metadata|presence=reflected|join=${observed.join}|childCloseLeave=${childCloseLeave}|leave=${observed.leave}`)
+    console.log(`ELECTRON_CONTRACT|direct=${observed.direct}|windows=deduped|group=metadata|presence=reflected|join=${observed.join}|childCloseLeave=${childCloseLeave}|leave=${observed.leave}`)
+  } finally {
+    for (const client of sseClients) client.destroy()
+    if (app) await app.close().catch(() => undefined)
+    await new Promise((resolve) => server.close(() => resolve()))
+    if (userDataDir) fs.rmSync(userDataDir, { recursive: true, force: true })
+  }
 }
 
-main().catch((error) => { console.error(error); process.exitCode = 1 }).finally(() => server.close())
+main().catch((error) => { console.error(error); process.exitCode = 1 })

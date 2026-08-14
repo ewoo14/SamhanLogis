@@ -71,7 +71,7 @@ async function gotoSlipNewPage(page: Page): Promise<void> {
     waitUntil: 'domcontentloaded',
   })
   // 페이지 로드 완료 확인 — AppLayout의 고유 페이지 제목 대기
-  await expect(page.getByTestId('header-page-title')).toHaveText('새 판매전표', {
+  await expect(page.getByTestId('header-page-title')).toHaveText('새 출고전표', {
     timeout: 15_000,
   })
 }

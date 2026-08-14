@@ -28,7 +28,7 @@ const SLIP_STATUS_LABEL: Record<PurchaseAccountingSlipStatus, string> = {
 }
 
 export function PurchaseAccountingSlipPage() {
-  usePageTitle('매입전표')
+  usePageTitle('입고전표')
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { canAccess } = usePermissions()
@@ -145,7 +145,7 @@ export function PurchaseAccountingSlipPage() {
     <div data-testid="purchase-accounting-slip-page">
       <Card style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
-          <h3 style={{ margin: 0 }}>매입전표</h3>
+          <h3 style={{ margin: 0 }}>입고전표</h3>
           {canCreate ? (
             <Button variant="primary" onClick={() => navigate('/accounting/purchase-slips/new')}>
               작성
@@ -172,16 +172,16 @@ export function PurchaseAccountingSlipPage() {
       <Card>
         {query.isLoading ? (
           <div style={{ display: 'grid', placeItems: 'center', minHeight: 160 }}>
-            <Spinner size="lg" label="매입전표 로딩 중" />
+            <Spinner size="lg" label="입고전표 로딩 중" />
           </div>
         ) : query.isError ? (
-          <div className="error-banner" role="alert">매입전표 목록을 불러오지 못했습니다.</div>
+          <div className="error-banner" role="alert">입고전표 목록을 불러오지 못했습니다.</div>
         ) : (
           <DataTable
             columns={columns}
             rows={query.data ?? []}
             rowKey={(row) => row.slipNo}
-            emptyMessage="매입전표가 없습니다."
+            emptyMessage="입고전표가 없습니다."
           />
         )}
       </Card>

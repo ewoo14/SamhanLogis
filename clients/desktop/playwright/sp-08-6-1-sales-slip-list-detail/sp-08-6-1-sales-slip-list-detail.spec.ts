@@ -210,7 +210,7 @@ test.describe('SP-08-6-1 매출 목록/상세 계약', () => {
     expect(page).not.toMatch(/data-testid=\{`sales-query-row-\$\{row\.id\}`\}/)
 
     // 한국어 에러 메시지
-    expect(page).toContain('판매 전표 목록을 불러오지 못했습니다')
+    expect(page).toContain('출고 전표 목록을 불러오지 못했습니다')
   })
 
   /**
@@ -236,7 +236,7 @@ test.describe('SP-08-6-1 매출 목록/상세 계약', () => {
 
     // 403 응답 코드 / FORBIDDEN 예외
     expect(guard).toContain('FORBIDDEN')
-    expect(guard).toContain('매출 전표 조회는 SALES / MANAGER / MASTER 권한만 허용합니다.')
+    expect(guard).toContain('출고 전표 조회는 SALES / MANAGER / MASTER 권한만 허용합니다.')
 
     // canReadOutboundSales 메서드 존재
     expect(guard).toContain('static boolean canReadOutboundSales(String role)')

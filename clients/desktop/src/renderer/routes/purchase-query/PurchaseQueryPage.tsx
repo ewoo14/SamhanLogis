@@ -315,7 +315,7 @@ export function PurchaseQueryPage() {
   if (!canQuery) {
     return (
       <div role="alert" style={{ padding: 32, fontSize: 14, color: 'var(--color-danger-600)' }}>
-        구매 전표 조회 권한이 없습니다. (WAREHOUSE / MANAGER / MASTER 역할 필요)
+        입고 전표 조회 권한이 없습니다. (WAREHOUSE / MANAGER / MASTER 역할 필요)
       </div>
     )
   }
@@ -453,7 +453,7 @@ export function PurchaseQueryPage() {
             rows={rows}
             rowKey={(r) => r.id}
             loading={slipsQuery.isLoading}
-            emptyMessage="조회된 구매 전표가 없습니다."
+            emptyMessage="조회된 입고 전표가 없습니다."
             enableMultiSelect
             enableCopy
           />
@@ -509,7 +509,7 @@ export function PurchaseQueryPage() {
             ) : rows.length === 0 ? (
               <tr>
                 <td colSpan={tableColumnCount} style={{ textAlign: 'center', padding: 32, color: 'var(--color-neutral-400)' }}>
-                  조회된 구매 전표가 없습니다.
+                  조회된 입고 전표가 없습니다.
                 </td>
               </tr>
             ) : (
@@ -607,7 +607,7 @@ export function PurchaseQueryPage() {
       {/* ── 에러 ── */}
       {slipsQuery.isError ? (
         <div role="alert" style={{ color: 'var(--color-danger-600)', fontSize: 13 }}>
-          구매 전표 목록을 불러오지 못했습니다. 백엔드 연결을 확인하세요.
+          입고 전표 목록을 불러오지 못했습니다. 백엔드 연결을 확인하세요.
         </div>
       ) : null}
 

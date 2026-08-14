@@ -67,6 +67,8 @@ $composeFiles = @(
 )
 $portfix = 'infrastructure/docker-compose.local-portfix.yml'
 if (Test-Path $portfix) { $composeFiles += $portfix }
+$slipPortOverride = 'infrastructure/docker-compose.slip-port-override.yml'
+if (Test-Path $slipPortOverride) { $composeFiles += $slipPortOverride }
 
 $composeArgs = @()
 foreach ($f in $composeFiles) { $composeArgs += @('-f', $f) }

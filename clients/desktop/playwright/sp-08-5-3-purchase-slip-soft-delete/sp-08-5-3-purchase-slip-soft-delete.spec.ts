@@ -10,7 +10,7 @@ function read(relPath: string): string {
   return fs.readFileSync(path.join(repoRoot, relPath), 'utf8')
 }
 
-test.describe('SP-08-5-3 매입 전표 soft delete 계약', () => {
+test.describe('SP-08-5-3 입고 전표 soft delete 계약', () => {
   /**
    * T1 BE 계약
    *
@@ -97,7 +97,7 @@ test.describe('SP-08-5-3 매입 전표 soft delete 계약', () => {
     // 422 inspection banner — alert() 제거 확인 + banner testid 확인
     expect(page).toContain('purchase-slip-delete-inspection-banner')
     expect(page).toContain('danger-banner')
-    expect(page).not.toContain("alert('검수 완료된 매입 전표")
+    expect(page).not.toContain("alert('검수 완료된 입고 전표")
 
     // API
     expect(api).toContain('deletePurchaseSlip')

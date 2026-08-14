@@ -69,7 +69,7 @@ public class SalesAccountingSlipService {
     }
 
     /**
-     * 매출전표를 DRAFT 에서 POSTED 로 전이한다.
+     * 출고전표를 DRAFT 에서 POSTED 로 전이한다.
      *
      * @param slipNo 내부 표준 전표번호({@code yyyy/MM/dd-N}). Controller 에서 하이픈 slug 를 정규화해 전달한다.
      * @param actorUserId 처리자 ID
@@ -77,7 +77,7 @@ public class SalesAccountingSlipService {
     @Transactional
     public void post(String slipNo, String actorUserId) {
         SalesAccountingSlip slip = slipRepository.findBySlipNo(slipNo)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "매출전표 없음: " + slipNo));
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "출고전표 없음: " + slipNo));
         slip.post(actorUserId);
     }
 }

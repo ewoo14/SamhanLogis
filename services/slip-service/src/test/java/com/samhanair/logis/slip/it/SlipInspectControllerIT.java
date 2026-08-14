@@ -123,7 +123,7 @@ class SlipInspectControllerIT extends AbstractPostgresIT {
         body.put("destinationWarehouseId", UUID.randomUUID().toString());
         body.put("partnerId", UUID.randomUUID().toString());
         body.put("partnerName", "(주)윌리-정현수");
-        body.put("deliveryTag", "DAY");
+        body.put("deliveryTag", "SALE");
         body.put("memo", "Slice A 인스펙트 검증");
         body.put("lines", List.of(line));
         return body;

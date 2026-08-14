@@ -91,8 +91,8 @@ afterEach(() => {
 })
 
 describe.each([
-  ['sales', '매출전표', 'accounting.sales-slip.accounting'],
-  ['purchase', '매입전표', 'accounting.purchase-slip.accounting'],
+  ['sales', '출고전표', 'accounting.sales-slip.accounting'],
+  ['purchase', '입고전표', 'accounting.purchase-slip.accounting'],
 ] as const)('%s accounting slip list write permissions', (kind, _title, pageCode) => {
   it('does not render 작성 or DRAFT 전기 when create/update are denied', async () => {
     renderPage(kind)

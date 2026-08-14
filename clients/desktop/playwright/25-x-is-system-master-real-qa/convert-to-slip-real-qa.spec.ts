@@ -7,7 +7,7 @@ import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
  * X-Is-System-Master 헤더 누락 → account 모드 강등 → sentinel 계정 권한 없음 → 403).
  *
  * 대상: 2026/06/08-1574 (DRAFT, 단일 라인, 품목 7550826e 창고HQ-001 재고보유) —
- * 판매전표 전환 시 InventoryClient.reserve() + SlipServiceClient.publishFromPartnerOrder()
+ * 출고전표 전환 시 InventoryClient.reserve() + SlipServiceClient.publishFromPartnerOrder()
  * 순차 호출. 계정: dev_manager(매니저 그룹 sales.partner-order.convert CREATE 권한).
  */
 import { expect, test, type Page } from '@playwright/test'
@@ -80,7 +80,7 @@ test('거래처 주문 확정(convert-to-slip) — X-Is-System-Master 서비스�
   await expect(page.getByTestId('partner-order-convert-open')).toBeVisible({ timeout: 30_000 })
   await capture(page, 'order-detail-draft-entry')
 
-  // 2) 판매전표 전환 모달 오픈 — DS Modal 은 data-testid 미전달([[local-stack-qa-gotchas]]) → submit 버튼으로 대기
+  // 2) 출고전표 전환 모달 오픈 — DS Modal 은 data-testid 미전달([[local-stack-qa-gotchas]]) → submit 버튼으로 대기
   await page.getByTestId('partner-order-convert-open').click()
   await expect(page.getByTestId('partner-order-convert-submit')).toBeVisible({ timeout: 10_000 })
 

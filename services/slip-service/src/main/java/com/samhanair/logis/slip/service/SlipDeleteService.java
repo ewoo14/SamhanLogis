@@ -19,7 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 매입 전표 soft delete 서비스 — SP-08-5-3.
+ * 입고 전표 soft delete 서비스 — SP-08-5-3.
  *
  * <p>WAREHOUSE / MANAGER / MASTER 권한자가 INBOUND 전표를 즉시 삭제한다.
  * 삭제는 {@link Slip#deleteForPurchase(String)} 도메인 메서드를 통해 수행되며
@@ -42,7 +42,7 @@ public class SlipDeleteService {
     private final SlipClosedDateGuard closedDateGuard;
 
     /**
-     * 매입 전표를 soft delete 처리한다.
+     * 입고 전표를 soft delete 처리한다.
      *
      * <p>처리 순서:
      * <ol>

@@ -13,25 +13,32 @@ import { FormField } from '../FormField/FormField'
 export type SlipDirection = 'OUTBOUND' | 'INBOUND'
 
 /**
- * 배송태그 코드 (BE `DeliveryTagCode` enum 과 1:1 대응, 11종).
+ * 배송태그 코드 (BE `DeliveryTag` enum 과 1:1 대응, 18종).
  *
  * 출고 (OUTBOUND, 8종):
- * - `DAY`               당일 — 당일 출고/배송 (긴급)
+ * - `SALE`              판매 — 일반 출고 (기본값)
  * - `STACK`             야적 — 출고일 야적, 익일 상차/하차 (autoMemo)
  * - `REGION`            지방 — 지방 배송 (autoMemo)
  * - `LOGEN`             로젠택배 — 외부 택배사 위탁
  * - `GYEONGDONG_PARCEL` 경동택배 — 외부 택배사 위탁 (소형)
  * - `GYEONGDONG_FREIGHT` 경동화물 — 외부 화물사 위탁 (대형)
  * - `RENTAL`            대여 — 대여 출고
- * - `RETURN_RENTAL`     반납 — 대여품 반납 출고
+ * - `BORROW_RETURN`     차용반납 — 차용품 반납 출고
+ * - `DEFECT_RETURN`     불량반납 — 불량품 반납 출고
+ * - `DIRECT_DELIVERY`   직배 — 직접 배송 출고
+ * - `PREEMPTIVE_ACTION` 착하선조치 — 착하 전 선조치 출고
  *
- * 입고 (INBOUND, 3종):
- * - `RETURN_TRIP` 회차 — 차량 회차 입고
- * - `RETURN`      반품 — 거래처 반품 입고
- * - `BORROW`      차용 — 외부 차용품 입고
+ * 입고 (INBOUND, 4종):
+ * - `PURCHASE`     구매 — 최초 구매 입고 (기본값)
+ * - `RETURN_TRIP`     회차 — 차량 회차 입고
+ * - `RETURN`          반품 — 거래처 반품 입고
+ * - `BORROW`          차용 — 외부 차용품 입고
+ * - `RENTAL_RETURN`   대여반납 — 대여 대체품 입고
+ * - `DELIVERY_RETURN` 착하반품 — 착하 반품 입고
+ * - `REENTRY`         재입고 — 재입고
  */
 export type DeliveryTagCode =
-  | 'DAY'
+  | 'SALE'
   | 'STACK'
   | 'REGION'
   | 'LOGEN'
@@ -40,8 +47,15 @@ export type DeliveryTagCode =
   | 'RETURN_TRIP'
   | 'RETURN'
   | 'BORROW'
+  | 'PURCHASE'
   | 'RENTAL'
-  | 'RETURN_RENTAL'
+  | 'BORROW_RETURN'
+  | 'DEFECT_RETURN'
+  | 'DIRECT_DELIVERY'
+  | 'PREEMPTIVE_ACTION'
+  | 'RENTAL_RETURN'
+  | 'DELIVERY_RETURN'
+  | 'REENTRY'
 
 /**
  * 배송태그 옵션 — BE 가 enum 으로 관리하는 태그 메타데이터의 1건.
@@ -81,7 +95,7 @@ export interface DeliveryTagSelectorProps {
   ) => void
   /**
    * 전표 종류 — 이 종류에 해당하는 옵션만 dropdown 에 노출된다.
-   * 출고면 OUTBOUND 8종, 입고면 INBOUND 3종.
+ * 출고면 OUTBOUND 8종, 입고면 INBOUND 4종.
    */
   direction: SlipDirection
   /** 라벨 (default `"배송태그"`). */
@@ -141,7 +155,7 @@ function buildAutoMemoText(slipDate?: string): string {
 }
 
 /**
- * DeliveryTagSelector — 11종 배송태그 single-select dropdown.
+ * DeliveryTagSelector — 배송태그 single-select dropdown.
  *
  * 전표 종류 (`direction`) 에 따라 옵션이 자동 필터링된다.
  * 자동 메모 태그 (야적/지방) 선택 시 옆에 inline 미리보기가 표시되며,

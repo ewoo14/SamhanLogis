@@ -177,7 +177,7 @@ export function EstimateDetailPage() {
       if (converted.convertedSlipId) {
         if (
           confirm(
-            '전표 변환 완료!\n\n신규 판매전표가 임시저장 상태로 생성되었습니다. 전표 상세로 이동할까요?',
+            '전표 변환 완료!\n\n신규 출고전표가 임시저장 상태로 생성되었습니다. 전표 상세로 이동할까요?',
           )
         ) {
           navigate(`/sales/${converted.convertedSlipId}`)
@@ -235,7 +235,7 @@ export function EstimateDetailPage() {
     setTopError('')
     if (
       !confirm(
-        '이 견적을 판매전표로 변환하시겠습니까?\n변환 후 견적은 전환완료 상태로 잠깁니다.',
+        '이 견적을 출고전표로 변환하시겠습니까?\n변환 후 견적은 전환완료 상태로 잠깁니다.',
       )
     )
       return

@@ -26,7 +26,7 @@ class BundleOptionRoundTripTest {
     void 전표_EXPAND_옵션과_계보는_revision_복원에도_동일하다() throws Exception {
         Slip slip = Slip.createOutbound("2026/08/06-1", LocalDate.of(2026, 8, 6), 1,
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "거래처",
-                DeliveryTag.DAY, "메모", "tester");
+                DeliveryTag.SALE, "메모", "tester");
         SlipLine line = SlipLine.create(slip, UUID.randomUUID(), "구성품", "COMP-01", null,
                 1, new BigDecimal("100.00"), null);
         line.assignBundleComponent("SET-01", true, OPTIONS);

@@ -6,7 +6,7 @@ import java.time.YearMonth;
 import java.util.List;
 
 /**
- * 매출전표 묶음 세금계산서 발행 후보.
+ * 출고전표 묶음 세금계산서 발행 후보.
  *
  * <p>UUID 는 mutation 요청 payload 용으로만 포함하고 화면 표시는 slipNo / partnerCode 를 사용한다.
  */

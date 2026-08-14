@@ -161,6 +161,23 @@ public class StockInstance extends BaseEntity {
                 receivedAt, unitCost, inboundSlipNo);
     }
 
+    /**
+     * 전표 귀속 입고 — 아직 입고전표가 없는 AVAILABLE 개체에 전표번호를 귀속한다.
+     *
+     * @param inboundSlipNo 입고전표 번호
+     * @throws BusinessException 이미 다른 전표에 귀속된 경우
+     */
+    public void receiveIntoSlip(String inboundSlipNo) {
+        if (this.status != StockInstanceStatus.AVAILABLE) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "입고 불가 — 현재 상태 " + this.status.getDisplayName());
+        }
+        if (this.inboundSlipNo != null && !this.inboundSlipNo.equals(inboundSlipNo)) {
+            throw new BusinessException(ErrorCode.CONFLICT, "이미 다른 입고전표에 귀속된 개체입니다.");
+        }
+        this.inboundSlipNo = inboundSlipNo;
+    }
+
     /** 창고 코드와 같은 6자 혼동방지 charset을 사용하는 인스턴스 노출 시리얼키를 생성한다. */
     private static String generateSerialKey() {
         StringBuilder suffix = new StringBuilder(SERIAL_RANDOM_LENGTH);

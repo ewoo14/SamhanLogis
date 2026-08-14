@@ -96,12 +96,12 @@ class SlipLifecycleControllerIT extends AbstractPostgresIT {
     }
 
     private Map<String, Object> outboundBody() {
-        // 출고전표 — DAY 태그 (OUTBOUND direction)
-        return slipBody("OUTBOUND", true, "DAY");
+        // 출고전표 — SALE 태그 (OUTBOUND direction)
+        return slipBody("OUTBOUND", true, "SALE");
     }
 
     private Map<String, Object> inboundBody() {
-        // 입고전표 — RETURN_TRIP 태그 (INBOUND direction). DAY 같은 OUTBOUND 태그 사용 시
+        // 입고전표 — RETURN_TRIP 태그 (INBOUND direction). SALE 같은 OUTBOUND 태그 사용 시
         // BE 가 IllegalArgumentException 으로 거부.
         return slipBody("INBOUND", false, "RETURN_TRIP");
     }

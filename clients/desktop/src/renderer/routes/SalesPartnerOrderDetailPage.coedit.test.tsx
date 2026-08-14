@@ -253,7 +253,7 @@ afterEach(() => {
   mocks.useIsMobile.mockReturnValue(false)
 })
 
-describe('SalesPartnerOrderDetailPage 판매전표 전환 오류 안내', () => {
+describe('SalesPartnerOrderDetailPage 출고전표 전환 오류 안내', () => {
   it('RED-LUNA-2/3: 주문 목록 복귀는 검색어를 유지하고 브라우저 뒤로 상세로 재진입하지 않는다', async () => {
     mocks.getPartnerOrder.mockResolvedValue(makeOrder())
     render(
@@ -292,15 +292,15 @@ describe('SalesPartnerOrderDetailPage 판매전표 전환 오류 안내', () => 
     }))
     mocks.convertPartnerOrderToSlip.mockRejectedValue({
       isAxiosError: true,
-      response: { status: 400, data: { message: '세트 품목은 판매전표 라인으로 저장할 수 없습니다. 구성품으로 전개해 주세요.' } },
+      response: { status: 400, data: { message: '세트 품목은 출고전표 라인으로 저장할 수 없습니다. 구성품으로 전개해 주세요.' } },
     })
 
     renderPage()
     await screen.findByText('PO/2099-1')
-    fireEvent.click(screen.getByRole('button', { name: '판매전표 전환' }))
+    fireEvent.click(screen.getByRole('button', { name: '출고전표 전환' }))
     fireEvent.click(screen.getByTestId('warehouse-autocomplete'))
     fireEvent.change(await screen.findByLabelText('제품 1 전환수량'), { target: { value: '1' } })
-    fireEvent.click(screen.getByRole('button', { name: '판매전표로 전환' }))
+    fireEvent.click(screen.getByRole('button', { name: '출고전표로 전환' }))
 
     const alert = await screen.findByTestId('partner-order-convert-modal-error')
     expect(alert.getAttribute('role')).toBe('alert')

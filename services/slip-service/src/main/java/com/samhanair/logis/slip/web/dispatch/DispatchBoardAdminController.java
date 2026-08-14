@@ -72,12 +72,12 @@ public class DispatchBoardAdminController {
     /**
      * 배차보드 전표확인용 출고전표 상세 조회.
      *
-     * <p>일반 {@code GET /slips/{id}} 는 매출 전표 권한({@code sales.slip.list})을 유지한다.
+     * <p>일반 {@code GET /slips/{id}} 는 출고 전표 권한({@code sales.slip.list})을 유지한다.
      * 본 endpoint 는 배차보드 사용자가 전표 확인 모달을 열 수 있도록 {@code dispatch.board VIEW}
      * 권한으로만 노출하며, 출고전표가 아닌 경우는 차단한다.
      *
      * @param id 전표 UUID (path param 전용, 화면 표시 금지)
-     * @return 판매전표 미리보기용 상세 응답
+     * @return 출고전표 미리보기용 상세 응답
      */
     @Operation(summary = "배차보드 전표확인 상세", description = "dispatch.board VIEW 권한으로 출고전표 미리보기 상세를 조회한다.")
     @GetMapping("/slips/{id}")

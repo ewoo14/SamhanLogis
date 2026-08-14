@@ -195,7 +195,7 @@ test.describe('Phase 2.6a 출고전표 전환', () => {
     const convertBtn = page.getByTestId('partner-order-convert-open')
     await expect(convertBtn).toBeVisible()
     await expect(convertBtn).toBeEnabled()
-    await expect(convertBtn).toContainText('판매전표 전환')
+    await expect(convertBtn).toContainText('출고전표 전환')
 
     // 모달 열기
     await openConvertModal(page)

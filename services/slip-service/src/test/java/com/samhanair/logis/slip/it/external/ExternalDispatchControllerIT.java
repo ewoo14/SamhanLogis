@@ -291,7 +291,7 @@ class ExternalDispatchControllerIT extends AbstractPostgresIT {
                 null,
                 UUID.randomUUID(),
                 "타배송사 거래처 " + seqNo,
-                DeliveryTag.DAY,
+                DeliveryTag.SALE,
                 "external dispatch IT",
                 USER_ID);
         slip.setPartnerCode("EDS-" + seqNo);

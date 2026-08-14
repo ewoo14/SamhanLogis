@@ -10,7 +10,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * V79 inventory.warehouse VIEW 시드 검증 — 배차 판매전표 미리보기 출고창고 조회 권한.
+ * V79 inventory.warehouse VIEW 시드 검증 — 배차 출고전표 미리보기 출고창고 조회 권한.
  *
  * <p>inventory-service WarehouseController.listWarehouses 는 {@code inventory.warehouse}
  * VIEW 를 요구하므로, DISPATCH 계정/그룹 enforcement 캐시까지 함께 잠근다.

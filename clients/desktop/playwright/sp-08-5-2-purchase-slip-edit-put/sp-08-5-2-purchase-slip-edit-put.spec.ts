@@ -81,7 +81,7 @@ test.describe('SP-08-5-2 매입 수정 direct PUT 계약', () => {
     expect(page).toMatch(/export function editUnitPriceLabel\(\s*\n\s*_line: Pick<PurchaseEditLine, 'unitPrice' \| 'unitPriceWithVat'>,\s*\n\): EditUnitPriceLabel \{\s*\n\s*return '단가\(VAT포함\)'/)
     expect(page).not.toMatch(/unitPrice === unitPriceWithVat/)
     expect(page).toContain('aria-label={`${editUnitPriceLabel(line)} ${index + 1}`}')
-    expect(page).not.toMatch(/<Modal[\s\S]*title="매입 전표 수정"/)
+    expect(page).not.toMatch(/<Modal[\s\S]*title="입고 전표 수정"/)
     expect(page).toContain('Input')
     expect(api).toContain('updatePurchaseSlip')
     expect(api).toContain('apiClient.put<ApiEnvelope<SlipDetail>>')

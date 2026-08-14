@@ -3,7 +3,7 @@
  *
  * <p>Phase A FE-5.2.
  *
- * <p>slip-service `GET /admin/dispatch-board/slips/{id}` 호출 → 판매전표 인쇄 본문을 미리보기로 표시.
+ * <p>slip-service `GET /admin/dispatch-board/slips/{id}` 호출 → 출고전표 인쇄 본문을 미리보기로 표시.
  * 본 모달은 배차 보드 진입 시 문서 확인 용도 — 정식 수정/취소는 `/sales/:id` 페이지에서 처리.
  *
  * UUID 비공개:
@@ -54,7 +54,7 @@ export function SlipDetailModal({ slipId, onClose }: SlipDetailModalProps) {
       open
       onClose={onClose}
       title={title}
-      description={slip ? '판매전표 미리보기' : undefined}
+      description={slip ? '출고전표 미리보기' : undefined}
       size="xl"
       // body 가 DispatchDocument(자체 인쇄 대상 문서)를 담고 있어 인쇄 시 모달 크롬을
       // 뺀다(opt-in). PR #921 chore-B R4 — CODEX SOL 2차 적대검증 A-1: 이 opt-in 없이
@@ -108,7 +108,7 @@ export function SlipDetailModal({ slipId, onClose }: SlipDetailModalProps) {
           </section>
 
           <section
-            aria-label="판매전표 문서 미리보기"
+            aria-label="출고전표 문서 미리보기"
             tabIndex={0}
             style={{
               overflowX: 'auto',

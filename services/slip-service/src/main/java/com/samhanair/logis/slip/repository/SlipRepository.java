@@ -47,6 +47,9 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
     /** 전표번호({@code yyyy/MM/dd-N}) 단건 조회. soft-delete 제외. 중복 가능성 때문에 신규 코드는 type 지정 조회 권장. */
     Optional<Slip> findBySlipNo(String slipNo);
 
+    /** 입·출고 번호 충돌을 감지하기 위한 유형 무관 활성 전표 후보 조회. */
+    List<Slip> findAllBySlipNoAndIsDeletedFalse(String slipNo);
+
     /**
      * due PENDING 또는 lease가 만료된 PROCESSING snapshot 후보를 조회한다.
      *
@@ -242,7 +245,7 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
             @org.springframework.data.repository.query.Param("partnerId") UUID partnerId);
 
     /**
-     * 거래처별 원장 판매전표 read projection source.
+     * 거래처별 원장 출고전표 read projection source.
      *
      * <p>기존 DPS용 {@code findByPeriodWithLines}와 분리된 추가 계약이다. 활성 OUTBOUND 중 호출자가
      * 넘긴 원장 포함 상태만 기간·거래처코드로 조회하고, {@code lines}를 함께 fetch한다.
@@ -252,7 +255,7 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
      * @param to 조회 종료일(포함)
      * @param partnerCode 거래처코드, null이면 전체
      * @param statuses 원장 포함 상태
-     * @return 전표와 품목을 함께 읽은 활성 판매전표
+     * @return 전표와 품목을 함께 읽은 활성 출고전표
      */
     @EntityGraph(attributePaths = "lines")
     @org.springframework.data.jpa.repository.Query("""

@@ -95,7 +95,7 @@ class CompensationAlertNotifierIT extends AbstractPostgresIT {
     void record_whenAlertEnabled_sendsPushAfterAuditSave() {
         Slip slip = Slip.createOutbound(SLIP_NO, LocalDate.of(2026, 6, 3), 1,
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                "삼한상사", DeliveryTag.DAY, null, "alert-it");
+                "삼한상사", DeliveryTag.SALE, null, "alert-it");
         ReflectionTestUtils.setField(slip, "id", UUID.randomUUID());
 
         // 보상 예외 메시지에 내부 UUID 가 섞여 있어도(현실적 시나리오) 푸시 본문에는 노출되지 않아야 한다.

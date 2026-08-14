@@ -38,7 +38,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 매출 전표 direct PUT 수정 서비스 (SP-08-6-2).
+ * 출고 전표 direct PUT 수정 서비스 (SP-08-6-2).
  *
  * <p>SALES/MANAGER/MASTER 가 기존 SlipEditRequest 승인 흐름을 거치지 않고 OUTBOUND 전표를
  * 즉시 수정한다. stale {@code updatedAt} 은 409 로, 라인 검증 실패는 422 로 반환한다.
@@ -58,7 +58,7 @@ public class SalesSlipUpdateService {
     private final SlipClosedDateGuard closedDateGuard;
 
     /**
-     * 매출 전표 헤더와 라인을 전체 교체한다.
+     * 출고 전표 헤더와 라인을 전체 교체한다.
      *
      * <p>처리 순서:
      * <ol>
@@ -213,7 +213,7 @@ public class SalesSlipUpdateService {
     }
 
     /**
-     * 요청 lineId 가 현재 매출 전표의 활성 라인인지 검증한다.
+     * 요청 lineId 가 현재 출고 전표의 활성 라인인지 검증한다.
      *
      * <p>타 문서 UUID 주입은 400 INVALID_INPUT 으로 통일해 다른 문서 존재 여부를
      * 노출하지 않는다. 개별 라인의 {@code lineId == null} 은 편집 중 추가된 신규 라인을 뜻하는
@@ -241,7 +241,7 @@ public class SalesSlipUpdateService {
     }
 
     /**
-     * [D-R8-6 · D-R8-9] 매출 전표 PUT 은 lineId 계약 선언을 의무화한다 —
+     * [D-R8-6 · D-R8-9] 출고 전표 PUT 은 lineId 계약 선언을 의무화한다 —
      * {@link SlipUpdateService#requireLineIdContract} 미러 (매입/매출 비대칭 재발 차단).
      * 판정은 공용 {@link LineIdContractGate} 단일 구현에 위임하므로 두 미러는 드리프트할 수 없다.
      *

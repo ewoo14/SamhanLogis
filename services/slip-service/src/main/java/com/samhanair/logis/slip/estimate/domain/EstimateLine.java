@@ -43,7 +43,7 @@ import org.hibernate.annotations.UuidGenerator;
  * 즉시 Hibernate 가 물리 DELETE 를 실행한다. 이 클래스에는 {@code @SQLDelete} 오버라이드가
  * 없고 {@code markDeleted()} 를 호출하는 코드 경로도 0건이라, {@code is_deleted=true} 인 라인
  * 행이 실제로 존재한 적이 없다(soft-delete 자체가 발생하지 않는다). <b>이것이 견적 라인이
- * 판매전표(D) 의 헤더≠라인 삭제시각 불일치로 인한 over-restore·레거시 빈껍데기 결함군
+ * 출고전표(D) 의 헤더≠라인 삭제시각 불일치로 인한 over-restore·레거시 빈껍데기 결함군
  * (#758 STEP4 감사, {@link com.samhanair.logis.slip.service.SlipRestoreService} 참조)에서
  * 구조적으로 안전한 이유다</b> — 애초에 soft-delete 라인이 없으니 시각 불일치도 있을 수 없다.
  *
@@ -58,7 +58,7 @@ import org.hibernate.annotations.UuidGenerator;
  *       실패시키는 fail-loud 가드
  *       ({@link com.samhanair.logis.slip.service.SlipRestoreService#restore} 참조)</li>
  * </ol>
- * 헤더≠라인 삭제시각 정합 보장 없이 단순히 {@code @SQLDelete} 만 얹으면, 판매전표(D)에서
+ * 헤더≠라인 삭제시각 정합 보장 없이 단순히 {@code @SQLDelete} 만 얹으면, 출고전표(D)에서
  * 실측된 over-restore(#758 CRITICAL)와 레거시 빈껍데기 결함이 견적에도 그대로 재현된다.
  */
 @Entity

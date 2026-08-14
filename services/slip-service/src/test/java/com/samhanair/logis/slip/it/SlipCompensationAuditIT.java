@@ -168,7 +168,7 @@ class SlipCompensationAuditIT extends AbstractPostgresIT {
         Slip slip = Slip.createOutbound(TEST_SLIP_NO_PREFIX + seqNo,
                 LocalDate.of(2026, 6, 3), seqNo,
                 sourceWarehouseId, destinationWarehouseId, partnerId, "삼한공조",
-                DeliveryTag.DAY, null, "u");
+                DeliveryTag.SALE, null, "u");
         slip.addLine(SlipLine.create(slip, serialProductId, "에어컨", "MODEL-SERIAL", null,
                 2, new BigDecimal("500000.00"), null));
         slip.addLine(SlipLine.create(slip, batchProductId, "배관", "PIPE-BATCH", null,

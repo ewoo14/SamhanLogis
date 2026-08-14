@@ -53,7 +53,7 @@ export interface PartnersExportParams {
  * deliveryTag, includeDeleted, search*).
  *
  * <p>2026-07 OPUS 재수렴 fix — 화면 검색/필터가 export 에 전량 누락되어 있던 결함 수정
- * (판매관리/구매관리 검색모달 + 판매전표목록 배송태그). BE 가 이미 화면 조회에 쓰는
+ * (판매관리/구매관리 검색모달 + 출고전표목록 배송태그). BE 가 이미 화면 조회에 쓰는
  * {@code SlipQueryService.listForQuery}(검색 필드) / {@code SlipService.list}(deliveryTag +
  * includeDeleted) 를 export 에도 그대로 위임하므로 신규 SQL/Specification 은 없다.
  *
@@ -63,7 +63,7 @@ export interface PartnersExportParams {
  * @property to                    전표일자 종료 (ISO yyyy-MM-dd, 미지정 시 상한 없음)
  * @property partnerCode           거래처코드 정확 일치
  * @property deliveryTag           배송태그 필터 — SlipListPage 배송태그 셀렉트 값
- * @property includeDeleted        soft-delete 포함 여부 — 판매전표 목록(OUTBOUND) 화면 파리티용
+ * @property includeDeleted        soft-delete 포함 여부 — 출고전표 목록(OUTBOUND) 화면 파리티용
  * @property searchPartnerName     거래처명 부분 검색 — 판매/구매관리 검색모달
  * @property searchPartnerCode     거래처코드 부분 검색
  * @property searchBusinessNumber  사업자등록번호 부분 검색

@@ -62,7 +62,7 @@ function normalizeSignature(src: string | null | undefined): string | null {
   return src.startsWith('data:') ? src : `data:image/png;base64,${src}`
 }
 
-/** 판매전표 인쇄 본문. 라우터/쿼리 없이 props 만으로 렌더한다. */
+/** 출고전표 인쇄 본문. 라우터/쿼리 없이 props 만으로 렌더한다. */
 export function DispatchDocument({
   slip,
   roles,

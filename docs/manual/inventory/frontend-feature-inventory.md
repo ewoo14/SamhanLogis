@@ -14,7 +14,7 @@
 
 - 거래처 기본 관리 UI는 `/admin/partners` 목록과 `/admin/partners/new` 생성 화면으로 운영 가능하다. 4탭 중 여신/단가·부가정보의 일부 고급 필드는 후속 보강 대상이지만, 더 이상 “거래처 UI 부재” 상태는 아니다.
 - 판매관리와 구매관리는 목록에서 명시 상세 버튼으로 `/sales/:id`, `/purchases/:id`에 진입한다. 신규 작성은 각각 `/sales/new`, `/purchases/new`에서 처리하고, 상세 화면에서 수정/상태 전이를 이어간다.
-- 구매관리는 `SAVED / CONFIRMED` 구매전표 행의 `검수` CTA로 `InboundInspectionDialog`에 진입한다. 라인별 불량/사진 첨부 등 고급 검수는 후속 P0/P1 보강 대상이다.
+- 구매관리는 `SAVED / CONFIRMED` 입고전표 행의 `검수` CTA로 `InboundInspectionDialog`에 진입한다. 라인별 불량/사진 첨부 등 고급 검수는 후속 P0/P1 보강 대상이다.
 - `clients/mobile-staff`의 기사 모드는 D-AX-19 이후 은퇴했고, 기사 배차/GPS/서명은 `clients/arologis-mobile`이 전담한다.
 
 ---
@@ -344,7 +344,7 @@
 ### 6.2 보강 후 캡처 (⏳ 항목)
 
 - 대시보드 4 카드 중 3개 placeholder ("준비중") → 실 카운트 활성 (저재고 / 미확인 메시지 / 추가 카드)
-- 구매전표 전용 필드 (출고와 동일 form 재사용 → 입고 전용 분리 검토)
+- 입고전표 전용 필드 (출고와 동일 form 재사용 → 입고 전용 분리 검토)
 
 ### 6.3 신규 화면 개발 결정 필요 (❌ 항목)
 

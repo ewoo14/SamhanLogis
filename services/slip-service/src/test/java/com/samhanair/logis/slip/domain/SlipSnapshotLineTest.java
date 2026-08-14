@@ -20,7 +20,7 @@ class SlipSnapshotLineTest {
     void toSnapshotCapturesVatFields() {
         Slip slip = Slip.createOutbound("2026/06/30-1", LocalDate.of(2026, 6, 30), 1,
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "삼한물산",
-                DeliveryTag.DAY, "memo", "user-1");
+                DeliveryTag.SALE, "memo", "user-1");
         slip.addLine(SlipLine.createFromVatInclusive(slip, UUID.randomUUID(), "펌프", "MX-100",
                 "220V", 1, new BigDecimal("11000"), null, null));
 
@@ -54,7 +54,7 @@ class SlipSnapshotLineTest {
     void toSnapshotCapturesUnitPriceDomain() {
         Slip slip = Slip.createOutbound("2026/06/30-1", LocalDate.of(2026, 6, 30), 1,
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "삼한물산",
-                DeliveryTag.DAY, "memo", "user-1");
+                DeliveryTag.SALE, "memo", "user-1");
         slip.addLine(SlipLine.createFromVatInclusive(slip, UUID.randomUUID(), "펌프", "MX-100",
                 "220V", 1, new BigDecimal("11000"), null, null));
         slip.addLine(SlipLine.create(slip, UUID.randomUUID(), "밸브", "VV-1",

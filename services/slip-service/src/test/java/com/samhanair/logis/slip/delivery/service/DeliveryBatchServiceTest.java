@@ -306,7 +306,7 @@ class DeliveryBatchServiceTest {
     private Slip newSlipWithDriver(String name, String phone) {
         Slip slip = Slip.createOutbound("2026/05/05-001", date, 1,
                 sourceWh, destWh, UUID.randomUUID(), "거래처",
-                DeliveryTag.DAY, "메모", "user-1");
+                DeliveryTag.SALE, "메모", "user-1");
         slip.setDriverContact(name, phone);
         return slip;
     }
