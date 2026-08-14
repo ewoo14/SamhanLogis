@@ -2388,6 +2388,18 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return mockAuditResponse(url, logs)
   }
 
+  // GET /auth/me → 웹 mock 부트스트랩 응답
+  if (method === 'GET' && url.endsWith('/auth/me')) {
+    return envelope({
+      userId: MOCK_AUTH.userId,
+      loginId: 'mock-user',
+      role: MOCK_AUTH.role,
+      fullName: MOCK_AUTH.fullName,
+      partnerCode: MOCK_AUTH.partnerCode,
+      groups: MOCK_AUTH.groups,
+    })
+  }
+
   // POST /auth/login → 토큰 응답
   if (method === 'POST' && url.endsWith('/auth/login')) {
     return envelope({
@@ -14510,6 +14522,37 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
 
   if (method === 'POST' && (url.includes('/apply-template') || url.includes('/copy-from'))) {
     return envelope({ changedCount: 12 })
+  }
+
+  // GET /auth/admin/menu-catalog — 현재 계정에 허용된 sidebar catalog.
+  // AppLayout은 정적 메뉴 fallback을 사용하지 않으므로 mock도 서버 계약을
+  // 재현해야 한다. mockPerms가 있으면 그 allowlist를 그대로 적용한다.
+  if (method === 'GET' && (url.includes('/auth/admin/menu-catalog') || url.includes('/admin/menu-catalog'))) {
+    const mockPerms = _resolveMockPerms()
+    const canViewPermissionAdmin = MOCK_AUTH.role === 'MASTER'
+      && (mockPerms === null || mockPerms.some((permission) => permission.pageCode === 'system.permission-admin' && permission.view))
+    return envelope(canViewPermissionAdmin ? [
+      {
+        app: 'samhan-public',
+        category: '인사',
+        label: '권한설정',
+        route: '/admin/permission-matrix',
+        pageCode: 'system.permission-admin',
+        action: 'VIEW',
+        visible: true,
+        order: 1,
+      },
+      {
+        app: 'samhan-public',
+        category: '인사',
+        label: '권한 일괄 적용',
+        route: '/admin/permission-matrix/bulk',
+        pageCode: 'system.permission-admin',
+        action: 'VIEW',
+        visible: true,
+        order: 2,
+      },
+    ] : [])
   }
 
   // GET /auth/admin/permissions/my — 현재 사용자 권한 목록
