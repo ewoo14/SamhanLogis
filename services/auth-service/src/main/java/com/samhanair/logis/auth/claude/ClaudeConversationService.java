@@ -27,7 +27,13 @@ public class ClaudeConversationService {
             code = "CLD-" + java.time.LocalDate.now().toString().replace("-", "") + "-" +
                     String.format("%06d", java.util.concurrent.ThreadLocalRandom.current().nextInt(1_000_000));
         } while (sessionRepository.findBySessionCodeAndAccountIdAndIsDeletedFalse(code, accountId).isPresent());
-        return sessionRepository.save(ClaudeConversationSession.create(accountId, code));
+        ClaudeConversationSession session = ClaudeConversationSession.create(accountId, code);
+        if (!properties.isConfigured() && !modelClient.isVirtual()) {
+            session.markCredentialUnavailable();
+        } else if (modelClient.isVirtual()) {
+            session.recordQuestion("가상 Claude 세션", true);
+        }
+        return sessionRepository.save(session);
     }
 
     /** 호출자 소유의 세션만 반환하며 내부 UUID는 DTO 변환 전에 버린다. */
@@ -35,7 +41,8 @@ public class ClaudeConversationService {
     public List<com.samhanair.logis.auth.web.dto.ClaudeSessionResponse> listSessions(UUID accountId) {
         return sessionRepository.findAllByAccountIdAndIsDeletedFalseOrderByCreatedAtDesc(accountId).stream()
                 .map(session -> new com.samhanair.logis.auth.web.dto.ClaudeSessionResponse(
-                        session.getSessionCode(), session.getTitle(), auditRepository.countBySessionCode(session.getSessionCode())))
+                        session.getSessionCode(), session.getTitle(), auditRepository.countBySessionCode(session.getSessionCode()),
+                        session.getLastMessage(), session.getLastMessageAt(), session.getSummaryMode()))
                 .toList();
     }
 
@@ -60,6 +67,10 @@ public class ClaudeConversationService {
             throw new BusinessException(
                     ErrorCode.CLAUDE_CREDENTIAL_NOT_CONFIGURED,
                     "Claude 자격이 설정되지 않았습니다. ANTHROPIC_API_KEY를 주입한 뒤 다시 시도해주세요.");
+        }
+        if (sessionCode != null) {
+            sessionRepository.findBySessionCodeAndAccountIdAndIsDeletedFalse(sessionCode, accountId)
+                    .ifPresent(session -> session.recordQuestion(safeQuestion, modelClient.isVirtual()));
         }
         auditRecorder.record(accountId, sessionCode, safeQuestion, outboundPayload,
                 modelClient.isVirtual() ? "VIRTUAL_SENT" : "SENT");

@@ -74,7 +74,8 @@ public class ClaudeConversationEntryController {
         UUID accountId = requireClaudeAccess(userId, authorization, accessToken);
         var session = conversationService.createSession(accountId);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(
-                new ClaudeSessionResponse(session.getSessionCode(), session.getTitle(), 0)));
+                new ClaudeSessionResponse(session.getSessionCode(), session.getTitle(), 0,
+                        session.getLastMessage(), session.getLastMessageAt(), session.getSummaryMode())));
     }
 
     @org.springframework.web.bind.annotation.GetMapping("/sessions")

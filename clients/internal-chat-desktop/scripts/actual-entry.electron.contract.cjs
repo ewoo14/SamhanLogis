@@ -9,6 +9,7 @@ const PORT = 18080
 const api = `http://127.0.0.1:${PORT}`
 const screenshotDir = process.env.ELECTRON_CONTRACT_OUTPUT ?? path.resolve(__dirname, '../../../docs/qa/2026-08-14-1180-reconv/screenshots')
 fs.mkdirSync(screenshotDir, { recursive: true })
+const stepLog = (value) => { const line = `ELECTRON_STEP|${value}`; console.log(line); fs.appendFileSync(path.join(screenshotDir, 'execution.log'), `${line}\n`) }
 const sseClients = new Set()
 const observed = { direct: 0, join: 0, leave: 0 }
 const sessions = [{ sessionCode: 'CLD-1', title: '배차 일정 요약', messageCount: 2, lastMessage: '내일 오전 배차를 정리했습니다.', lastMessageAt: '2026-08-14T08:36:00+09:00', summaryMode: 'REAL' }]
@@ -42,16 +43,22 @@ const server = http.createServer((req, res) => {
 })
 
 async function main() {
+  stepLog('server-start')
   await new Promise((resolve) => server.listen(PORT, '127.0.0.1', resolve))
   const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'samhan-electron-contract-'))
+  stepLog('launching-electron')
   const app = await electron.launch({ args: [`--user-data-dir=${userDataDir}`, 'out/main/index.js'], cwd: path.resolve(__dirname, '..'), env: { ...process.env, ELECTRON_DISABLE_SANDBOX: '1' } })
+  stepLog('electron-launched')
   const page = await app.firstWindow()
+  stepLog('entry-window')
   await page.waitForSelector('[data-testid="messenger-app"]')
   await page.screenshot({ path: path.join(screenshotDir, 'round-fix-1-entry-real-electron.png'), fullPage: true })
 
-  const childPromise = app.waitForEvent('window')
+  const childPromise = app.waitForEvent('window', { timeout: 5_000 }).catch(() => null)
   await page.getByRole('button', { name: /김대리/ }).click()
-  const child = await childPromise
+  const child = app.windows().find((window) => window !== page) ?? await childPromise
+  if (!child) throw new Error('ELECTRON_OBSERVATION_FAILED|direct conversation window was not exposed')
+  stepLog('direct-child')
   await child.waitForSelector('[data-testid="conversation-window"]')
   await child.waitForSelector('textarea[aria-label="메시지 본문"]')
   assert.equal(observed.direct, 1)
@@ -61,11 +68,13 @@ async function main() {
   assert.equal(app.windows().length, 2)
   await child.screenshot({ path: path.join(screenshotDir, 'round-fix-2-direct-real-electron.png'), fullPage: true })
   await child.close()
+  stepLog('direct-closed')
   const childCloseLeave = observed.leave
   assert.equal(childCloseLeave, 0)
   assert.equal(observed.join, 1)
 
   await page.getByRole('button', { name: '그룹별' }).click()
+  stepLog('group-page')
   await page.getByText('운영방').waitFor()
   await assert.doesNotReject(() => page.getByText('4').waitFor())
   await page.getByText('오늘 일정 공유드립니다').waitFor()
@@ -77,20 +86,38 @@ async function main() {
   await page.screenshot({ path: path.join(screenshotDir, 'round-fix-4-presence-real-electron.png'), fullPage: true })
 
   await page.getByRole('button', { name: '클로드' }).click()
+  stepLog('claude-page')
   await page.getByText('배차 일정 요약').waitFor()
   await page.screenshot({ path: path.join(screenshotDir, 'round-fix-5-claude-session-list-real-electron.png'), fullPage: true })
 
   await page.getByRole('button', { name: '개별' }).click()
   await page.getByRole('button', { name: /김대리/ }).waitFor()
-  const persistenceChildPromise = app.waitForEvent('window')
+  stepLog('switch-back-individual')
+  const persistenceChildPromise = app.waitForEvent('window', { timeout: 5_000 }).catch(() => null)
+  stepLog('before-persistence-click')
   await page.getByRole('button', { name: /김대리/ }).click()
-  const persistenceChild = await persistenceChildPromise
+  stepLog('after-persistence-click')
+  const persistenceChild = app.windows().find((window) => window !== page) ?? await persistenceChildPromise
+  if (!persistenceChild) throw new Error('ELECTRON_OBSERVATION_FAILED|conversation window was not reused or opened')
+  stepLog('persistence-child')
   await persistenceChild.waitForSelector('[data-testid="conversation-window"]')
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].close())
-  await page.waitForTimeout(150)
-  assert.equal(app.windows().length, 1)
+  await app.evaluate(({ BrowserWindow }) => {
+    const mainWindow = BrowserWindow.getAllWindows().find((window) => !window.webContents.getURL().includes('#/conversation/'))
+    mainWindow?.close()
+  })
+  stepLog('main-closed')
+  await new Promise((resolve) => setTimeout(resolve, 150))
   assert.equal(observed.leave, 0)
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].close())
+  stepLog('before-survivor-screenshot')
+  const survivingWindow = app.windows().find((window) => window.url().includes('#/conversation/'))
+  if (!survivingWindow) throw new Error('ELECTRON_OBSERVATION_FAILED|room window did not survive main close')
+  await survivingWindow.getByRole('textbox', { name: '메시지 본문' }).fill('메인 창 종료 후에도 방 창 유지 확인')
+  await survivingWindow.screenshot({ path: path.join(screenshotDir, 'round-fix-6-main-closed-room-survives-real-electron.png'), fullPage: true })
+  stepLog('after-survivor-screenshot')
+  await app.evaluate(({ BrowserWindow }) => {
+    const childWindow = BrowserWindow.getAllWindows().find((window) => window.webContents.getURL().includes('#/conversation/'))
+    childWindow?.close()
+  })
   await new Promise((resolve) => setTimeout(resolve, 2_500))
   assert.equal(observed.leave, 1)
   console.log(`ELECTRON_CONTRACT|direct=${observed.direct}|windows=deduped|group=metadata|presence=reflected|join=${observed.join}|childCloseLeave=${childCloseLeave}|leave=${observed.leave}`)
