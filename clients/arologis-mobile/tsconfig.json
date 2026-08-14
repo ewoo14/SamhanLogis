@@ -3,7 +3,10 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "lib": ["ES2022", "DOM"],
+    "lib": [
+      "ES2022",
+      "DOM"
+    ],
     "jsx": "react-native",
     "strict": true,
     "noImplicitAny": true,
@@ -15,10 +18,24 @@
     "forceConsistentCasingInFileNames": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": [
+        "src/*"
+      ]
     },
-    "types": ["react", "react-native", "jest"]
+    "types": [
+      "react",
+      "react-native",
+      "jest"
+    ]
   },
-  "include": ["src/**/*", "App.tsx"],
-  "exclude": ["node_modules", "dist", "build", ".expo"]
+  "include": [
+    "src/**/*",
+    "App.tsx"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "build",
+    ".expo"
+  ]
 }

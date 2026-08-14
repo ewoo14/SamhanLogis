@@ -5,6 +5,8 @@ import com.samhanair.logis.arologis.domain.DriverSource;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -25,6 +27,10 @@ public interface DriverRepository extends JpaRepository<Driver, UUID> {
      * (passwordless) 진입점.
      */
     Optional<Driver> findByPhoneNumberAndIsDeletedFalse(String phoneNumber);
+
+    /** 하이픈 표기가 섞인 기존 저장값을 migration 없이 로그인용 숫자 키로 조회한다. */
+    @Query("select d from Driver d where replace(d.phoneNumber, '-', '') = :phoneNumber")
+    Optional<Driver> findByNormalizedPhoneNumberAndIsDeletedFalse(@Param("phoneNumber") String phoneNumber);
 
     /**
      * 본 어플 사용자 (INTERNAL Driver) lookup — appUserId = user-service userId.

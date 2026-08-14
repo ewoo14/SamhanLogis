@@ -36,7 +36,8 @@ public class DriverLoginService {
      * @throws BadCredentialsException phoneNumber 미등록 또는 Soft Deleted Driver
      */
     public AuthTokenResponse login(DriverLoginRequest req) {
-        Driver d = driverRepo.findByPhoneNumberAndIsDeletedFalse(req.phoneNumber())
+        String lookupPhoneNumber = req.phoneNumber().replace("-", "");
+        Driver d = driverRepo.findByNormalizedPhoneNumberAndIsDeletedFalse(lookupPhoneNumber)
                 .orElseThrow(() -> new BadCredentialsException("unregistered driver"));
 
         String access = issuer.issueAccessForDriver(d.getId(), d.getDriverCode(), d.getPhoneNumber());
