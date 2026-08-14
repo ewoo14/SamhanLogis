@@ -100,7 +100,7 @@ export function InventoryAuditListPage() {
   const columns: DataTableColumn<AuditSummary>[] = [
     {
       key: 'auditNo', header: '실사번호', width: '180px', mobilePriority: 'primary',
-      render: (row) => <DocumentNumberLink number={row.auditNo} to={row.id ? `/warehouse/audit/${row.id}` : ''} />,
+      render: (row) => <DocumentNumberLink number={row.auditNo} to={row.id ? `/warehouse/audit/${row.id}` : ''} detailWindow={{ documentType: 'INVENTORY_AUDIT', documentId: row.id }} />,
     },
     {
       key: 'warehouseCode',

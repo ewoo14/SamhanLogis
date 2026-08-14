@@ -536,9 +536,11 @@ const routes = [
       {
         path: '/sales/partner-orders/:id',
         element: (
-          <PermissionGuard pageCode="sales.partner-order.list" action="view">
-            <SalesPartnerOrderDetailPage />
-          </PermissionGuard>
+          <DetailWindowRoute>
+            <PermissionGuard pageCode="sales.partner-order.list" action="view">
+              <SalesPartnerOrderDetailPage />
+            </PermissionGuard>
+          </DetailWindowRoute>
         ),
       },
       { path: '/sales/partner-orders/web-drafts/:id', element: <WebEstimateSourceDetailPage kind="draft" /> },
@@ -574,7 +576,7 @@ const routes = [
       // P2-1 견적서 상세/편집 (id UUID path param) — `/sales/:id` 보다 먼저 매칭되어야 함.
       { path: '/sales/estimates/:estimateNumber/print', element: <QuoteView /> },
       { path: '/sales/estimates/:id/edit', element: <EstimateFormPage /> },
-      { path: '/sales/estimates/:id', element: <EstimateDetailPage /> },
+      { path: '/sales/estimates/:id', element: <DetailWindowRoute><EstimateDetailPage /></DetailWindowRoute> },
 
       // [PR-E1 FE-5] 전표 정리 리스트 — `/sales/:id` 보다 먼저 매칭되어야 함.
       // BE: slip-service `GET /slips/cleanup` (commit 281415f). SALES/MANAGER/MASTER.
@@ -718,9 +720,11 @@ const routes = [
       {
         path: '/transfers/:id',
         element: (
-          <PermissionGuard pageCode="inventory.stock-transfer" action="view">
-            <TransferDetailPage />
-          </PermissionGuard>
+          <DetailWindowRoute>
+            <PermissionGuard pageCode="inventory.stock-transfer" action="view">
+              <TransferDetailPage />
+            </PermissionGuard>
+          </DetailWindowRoute>
         ),
       },
 
@@ -1811,9 +1815,11 @@ const routes = [
       {
         path: '/warehouse/audit/:id',
         element: (
-          <PermissionGuard pageCode="inventory.audit" action="view">
-            <InventoryAuditDetailPage />
-          </PermissionGuard>
+          <DetailWindowRoute>
+            <PermissionGuard pageCode="inventory.audit" action="view">
+              <InventoryAuditDetailPage />
+            </PermissionGuard>
+          </DetailWindowRoute>
         ),
       },
 

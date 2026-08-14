@@ -88,7 +88,7 @@ contextBridge.exposeInMainWorld('samhanUpdater', samhanUpdater)
 
 const samhanDetailWindow = {
   open: (payload: {
-    documentType: 'OUTBOUND_SLIP' | 'INBOUND_SLIP' | 'TAX_INVOICE'
+      documentType: 'OUTBOUND_SLIP' | 'INBOUND_SLIP' | 'TAX_INVOICE' | 'ESTIMATE' | 'PARTNER_ORDER' | 'TRANSFER' | 'INVENTORY_AUDIT'
     documentId: string
     route: string
   }): Promise<void> => ipcRenderer.invoke('detail-window:open', payload),

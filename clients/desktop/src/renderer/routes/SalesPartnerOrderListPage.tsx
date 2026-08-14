@@ -30,6 +30,7 @@ import {
 } from '../api/sales'
 import { formatSlipDate } from '../api/slipNumber'
 import { toOrderPathId } from '../utils/orderNo'
+import { DocumentNumberLink } from '../components/DocumentNumberLink'
 import { restoreScrollAnchorWhenReady, saveScrollAnchor, type ReturnToLocation } from '../utils/returnContract'
 import { AuditInfoBanner } from '../components/audit/AuditOverlaySection'
 import { usePageTitleStore } from '../stores/pageTitle'
@@ -253,14 +254,12 @@ export function SalesPartnerOrderListPage() {
         return (
           <span className={styles['partnerOrderNumberCell']}>
             {deleted ? <OrderNumberDisplay orderNumber={o.orderNumber} size="sm" style={DELETED_ROW_TEXT_STYLE} /> : (
-              <Link
+              <DocumentNumberLink
+                number={o.orderNumber}
                 to={`/sales/partner-orders/${encodeURIComponent(toOrderPathId(o.orderNumber))}`}
-                state={{ returnTo, returnEntryKey: location.key }}
-                onClick={(event) => { event.stopPropagation(); saveScrollAnchor(location.key) }}
-                aria-label={`${o.orderNumber} 상세 보기`}
-              >
-                <OrderNumberDisplay orderNumber={o.orderNumber} size="sm" />
-              </Link>
+                detailWindow={{ documentType: 'PARTNER_ORDER', documentId: toOrderPathId(o.orderNumber) }}
+                ariaLabel={`${o.orderNumber} 상세 보기`}
+              />
             )}
             {deleted ? (
               <span

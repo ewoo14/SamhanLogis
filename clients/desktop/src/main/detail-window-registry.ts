@@ -1,4 +1,4 @@
-export type DetailWindowDocumentType = 'OUTBOUND_SLIP' | 'INBOUND_SLIP' | 'TAX_INVOICE'
+export type DetailWindowDocumentType = 'OUTBOUND_SLIP' | 'INBOUND_SLIP' | 'TAX_INVOICE' | 'ESTIMATE' | 'PARTNER_ORDER' | 'TRANSFER' | 'INVENTORY_AUDIT'
 
 export interface DetailWindowRequest {
   documentType: DetailWindowDocumentType

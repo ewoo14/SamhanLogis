@@ -41,6 +41,32 @@ describe('DocumentNumberLink', () => {
     expect(screen.getByTestId('location').textContent).toBe('/sales/slips')
   })
 
+  it('opens an expanded document detail window for a transfer number', () => {
+    const open = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(window, 'samhanDetailWindow', {
+      configurable: true,
+      value: { open },
+    })
+
+    render(
+      <MemoryRouter initialEntries={['/transfers']}>
+        <DocumentNumberLink
+          number="이동-2026-0001"
+          to="/transfers/transfer-1"
+          detailWindow={{ documentType: 'TRANSFER', documentId: 'transfer-1' }}
+        />
+      </MemoryRouter>,
+    )
+
+    fireEvent.click(screen.getByText('이동-2026-0001'))
+
+    expect(open).toHaveBeenCalledWith({
+      documentType: 'TRANSFER',
+      documentId: 'transfer-1',
+      route: '/transfers/transfer-1',
+    })
+  })
+
   it('번호를 클릭하면 전달된 상세 경로로 이동한다', () => {
     render(
       <MemoryRouter initialEntries={['/list']}>

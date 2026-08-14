@@ -64,7 +64,7 @@ export function TransferListPage() {
   const columns: DataTableColumn<TransferSummary>[] = [
     {
       key: 'transferNo', header: '이동번호', width: '180px', mobilePriority: 'primary',
-      render: (row) => <DocumentNumberLink number={row.transferNo} to={row.id ? `/transfers/${row.id}` : ''} />,
+      render: (row) => <DocumentNumberLink number={row.transferNo} to={row.id ? `/transfers/${row.id}` : ''} detailWindow={{ documentType: 'TRANSFER', documentId: row.id }} />,
     },
     {
       key: 'sourceWarehouseCode',

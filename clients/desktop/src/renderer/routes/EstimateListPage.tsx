@@ -54,6 +54,7 @@ import type { UnifiedEstimateListRow } from './estimateUnifiedListModel'
 import { UNIFIED_ESTIMATE_SOURCE_LABELS, UNIFIED_ESTIMATE_SOURCE_FILTER_LABELS } from './estimateUnifiedListModel'
 import { restoreScrollAnchorWhenReady, saveScrollAnchor, type ReturnToLocation } from '../utils/returnContract'
 import { toOrderPathId } from '../utils/orderNo'
+import { DocumentNumberLink } from '../components/DocumentNumberLink'
 
 const STATUS_VARIANT: Record<EstimateStatus, 'neutral' | 'brand' | 'success' | 'warning' | 'danger'> = {
   QUOTE_DRAFT: 'neutral',
@@ -479,12 +480,17 @@ export function EstimateListPage() {
       mobilePriority: 'primary',
       render: (row) => (
         <>
-          {row.source === 'estimate' && !row.isDeleted ? (
-            <Link
-              to={row.navigationPath ?? '#'}
-              state={{ returnTo, returnEntryKey: location.key }}
-              onClick={(event) => { event.stopPropagation(); saveScrollAnchor(location.key) }}
-            >{row.documentNo}</Link>
+          {(row.source === 'estimate' || row.source === 'order') && !row.isDeleted ? (
+            <DocumentNumberLink
+              number={row.documentNo}
+              to={row.navigationPath}
+              detailWindow={{
+                documentType: row.source === 'estimate' ? 'ESTIMATE' : 'PARTNER_ORDER',
+                documentId: row.source === 'estimate'
+                  ? row.id.slice('estimate:'.length)
+                  : toOrderPathId(row.id.slice('order:'.length)),
+              }}
+            />
           ) : <span style={row.isDeleted ? DELETED_ROW_TEXT_STYLE : undefined}>{row.documentNo}</span>}
           {row.isDeleted ? <Badge
             variant="neutral"

@@ -174,7 +174,7 @@ app.whenReady().then(() => {
     app.quit()
   })
   ipcMain.handle('detail-window:open', (_event, payload: DetailWindowRequest) => {
-    if (!payload?.documentId || !payload.route || !/^\/(sales|purchases|accounting\/tax-invoices)\/[A-Za-z0-9-]+$/.test(payload.route)) {
+    if (!payload?.documentId || !payload.route || !/^\/(sales|purchases|accounting\/tax-invoices|transfers|warehouse\/audit)\/[A-Za-z0-9-]+$/.test(payload.route)) {
       throw new Error('Invalid detail window route')
     }
     detailWindowRegistry.open(payload)
