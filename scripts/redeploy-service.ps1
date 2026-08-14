@@ -59,14 +59,14 @@ foreach ($svc in $services) {
     }
 }
 
-# 집PC 는 influxd 가 로컬호스트의 InfluxDB 기본값 8086 을 점유해 portfix 오버레이가 필요하다.
-# 회사PC 등 충돌이 없는 곳에서는 파일이 없을 수 있으므로 존재할 때만 얹는다.
+# 집PC 는 influxd 가 로컬호스트의 InfluxDB 기본값 8086 을 점유해 포트 오버레이가 필요하다.
+# 오버레이 파일은 추가·교체될 수 있으므로 특정 파일명을 계약으로 고정하지 않는다.
 $composeFiles = @(
     'infrastructure/docker-compose.yml',
     'infrastructure/docker-compose.local-all.yml'
 )
-$portfix = 'infrastructure/docker-compose.local-portfix.yml'
-if (Test-Path $portfix) { $composeFiles += $portfix }
+$portfixFiles = @(Get-ChildItem -Path (Join-Path $repoRoot 'infrastructure/docker-compose.*-port-override.yml') -File -ErrorAction SilentlyContinue | Sort-Object Name)
+foreach ($portfixFile in $portfixFiles) { $composeFiles += $portfixFile.FullName }
 
 $composeArgs = @()
 foreach ($f in $composeFiles) { $composeArgs += @('-f', $f) }
