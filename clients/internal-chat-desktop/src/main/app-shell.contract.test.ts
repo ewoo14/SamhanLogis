@@ -66,6 +66,21 @@ describe('internal chat desktop app shell contract', () => {
     expect(main).toContain("app.on('window-all-closed', () => {})")
   })
 
+  it('opens one shared conversation renderer per room and keeps presence in the main window', () => {
+    const main = read('src/main/index.ts')
+    const preload = read('src/preload/index.ts')
+    const renderer = read('src/renderer/ChatApp.tsx')
+    expect(main).toContain("ipcMain.handle('conversation:open'")
+    expect(main).toContain('conversationWindows')
+    expect(main).toContain('existing.focus()')
+    expect(preload).toContain("ipcRenderer.invoke('conversation:open', request)")
+    expect(renderer).toContain('function ConversationRoom')
+    expect(renderer).toContain('conversation\\/room')
+    expect(renderer).toContain('conversation\\/claude')
+    expect(renderer).toContain('joinPresence(presenceSession)')
+    expect(renderer).not.toContain('ConversationRoom />')
+  })
+
   it('wires the same version endpoint and updater IPC contract as the other desktops', () => {
     const updater = read('src/main/auto-update.ts')
     const preload = read('src/preload/index.ts')

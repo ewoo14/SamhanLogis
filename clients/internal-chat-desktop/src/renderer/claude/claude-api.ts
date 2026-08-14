@@ -19,6 +19,9 @@ export interface ClaudeSession {
   sessionCode: string
   title: string
   messageCount?: number
+  lastMessage?: string | null
+  lastMessageAt?: string | null
+  summaryMode?: 'REAL' | 'VIRTUAL' | 'CREDENTIAL_UNAVAILABLE'
 }
 
 function baseUrl(): string {

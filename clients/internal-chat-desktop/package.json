@@ -19,6 +19,7 @@
     "@samhan/design-system": "file:../web/design-system",
     "@tanstack/react-query": "^5.59.20",
     "electron-updater": "^6.8.9",
+    "electron-store": "^10.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.18.2"

@@ -4,7 +4,7 @@ const path = require('node:path')
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm'
 const result = spawnSync(npm, ['run', 'build'], {
   cwd: path.resolve(__dirname, '..'),
-  env: { ...process.env, VITE_API_BASE_URL: 'http://127.0.0.1:18080' },
+  env: { ...process.env, VITE_API_BASE_URL: 'http://127.0.0.1:18080', VITE_AUTH_API_BASE_URL: 'http://127.0.0.1:18080' },
   shell: process.platform === 'win32',
   stdio: 'inherit',
 })

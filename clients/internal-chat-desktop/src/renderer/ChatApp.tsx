@@ -2,6 +2,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
 } from "react";
@@ -25,13 +26,15 @@ import {
 import * as chatApi from "./api/chat-api";
 import * as presenceApi from "./api/presence-api";
 import * as mainApi from "./api/chatApi";
+import { shouldNotifyConversation } from "./conversation-notification";
 import type { Employee, PresenceStatus } from "./api/chat-api";
 
 declare global {
   interface Window {
     internalChatShell?: {
       appName: string;
-      onWillQuit: (listener: () => void) => () => void;
+      onWillQuit: (listener: () => void | Promise<void>) => () => void;
+      openConversation: (request: { roomCode?: string; sessionCode?: string; title?: string }) => Promise<{ opened: boolean }>;
     };
   }
 }
@@ -63,6 +66,9 @@ const jobRank: Record<string, number> = {
   대리: 6,
   사원: 7,
 };
+function displayName(name: string | null | undefined): string {
+  return (name ?? "알 수 없는 사용자").replace(/^\[DEV-SEED\]\s*/i, "").trim() || "알 수 없는 사용자";
+}
 function Presence({
   employee,
 }: {
@@ -71,7 +77,7 @@ function Presence({
   return (
     <span
       className={`presence presence-${employee.presenceStatus.toLowerCase()}`}
-      aria-label={`${employee.name} 상태: ${presenceLabels[employee.presenceStatus]}`}
+      aria-label={`${displayName(employee.name)} 상태: ${presenceLabels[employee.presenceStatus]}`}
     />
   );
 }
@@ -88,11 +94,11 @@ function ProfileStatus({
       <button
         type="button"
         className="profile-status-button"
-        aria-label={`${employee.name} 상태 변경`}
+        aria-label={`${displayName(employee.name)} 상태 변경`}
         onClick={() => setOpen((v) => !v)}
       >
         <Presence employee={employee} />
-        <strong>{employee.name}</strong>
+        <strong>{displayName(employee.name)}</strong>
         <span>{employee.jobTitle}</span>
       </button>
       {open ? (
@@ -154,12 +160,81 @@ function formatRoomTime(value?: string | null) {
   const minute = parts.find((part) => part.type === "minute")?.value ?? "";
   return `${period} ${hour}:${minute}`;
 }
+type ConversationRequest = { roomCode?: string; sessionCode?: string; title?: string };
+
+function openConversation(request: ConversationRequest, fallback: () => void) {
+  const opener = window.internalChatShell?.openConversation;
+  if (typeof opener === "function") {
+    void opener(request).then((result) => { if (!result.opened) fallback(); });
+  } else {
+    fallback();
+  }
+}
+
+function ConversationRoom({ roomCode, sessionCode, title, onBack }: { roomCode?: string; sessionCode?: string; title?: string; onBack?: () => void }) {
+  const client = useQueryClient();
+  const [body, setBody] = useState("");
+  const [answer, setAnswer] = useState("");
+  const [error, setError] = useState("");
+  const messages = useQuery({
+    queryKey: [sessionCode ? "claude" : "messages", sessionCode ?? roomCode],
+    queryFn: () => chatApi.fetchMessages(roomCode!),
+    enabled: Boolean(roomCode),
+  });
+  useEffect(() => {
+    if (!roomCode) return undefined;
+    return chatApi.subscribe(roomCode, () => {
+      void client.invalidateQueries({ queryKey: ["messages", roomCode] });
+      if (shouldNotifyConversation(!document.hasFocus()) && "Notification" in window && Notification.permission === "granted") {
+        new Notification(title ?? "삼한 메신저", { body: "새 메시지가 도착했습니다." });
+      }
+    });
+  }, [client, roomCode, title]);
+  const send = useMutation({
+    mutationFn: () => chatApi.sendMessage(roomCode!, body.trim()),
+    onSuccess: () => { setBody(""); void client.invalidateQueries({ queryKey: ["messages", roomCode] }); },
+  });
+  const ask = useMutation({
+    mutationFn: () => askClaude(body.trim(), { sessionCode: sessionCode! }),
+    onSuccess: (value) => { setAnswer(value); setBody(""); },
+    onError: (value) => setError(claudeErrorMessage(value)),
+  });
+  const claude = Boolean(sessionCode);
+  return (
+    <main className="conversation-window" data-testid="conversation-window">
+      <header className="conversation-window-header">
+        {onBack ? <button type="button" className="conversation-back" onClick={onBack} aria-label="대화 목록으로 돌아가기">‹</button> : null}
+        <div><h1>{title || (claude ? "클로드 대화" : "대화")}</h1><p>{claude ? "클로드 세션" : "삼한 메신저"}</p></div>
+      </header>
+      <div className="message-scroll">
+        {claude ? (answer ? <p>{answer}</p> : null) : (
+          <ul aria-label="대화 내용" className="message-list">{(messages.data ?? []).map((m, index, all) => {
+            const previous = all[index - 1];
+            const continued = Boolean(previous && previous.senderEmployeeCode === m.senderEmployeeCode && new Date(previous.sentAt).getTime() + 120000 >= new Date(m.sentAt).getTime());
+            const next = all[index + 1];
+            const sameMinute = Boolean(next && new Date(next.sentAt).toISOString().slice(0, 16) === new Date(m.sentAt).toISOString().slice(0, 16));
+            return <li key={`${m.sequence}-${m.sentAt}`} className={`${m.mine ? "mine" : ""}${continued ? " continued" : ""}`}>
+              {!continued ? <span className="message-author">{m.mine ? "나" : displayName(m.senderName)}</span> : null}
+              <p>{m.body}</p>{!sameMinute ? <time>{formatRoomTime(m.sentAt)}</time> : null}
+            </li>;
+          })}</ul>
+        )}
+      </div>
+      {error ? <p role="alert">{error}</p> : null}
+      <form className="composer" onSubmit={(event) => { event.preventDefault(); if (!body.trim()) return; claude ? ask.mutate() : send.mutate(); }}>
+        <textarea aria-label={claude ? "클로드 질문" : "메시지 본문"} value={body} onChange={(event) => { setError(""); setBody(event.target.value); }} />
+        <Button type="submit">{claude ? "질문 보내기" : "보내기"}</Button>
+      </form>
+    </main>
+  );
+}
+
 function MessengerPage({ mode }: { mode: "individual" | "group" }) {
   const client = useQueryClient();
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Employee[]>([]);
-  const [roomCode, setRoomCode] = useState<string | null>(null);
-  const [body, setBody] = useState("");
+  const [mobileConversation, setMobileConversation] = useState<ConversationRequest | null>(null);
+  const directRooms = useRef(new Map<string, string>());
   const me = useQuery({ queryKey: ["me"], queryFn: chatApi.fetchMe });
   const directory = useQuery({
     queryKey: ["directory"],
@@ -169,15 +244,11 @@ function MessengerPage({ mode }: { mode: "individual" | "group" }) {
     queryKey: ["rooms", mode],
     queryFn: mode === "group" ? chatApi.fetchGroups : chatApi.fetchRooms,
   });
-  const messages = useQuery({
-    queryKey: ["messages", roomCode],
-    queryFn: () => chatApi.fetchMessages(roomCode!),
-    enabled: Boolean(roomCode),
-  });
   const create = useMutation({
     mutationFn: (code: string) => chatApi.createDirectRoom(code),
-    onSuccess: (room) => {
-      setRoomCode(room.roomCode);
+    onSuccess: (room, employeeCode) => {
+      directRooms.current.set(employeeCode, room.roomCode);
+      openConversation({ roomCode: room.roomCode, title: displayName(room.partnerName) }, () => setMobileConversation({ roomCode: room.roomCode, title: displayName(room.partnerName) }));
       void client.invalidateQueries({ queryKey: ["rooms"] });
     },
   });
@@ -187,15 +258,8 @@ function MessengerPage({ mode }: { mode: "individual" | "group" }) {
         selected.map((e) => e.employeeCode!).filter(Boolean),
       ),
     onSuccess: (room) => {
-      setRoomCode(room.roomCode);
+      openConversation({ roomCode: room.roomCode, title: displayName(room.roomName ?? "그룹 대화") }, () => setMobileConversation({ roomCode: room.roomCode, title: displayName(room.roomName ?? "그룹 대화") }));
       setSelected([]);
-    },
-  });
-  const send = useMutation({
-    mutationFn: () => chatApi.sendMessage(roomCode!, body.trim()),
-    onSuccess: () => {
-      setBody("");
-      void client.invalidateQueries({ queryKey: ["messages", roomCode] });
     },
   });
   const update = useMutation({
@@ -210,10 +274,16 @@ function MessengerPage({ mode }: { mode: "individual" | "group" }) {
       !query.trim() || `${e.name} ${e.departmentName}`.includes(query.trim()),
   );
   const grouped = useMemo(() => sortedGroups(filtered), [filtered]);
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    if (roomCode && body.trim()) send.mutate();
+  const openDirectConversation = (employee: Employee) => {
+    if (!employee.employeeCode) return;
+    const existingRoomCode = directRooms.current.get(employee.employeeCode);
+    if (existingRoomCode) {
+      openConversation({ roomCode: existingRoomCode, title: displayName(employee.name) }, () => setMobileConversation({ roomCode: existingRoomCode, title: displayName(employee.name) }));
+      return;
+    }
+    create.mutate(employee.employeeCode);
   };
+  if (mobileConversation) return <ConversationRoom {...mobileConversation} onBack={() => setMobileConversation(null)} />;
   return (
     <main className="messenger-app" data-testid="messenger-app">
       {me.data ? (
@@ -253,14 +323,11 @@ function MessengerPage({ mode }: { mode: "individual" | "group" }) {
                         type="button"
                         className="conversation"
                         key={employee.employeeCode ?? employee.name}
-                        onClick={() =>
-                          employee.employeeCode &&
-                          create.mutate(employee.employeeCode)
-                        }
+                        onClick={() => openDirectConversation(employee)}
                       >
                         <Presence employee={employee} />
                         <span>
-                          <strong>{employee.name}</strong>
+                          <strong>{displayName(employee.name)}</strong>
                           <small>{employee.jobTitle}</small>
                         </span>
                       </button>
@@ -273,11 +340,9 @@ function MessengerPage({ mode }: { mode: "individual" | "group" }) {
               <ul aria-label="group rooms" className="conversation-list group-room-list">
                 {(rooms.data ?? []).map((room) => (
                   <li key={room.roomCode}>
-                    <button type="button" className="conversation group-room" onClick={() => setRoomCode(room.roomCode)}>
-                      <span className="room-avatar" aria-hidden="true">{(room.roomName ?? room.partnerName ?? "그룹").slice(0, 1)}</span>
-                      <strong>{room.roomName ?? room.partnerName ?? room.roomCode}</strong>
-                      <small>{room.lastMessage ?? ""}</small>
-                      {room.memberCount ? <b>{room.memberCount}</b> : null}
+                    <button type="button" className="conversation group-room" onClick={() => openConversation({ roomCode: room.roomCode, title: displayName(room.roomName ?? "그룹 대화") }, () => setMobileConversation({ roomCode: room.roomCode, title: displayName(room.roomName ?? "그룹 대화") }))}>
+                      <span className="room-avatar" aria-hidden="true">{displayName(room.roomName ?? room.partnerName ?? "그룹").slice(0, 1)}</span>
+                      <span className="room-copy"><strong>{displayName(room.roomName ?? room.partnerName ?? "그룹 대화")}{room.memberCount ? <em>{room.memberCount}</em> : null}</strong><small>{room.lastMessage ?? ""}</small></span>
                       {room.lastMessageAt ? <time>{formatRoomTime(room.lastMessageAt)}</time> : null}
                     </button>
                   </li>
@@ -301,7 +366,7 @@ function MessengerPage({ mode }: { mode: "individual" | "group" }) {
                     }
                   >
                     <Presence employee={employee} />
-                    {employee.name}
+                    {displayName(employee.name)}
                     <small>{employee.departmentName}</small>
                   </button>
                 ))}
@@ -309,49 +374,19 @@ function MessengerPage({ mode }: { mode: "individual" | "group" }) {
               </>
             )}
           </aside>
-          <section className="conversation-pane" aria-label="대화">
-            <header className="conversation-header">
-              <h2>{roomCode ? "대화" : "대화를 선택하세요"}</h2>
-            </header>
-            <div className="message-scroll">
-              <ul aria-label="대화 내용" className="message-list">
-                {(messages.data ?? []).map((m) => (
-                  <li
-                    key={`${m.sequence}-${m.sentAt}`}
-                    className={m.mine ? "mine" : ""}
-                  >
-                    <span className="message-author">
-                      {m.mine ? "나" : (m.senderName ?? "알 수 없는 발신자")}
-                    </span>
-                    <p>{m.body}</p>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            {roomCode ? (
-              <form className="composer" onSubmit={submit}>
-                <textarea
-                  aria-label="메시지 본문"
-                  value={body}
-                  onChange={(e) => setBody(e.target.value)}
-                />
-                <Button type="submit" disabled={!body.trim()}>
-                  보내기
-                </Button>
-              </form>
-            ) : null}
-          </section>
         </div>
       </Card>
     </main>
   );
 }
+function sessionTitle(session: ClaudeSession): string {
+  if (session.summaryMode === "CREDENTIAL_UNAVAILABLE") return "요약을 생성할 수 없음 · 자격 미설정";
+  if (session.summaryMode === "VIRTUAL") return `가상 요약 · ${session.title}`;
+  return session.title || "대화 요약 없음";
+}
 function ClaudePage() {
   const client = useQueryClient();
-  const [active, setActive] = useState<ClaudeSession | null>(null);
-  const [question, setQuestion] = useState("");
-  const [answer, setAnswer] = useState("");
-  const [error, setError] = useState("");
+  const [mobileConversation, setMobileConversation] = useState<ConversationRequest | null>(null);
   const sessions = useQuery({
     queryKey: ["claude-sessions"],
     queryFn: () => listClaudeSessions(),
@@ -359,63 +394,26 @@ function ClaudePage() {
   const create = useMutation({
     mutationFn: () => createClaudeSession(),
     onSuccess: (s) => {
-      setActive(s);
       void client.invalidateQueries({ queryKey: ["claude-sessions"] });
+      openConversation({ sessionCode: s.sessionCode, title: sessionTitle(s) }, () => setMobileConversation({ sessionCode: s.sessionCode, title: sessionTitle(s) }));
     },
   });
-  const ask = useMutation({
-    mutationFn: () =>
-      askClaude(question.trim(), { sessionCode: active!.sessionCode }),
-    onSuccess: (v) => {
-      setAnswer(v);
-      setQuestion("");
-    },
-    onError: (e) => setError(claudeErrorMessage(e)),
-  });
+  if (mobileConversation) return <ConversationRoom {...mobileConversation} onBack={() => setMobileConversation(null)} />;
   return (
     <main className="claude-app" data-testid="claude-app">
       <header className="claude-topbar">
         <div>
-          <span className="eyebrow">축 0 권한 보호</span>
           <h2>클로드</h2>
         </div>
         <Button onClick={() => create.mutate()}>새 세션</Button>
       </header>
-      <aside className="session-list">
+      <ul className="session-list" aria-label="클로드 세션 목록">
         {(sessions.data ?? []).map((s) => (
-          <button
-            type="button"
-            key={s.sessionCode}
-            onClick={() => setActive(s)}
-          >
-            {s.title}
-          </button>
+          <li key={s.sessionCode}><button type="button" onClick={() => openConversation({ sessionCode: s.sessionCode, title: sessionTitle(s) }, () => setMobileConversation({ sessionCode: s.sessionCode, title: sessionTitle(s) }))}>
+            <span className="session-avatar" aria-hidden="true">{sessionTitle(s).slice(0, 1)}</span><span className="session-copy"><strong>{sessionTitle(s)}</strong><small>{s.lastMessage ?? "대화를 시작해 보세요."}</small></span>{s.lastMessageAt ? <time>{formatRoomTime(s.lastMessageAt)}</time> : null}
+          </button></li>
         ))}
-      </aside>
-      {active ? (
-        <>
-          <h3>{active.title}</h3>
-          {answer ? <p>{answer}</p> : null}
-          <form
-            className="composer"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (question.trim()) ask.mutate();
-            }}
-          >
-            <textarea
-              aria-label="클로드 질문"
-              value={question}
-              onChange={(e) => {
-                setError("");
-                setQuestion(e.target.value);
-              }}
-            />
-            <Button type="submit">질문 보내기</Button>
-          </form>
-        </>
-      ) : null}
-      {error ? <p role="alert">{error}</p> : null}
+      </ul>
     </main>
   );
 }
@@ -427,7 +425,9 @@ function V2App() {
   useEffect(() => {
     void chatApi.joinPresence(presenceSession);
     const leave = () => chatApi.leavePresence(presenceSession);
-    const removeQuitListener = window.internalChatShell?.onWillQuit(leave);
+    const removeQuitListener = typeof window.internalChatShell?.onWillQuit === "function"
+      ? window.internalChatShell.onWillQuit(leave)
+      : undefined;
     const unsubscribe = presenceApi.subscribePresence((event) => {
       if (event.employeeCode) {
         client.setQueryData<Employee[]>(["directory"], (old) =>
@@ -483,7 +483,7 @@ function MainPresence({
   return (
     <span
       className={`presence presence-${employee.presenceStatus.toLowerCase()}`}
-      aria-label={`${employee.name} 상태: ${labels[employee.presenceStatus]}`}
+      aria-label={`${displayName(employee.name)} 상태: ${labels[employee.presenceStatus]}`}
     />
   );
 }
@@ -569,7 +569,7 @@ function MainRooms() {
           {me.data ? (
             <>
               <MainPresence employee={me.data} />
-              <strong>{me.data.name}</strong>
+              <strong>{displayName(me.data.name)}</strong>
             </>
           ) : null}
         </div>
@@ -585,7 +585,7 @@ function MainRooms() {
                 }
               >
                 <MainPresence employee={e} />
-                <strong>{e.name}</strong>
+                <strong>{displayName(e.name)}</strong>
                 <span>{e.jobTitle}</span>
                 <small>{e.departmentName}</small>
               </button>
@@ -608,12 +608,12 @@ function MainRooms() {
               onClick={() => setSelected(e)}
             >
               <MainPresence employee={e} />
-              {e.name} · {e.departmentName}
+              {displayName(e.name)} · {e.departmentName}
             </button>
           ))}
           {selected ? (
             <div className="selected-recipient">
-              <span>{selected.name}</span>
+              <span>{displayName(selected.name)}</span>
               <Button onClick={() => create.mutate()}>대화 시작</Button>
             </div>
           ) : null}
@@ -624,7 +624,7 @@ function MainRooms() {
           {(rooms.data ?? []).map((r) => (
             <li key={r.roomCode}>
               <Link to={encodeURIComponent(r.roomCode)}>
-                {r.partnerName ?? r.roomName ?? "채팅방"}
+                {displayName(r.partnerName ?? r.roomName ?? "채팅방")}
               </Link>
             </li>
           ))}
@@ -695,5 +695,10 @@ function RoutedMainApp() {
 }
 export function ChatApp() {
   const location = useContext(UNSAFE_LocationContext);
+  const hash = typeof window === "undefined" ? "" : window.location.hash;
+  const roomMatch = hash.match(/^#\/conversation\/room\/([^/?]+)(?:\?title=(.*))?$/);
+  const claudeMatch = hash.match(/^#\/conversation\/claude\/([^/?]+)(?:\?title=(.*))?$/);
+  if (roomMatch?.[1]) return <ConversationRoom roomCode={decodeURIComponent(roomMatch[1])} title={roomMatch[2] ? decodeURIComponent(roomMatch[2]) : undefined} />;
+  if (claudeMatch?.[1]) return <ConversationRoom sessionCode={decodeURIComponent(claudeMatch[1])} title={claudeMatch[2] ? decodeURIComponent(claudeMatch[2]) : undefined} />;
   return location ? <RoutedMainApp /> : <V2App />;
 }

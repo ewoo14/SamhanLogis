@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld('internalChatNavigation', {
 
 contextBridge.exposeInMainWorld('internalChatShell', {
   appName: '삼한 메신저',
+  openConversation: (request: { roomCode?: string; sessionCode?: string; title?: string }): Promise<{ opened: boolean }> =>
+    ipcRenderer.invoke('conversation:open', request),
   onWillQuit: (listener: () => void | Promise<void>): (() => void) => {
     const handler = () => {
       void Promise.resolve(listener()).finally(() => ipcRenderer.send('internal-chat:quit-ack'))
