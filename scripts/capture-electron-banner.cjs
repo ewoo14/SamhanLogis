@@ -13,6 +13,7 @@ const requireFromQa = createRequire(join(process.cwd(), 'clients', 'desktop', 'p
 const { chromium } = requireFromQa('@playwright/test')
 const shotsDir = resolveQaShotsDir(join(process.cwd(), 'docs', 'qa', '910-935-electron-banner-captures'))
 mkdirSync(shotsDir, { recursive: true })
+const statusTestId = appDirArg.includes('internal-chat') ? 'internal-chat-auto-update-status' : 'app-auto-update-status'
 
 async function main() {
   let browser
@@ -28,8 +29,9 @@ async function main() {
     await new Promise((resolve) => setTimeout(resolve, 250))
   }
   if (!page) throw new Error('Electron renderer page not found before app exit')
-  await page.getByTestId('app-auto-update-status').waitFor({ state: 'visible', timeout: 30000 })
-  const text = (await page.getByTestId('app-auto-update-status').innerText()).replace(/\s+/g, ' ').trim()
+  console.log(JSON.stringify({ connected: true, url: page.url(), statusTestId }))
+  await page.getByTestId(statusTestId).waitFor({ state: 'visible', timeout: 30000 })
+  const text = (await page.getByTestId(statusTestId).innerText()).replace(/\s+/g, ' ').trim()
   const path = join(shotsDir, `${label}-업데이트배너.png`)
   await page.screenshot({ path, fullPage: true })
   console.log(JSON.stringify({ label, path, text, url: page.url() }))

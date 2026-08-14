@@ -29,8 +29,16 @@ function Build([string]$Version, [string]$FeedUrl, [hashtable]$BaseEnv) {
   $env.VITE_APP_VERSION = "$($ReleaseDate.Replace('-', '/'))-$($Version.Split('-')[-1])"
   $old = @{}
   foreach ($key in $env.Keys) { $old[$key] = [Environment]::GetEnvironmentVariable($key, 'Process'); [Environment]::SetEnvironmentVariable($key, [string]$env[$key], 'Process') }
-  try { & node (Join-Path $repo 'scripts/build-desktop-release.cjs'); Assert-True ($LASTEXITCODE -eq 0) "desktop build failed: $Version" }
-  finally { foreach ($key in $old.Keys) { [Environment]::SetEnvironmentVariable($key, $old[$key], 'Process') } }
+  $oldLocation = Get-Location
+  try {
+    Set-Location -LiteralPath $appDir
+    & node (Join-Path $repo 'scripts/build-desktop-release.cjs')
+    Assert-True ($LASTEXITCODE -eq 0) "desktop build failed: $Version"
+  }
+  finally {
+    Set-Location -LiteralPath $oldLocation
+    foreach ($key in $old.Keys) { [Environment]::SetEnvironmentVariable($key, $old[$key], 'Process') }
+  }
 }
 try {
   Assert-True ($FeedPort -gt 0) 'FeedPort must be resolved by the caller; literal ports are not accepted.'
@@ -50,6 +58,10 @@ try {
   Copy-Item (Join-Path $secondDir 'latest.yml') $feedProduct -Force
   Get-ChildItem $secondDir -Filter '*.exe' | Copy-Item -Destination $feedProduct -Force
   Get-ChildItem $secondDir -Filter '*.blockmap' | Copy-Item -Destination $feedProduct -Force
+  if ($CaptureDebugPort -gt 0) {
+    Get-ChildItem $feedProduct -Filter '*.exe' | Remove-Item -Force
+    Get-ChildItem $feedProduct -Filter '*.blockmap' | Remove-Item -Force
+  }
   $feedProcess = Start-Process python -ArgumentList @('-u','-m','http.server',[string]$FeedPort,'--bind','127.0.0.1') -WorkingDirectory $feedRoot -PassThru -WindowStyle Hidden
   Wait-Until { try { (Invoke-WebRequest "http://127.0.0.1:$FeedPort/desktop/latest.yml" -UseBasicParsing).StatusCode -eq 200 } catch { $false } } 'desktop feed HTTP'
   $firstDir = Join-Path $appDir "release\$ReleaseDate-$FirstReleaseNumber"
