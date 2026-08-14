@@ -700,7 +700,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   const [destWh, setDestWh] = useState<string | null>(null)
   const [partnerName, setPartnerName] = useState('')
   const [memo, setMemo] = useState('')
-  const [tag, setTag] = useState<DeliveryTagOption['code'] | null>(isOutbound ? null : 'PURCHASE')
+  const [tag, setTag] = useState<DeliveryTagOption['code'] | null>(isOutbound ? 'SALE' : 'PURCHASE')
   const [slipDate, setSlipDate] = useState<string>(() => toKstDateISO())
   // 배송일정(M상N하) 에픽 — 지방/야적 선택 시 하차일(N)·당착 토글
   const [unloadDate, setUnloadDate] = useState<string>('')
