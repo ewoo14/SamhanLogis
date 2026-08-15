@@ -94,6 +94,20 @@ test.describe('권한그룹 C5 후속 정리', () => {
     expect(layout).not.toMatch(/show=\{showChatRoomAdmin\s*&&\s*!showAdmin\}/)
   })
 
+  test('messenger.admin 권한자는 그룹웨어 단톡방 매핑에 도달하고 SALES에는 항목이 없다', async ({ page }) => {
+    await page.goto(`${BASE_URL}/#/?mockRole=MANAGER`, { waitUntil: 'domcontentloaded', timeout: 20000 })
+    await expect(page.getByTestId('sidebar-category-toggle-그룹웨어')).toBeVisible({ timeout: 15000 })
+    await page.getByTestId('sidebar-category-toggle-그룹웨어').click()
+    await expect(page.getByTestId('sidebar-admin-chat-rooms')).toBeVisible({ timeout: 15000 })
+    await page.getByTestId('sidebar-admin-chat-rooms').click()
+    await expect(page).toHaveURL(/#\/admin\/chat-rooms/)
+    await expect(page.getByTestId('admin-chatrooms-table')).toBeVisible({ timeout: 15000 })
+
+    await page.goto(`${BASE_URL}/#/?mockRole=SALES`, { waitUntil: 'domcontentloaded', timeout: 20000 })
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await expect(page.getByTestId('sidebar-admin-chat-rooms')).toHaveCount(0)
+  })
+
   test('S5 route 3건은 PermissionGuard page-code 단일 게이트로 전환된다', () => {
     const routes = read(routePath)
 

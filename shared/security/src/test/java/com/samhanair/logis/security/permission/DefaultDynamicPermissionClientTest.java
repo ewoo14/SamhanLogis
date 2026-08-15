@@ -8,6 +8,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.UUID;
+import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
@@ -16,17 +17,26 @@ import org.springframework.web.client.RestClient;
 class DefaultDynamicPermissionClientTest {
 
     @Test
+    void does_not_expose_constructors_that_drop_gateway_attestation() {
+        assertThat(Arrays.stream(DefaultDynamicPermissionClient.class.getDeclaredConstructors())
+                .noneMatch(constructor -> constructor.getParameterCount() == 3
+                        || constructor.getParameterCount() == 4))
+                .isTrue();
+    }
+
+    @Test
     void check_calls_account_endpoint_with_internal_token() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        DefaultDynamicPermissionClient client =
-                new DefaultDynamicPermissionClient(builder, "test-internal-token", "accounting-service");
+        DefaultDynamicPermissionClient client = new DefaultDynamicPermissionClient(
+                builder, "http://auth-service", "test-internal-token", "accounting-service", "test-gateway-attestation");
         UUID accountId = UUID.fromString("a0000000-0000-0000-0000-000000000001");
 
         server.expect(requestTo("http://auth-service/auth/internal/permissions/check"
                         + "?accountId=a0000000-0000-0000-0000-000000000001"
                         + "&pageCode=accounting.tax-invoice.emit-nts&action=CREATE"))
                 .andExpect(header("X-Internal-Token", "test-internal-token"))
+                .andExpect(header("X-Samhan-Gateway-Attestation", "test-gateway-attestation"))
                 .andRespond(withSuccess("{\"success\":true,\"data\":{\"allowed\":true}}",
                         MediaType.APPLICATION_JSON));
 
@@ -40,13 +50,14 @@ class DefaultDynamicPermissionClientTest {
     void bulkLoad_parses_page_action_map() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        DefaultDynamicPermissionClient client =
-                new DefaultDynamicPermissionClient(builder, "test-internal-token", "accounting-service");
+        DefaultDynamicPermissionClient client = new DefaultDynamicPermissionClient(
+                builder, "http://auth-service", "test-internal-token", "accounting-service", "test-gateway-attestation");
         UUID accountId = UUID.fromString("a0000000-0000-0000-0000-000000000002");
 
         server.expect(requestTo("http://auth-service/auth/internal/permissions/account/"
                         + "a0000000-0000-0000-0000-000000000002"))
                 .andExpect(header("X-Internal-Token", "test-internal-token"))
+                .andExpect(header("X-Samhan-Gateway-Attestation", "test-gateway-attestation"))
                 .andRespond(withSuccess("{\"success\":true,\"data\":{\"accounting.journals\":[\"VIEW\",\"DOWNLOAD\"]}}",
                         MediaType.APPLICATION_JSON));
 
@@ -61,12 +72,13 @@ class DefaultDynamicPermissionClientTest {
     void canView_calls_role_endpoint_with_internal_token_and_type() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        DefaultDynamicPermissionClient client =
-                new DefaultDynamicPermissionClient(builder, "test-internal-token", "user-service");
+        DefaultDynamicPermissionClient client = new DefaultDynamicPermissionClient(
+                builder, "http://auth-service", "test-internal-token", "user-service", "test-gateway-attestation");
 
         server.expect(requestTo("http://auth-service/auth/internal/permissions/check"
                         + "?roleCode=MANAGER&pageCode=admin.employees&type=VIEW"))
                 .andExpect(header("X-Internal-Token", "test-internal-token"))
+                .andExpect(header("X-Samhan-Gateway-Attestation", "test-gateway-attestation"))
                 .andExpect(header("X-User-Role", "MANAGER"))
                 .andRespond(withSuccess("{\"success\":true,\"data\":{\"allowed\":true}}",
                         MediaType.APPLICATION_JSON));
@@ -81,12 +93,13 @@ class DefaultDynamicPermissionClientTest {
     void canEdit_calls_role_endpoint_with_internal_token_and_type() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        DefaultDynamicPermissionClient client =
-                new DefaultDynamicPermissionClient(builder, "test-internal-token", "accounting-service");
+        DefaultDynamicPermissionClient client = new DefaultDynamicPermissionClient(
+                builder, "http://auth-service", "test-internal-token", "accounting-service", "test-gateway-attestation");
 
         server.expect(requestTo("http://auth-service/auth/internal/permissions/check"
                         + "?roleCode=ACCOUNTANT&pageCode=accounting.journals&type=EDIT"))
                 .andExpect(header("X-Internal-Token", "test-internal-token"))
+                .andExpect(header("X-Samhan-Gateway-Attestation", "test-gateway-attestation"))
                 .andExpect(header("X-User-Role", "ACCOUNTANT"))
                 .andRespond(withSuccess("{\"success\":true,\"data\":{\"allowed\":false}}",
                         MediaType.APPLICATION_JSON));
@@ -94,6 +107,31 @@ class DefaultDynamicPermissionClientTest {
         boolean allowed = client.canEdit("ACCOUNTANT", "accounting.journals");
 
         assertThat(allowed).isFalse();
+        server.verify();
+    }
+
+    @Test
+    void arologis_direct_permission_call_gets_200_with_non_empty_permission_response() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        DefaultDynamicPermissionClient client = new DefaultDynamicPermissionClient(
+                builder,
+                "http://auth-service",
+                "test-internal-token",
+                "arologis-service",
+                "test-gateway-attestation");
+
+        server.expect(requestTo("http://auth-service/auth/internal/permissions/check"
+                        + "?roleCode=AROLOGIS_MASTER&pageCode=arologis.dispatch.manual&type=VIEW"))
+                .andExpect(header("X-Internal-Token", "test-internal-token"))
+                .andExpect(header("X-User-Role", "AROLOGIS_MASTER"))
+                .andExpect(header("X-Samhan-Gateway-Attestation", "test-gateway-attestation"))
+                .andRespond(withSuccess("{\"success\":true,\"data\":{\"allowed\":true}}",
+                        MediaType.APPLICATION_JSON));
+
+        boolean allowed = client.canView("AROLOGIS_MASTER", "arologis.dispatch.manual");
+
+        assertThat(allowed).isTrue();
         server.verify();
     }
 }

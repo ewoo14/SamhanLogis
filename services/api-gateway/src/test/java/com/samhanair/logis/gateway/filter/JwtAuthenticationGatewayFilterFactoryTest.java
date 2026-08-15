@@ -17,6 +17,10 @@ import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.http.server.reactive.MockServerHttpResponse;
 import org.springframework.mock.web.server.MockServerWebExchange;
 import org.springframework.web.server.ServerWebExchange;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+import java.time.Instant;
+import java.util.Date;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
@@ -158,6 +162,28 @@ class JwtAuthenticationGatewayFilterFactoryTest {
         assertThat(captured[0].getHeaders().getFirst("X-User-Role")).isNull();
         // Phase C4: isSystemMaster claim 없음 → X-Is-System-Master: false
         assertThat(captured[0].getHeaders().getFirst("X-Is-System-Master")).isEqualTo("false");
+    }
+
+    @Test
+    @DisplayName("독립 Arologis JWT만 전용 역할 헤더로 전달하고 일반 role 헤더는 전달하지 않는다")
+    void arologisToken_propagatesDedicatedRoleHeader() {
+        String token = Jwts.builder().subject("arologis-user")
+                .claim("role", "AROLOGIS_MANAGER")
+                .issuedAt(Date.from(Instant.now()))
+                .expiration(Date.from(Instant.now().plusSeconds(3600)))
+                .signWith(Keys.hmacShaKeyFor(props.getSecretBytes()), Jwts.SIG.HS256).compact();
+        GatewayFilter filter = factory.apply(new JwtAuthenticationGatewayFilterFactory.Config());
+        MockServerHttpRequest request = MockServerHttpRequest.get("/auth/admin/menu-catalog")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token).build();
+        MockServerWebExchange exchange = MockServerWebExchange.from(request);
+        ServerHttpRequest[] captured = new ServerHttpRequest[1];
+        GatewayFilterChain chain = e -> { captured[0] = e.getRequest(); return Mono.empty(); };
+
+        StepVerifier.create(filter.filter(exchange, chain)).verifyComplete();
+
+        assertThat(captured[0].getHeaders().getFirst(HttpHeaderConstants.AROLOGIS_ROLE_HEADER))
+                .isEqualTo("AROLOGIS_MANAGER");
+        assertThat(captured[0].getHeaders().getFirst(HttpHeaderConstants.CALLER_ROLE_HEADER)).isNull();
     }
 
     @Test

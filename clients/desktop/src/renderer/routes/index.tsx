@@ -159,11 +159,10 @@ import { BlockedPartnersPage as AdminBlockedPartnersPage } from './admin/Blocked
 // [PR-F1 Designer mock] 알리고 주소록 자동 동기화 — MASTER 전용 (AdminLayout 가드).
 // legacy GAS 9번 이식, BE FE-1 슬라이스 endpoint 연결 예정.
 import { AligoAddressBookPage as AdminAligoAddressBookPage } from './admin/AligoAddressBookPage'
+// 단톡방 매핑 관리자 — 본체 채팅과 분리된 messenger.admin 관리 화면.
+import { ChatRoomsPage as AdminChatRoomsPage } from './admin/ChatRoomsPage'
 // [PR-F1 FE-2] arologis 운송사 실배차 비교 — DISPATCH/MANAGER/MASTER.
 import { ArologisDispatchReconcilePage } from './ArologisDispatchReconcilePage'
-// [PR-D Phase B FE-D] 단톡방 매핑 admin — MASTER/MANAGER (BE @PreAuthorize 일치)
-// AdminLayout 은 MASTER 전용이므로 별도 RoleGuard 로 MASTER/MANAGER 진입 허용.
-import { ChatRoomsPage as AdminChatRoomsPage } from './admin/ChatRoomsPage'
 // [Phase 10 P2-6 / slice 9] 재고 실사 3 페이지 (WAREHOUSE/MASTER)
 import { InventoryAuditListPage } from './InventoryAuditListPage'
 import { InventoryAuditFormPage } from './InventoryAuditFormPage'
@@ -321,8 +320,6 @@ import { GroupwareApprovalTemplateAdminPage } from './GroupwareApprovalTemplateA
 import { GroupwareDocumentTemplateAdminPage } from './GroupwareDocumentTemplateAdminPage'
 import { DocumentTemplateEditorPage } from './DocumentTemplateEditorPage'
 import { MessengerPage } from './MessengerPage'
-import { ChatRoomPage } from './ChatRoomPage'
-import { ChatRoomsPage } from './ChatRoomsPage'
 import { ApprovalDocView } from '../print/ApprovalDocView'
 // [PR-B] 품목 관리 — 품목별 노출 범위 수동 토글 (products.list VIEW 게이트).
 import { ProductCatalogPage } from './ProductCatalogPage'
@@ -422,22 +419,6 @@ const routes = [
         element: (
           <PermissionGuard pageCode="messenger.send" action="view">
             <MessengerPage />
-          </PermissionGuard>
-        ),
-      },
-      {
-        path: '/chat',
-        element: (
-          <PermissionGuard pageCode="messenger.send" action="view">
-            <ChatRoomsPage />
-          </PermissionGuard>
-        ),
-      },
-      {
-        path: '/chat/:roomCode',
-        element: (
-          <PermissionGuard pageCode="messenger.send" action="view">
-            <ChatRoomPage />
           </PermissionGuard>
         ),
       },
@@ -1581,6 +1562,14 @@ const routes = [
           </PermissionGuard>
         ),
       },
+      {
+        path: '/admin/chat-rooms',
+        element: (
+          <PermissionGuard pageCode="messenger.admin" action="view">
+            <AdminChatRoomsPage />
+          </PermissionGuard>
+        ),
+      },
 
       // [Phase 10 P0-5 / slice 4] 관리자 통합 admin — MASTER 전용 (대표실 부서 추가 가드 포함).
       // AdminLayout 자체에 RoleGuard(MASTER) + useQuery(is-executive-office) 이중 가드.
@@ -1696,17 +1685,6 @@ const routes = [
         element: (
           <PermissionGuard pageCode="hr.slip-cutoff" action="view">
             <AdminSlipCutoffConfigPage />
-          </PermissionGuard>
-        ),
-      },
-
-      // [PR-D Phase B FE-D] 단톡방 매핑 — MASTER / MANAGER (BE @PreAuthorize 일치).
-      // AdminLayout (MASTER 전용) 외부에 배치하여 MANAGER 도 접근 가능.
-      {
-        path: '/admin/chat-rooms',
-        element: (
-          <PermissionGuard pageCode="messenger.admin" action="view">
-            <AdminChatRoomsPage />
           </PermissionGuard>
         ),
       },

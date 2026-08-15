@@ -348,6 +348,18 @@ export interface MyPermission {
   actions: PermissionAction[]
 }
 
+/** 서버 메뉴 catalog의 UUID 비공개 표시 계약. */
+export interface MenuCatalogEntry {
+  app: 'samhan-public' | 'arologis'
+  category: string
+  label: string
+  route: string
+  pageCode: PageCode
+  action: 'VIEW'
+  visible: boolean
+  order: number
+}
+
 export interface PermissionAccount {
   id: string
   displayName: string
@@ -573,6 +585,14 @@ export async function fetchMyPermissions(): Promise<MyPermission[]> {
   return Object.entries(res.data.data ?? {}).map(([pageCode, rawActions]) => {
     return { pageCode: pageCode as PageCode, actions: actionsFromRaw(rawActions) }
   })
+}
+
+/** auth-service 서버 정본에서 현재 계정이 볼 수 있는 메뉴만 조회한다. */
+export async function fetchMenuCatalog(): Promise<MenuCatalogEntry[]> {
+  const res = await apiClient.get<ApiEnvelope<MenuCatalogEntry[]>>(
+    '/auth/admin/menu-catalog',
+  )
+  return (res.data.data ?? []).filter((entry) => entry.visible)
 }
 
 // ---------------------------------------------------------------------------

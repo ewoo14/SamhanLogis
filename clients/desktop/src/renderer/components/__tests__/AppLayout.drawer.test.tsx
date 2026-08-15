@@ -35,6 +35,15 @@ vi.mock('../../hooks/usePermissions', () => ({
   }),
 }))
 
+vi.mock('../../hooks/useMenuCatalog', () => ({
+  useMenuCatalog: () => ({
+    menus: [],
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  }),
+}))
+
 vi.mock('../NotificationBellDropdown', () => ({
   NotificationBellDropdown: () => <button type="button">알림</button>,
 }))

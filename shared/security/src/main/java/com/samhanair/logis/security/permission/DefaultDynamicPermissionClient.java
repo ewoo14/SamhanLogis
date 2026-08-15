@@ -42,26 +42,26 @@ public class DefaultDynamicPermissionClient implements DynamicPermissionClient {
     private static final Logger log = LoggerFactory.getLogger(DefaultDynamicPermissionClient.class);
     private static final String AUTH_SERVICE_BASE = "http://auth-service";
     private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
+    private static final String GATEWAY_ATTESTATION_HEADER = "X-Samhan-Gateway-Attestation";
 
     private final RestClient restClient;
     private final String internalToken;
     private final String callerServiceName;
-
-    public DefaultDynamicPermissionClient(RestClient.Builder loadBalancedBuilder, String internalToken, String callerServiceName) {
-        this(loadBalancedBuilder, AUTH_SERVICE_BASE, internalToken, callerServiceName);
-    }
+    private final String gatewayAttestation;
 
     public DefaultDynamicPermissionClient(
             RestClient.Builder builder,
             String authServiceBaseUrl,
             String internalToken,
-            String callerServiceName) {
+            String callerServiceName,
+            String gatewayAttestation) {
         String baseUrl = (authServiceBaseUrl == null || authServiceBaseUrl.isBlank())
                 ? AUTH_SERVICE_BASE
                 : authServiceBaseUrl;
         this.restClient = builder.baseUrl(baseUrl).build();
         this.internalToken = internalToken;
         this.callerServiceName = (callerServiceName == null || callerServiceName.isBlank()) ? "unknown" : callerServiceName;
+        this.gatewayAttestation = gatewayAttestation == null ? "" : gatewayAttestation;
     }
 
     @Override
@@ -76,6 +76,7 @@ public class DefaultDynamicPermissionClient implements DynamicPermissionClient {
                     .header(INTERNAL_TOKEN_HEADER, internalToken == null ? "" : internalToken)
                     .header("X-User-Id", "system-internal:" + callerServiceName)
                     .header("X-User-Role", callerServiceName)
+                    .headers(this::addGatewayAttestation)
                     .retrieve()
                     .onStatus(status -> status.is4xxClientError(), (req, res) -> {
                         log.debug("[SP-PO-1] 계정 권한 조회 4xx — accountId={} pageCode={} action={} status={}",
@@ -107,6 +108,7 @@ public class DefaultDynamicPermissionClient implements DynamicPermissionClient {
                     .header(INTERNAL_TOKEN_HEADER, internalToken == null ? "" : internalToken)
                     .header("X-User-Id", "system-internal:" + callerServiceName)
                     .header("X-User-Role", callerServiceName)
+                    .headers(this::addGatewayAttestation)
                     .retrieve()
                     .onStatus(status -> status.is4xxClientError(), (req, res) -> {
                         log.debug("[SP-PO-1] 계정 권한 bulk 조회 4xx — accountId={} status={}",
@@ -163,6 +165,7 @@ public class DefaultDynamicPermissionClient implements DynamicPermissionClient {
                     // legacy alias 호환과 호출자 추적을 위해 X-User-* 헤더도 함께 전달한다.
                     .header("X-User-Id", "system-internal:" + callerServiceName)
                     .header("X-User-Role", roleCode)
+                    .headers(this::addGatewayAttestation)
                     .retrieve()
                     .onStatus(status -> status.is4xxClientError(), (req, res) -> {
                         log.debug("[SP-D6] 권한 조회 4xx — roleCode={} pageCode={} type={} status={}",
@@ -194,6 +197,12 @@ public class DefaultDynamicPermissionClient implements DynamicPermissionClient {
             log.error("[SP-D6] 동적 권한 조회 예외 (fallback=false) — roleCode={} pageCode={} error={}",
                     roleCode, pageCode, ex.getMessage(), ex);
             return false;
+        }
+    }
+
+    private void addGatewayAttestation(org.springframework.http.HttpHeaders headers) {
+        if (!gatewayAttestation.isBlank()) {
+            headers.set(GATEWAY_ATTESTATION_HEADER, gatewayAttestation);
         }
     }
 }

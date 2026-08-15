@@ -141,7 +141,7 @@ class BankDepositorPartnerMappingPermissionEnforcementIT {
             RestClient.Builder builder = RestClient.builder();
             holder.server = MockRestServiceServer.bindTo(builder).ignoreExpectOrder(false).build();
             return new DefaultDynamicPermissionClient(builder, "http://auth-service", INTERNAL_TOKEN,
-                    "accounting-service");
+                    "accounting-service", "test-gateway-attestation");
         }
     }
 

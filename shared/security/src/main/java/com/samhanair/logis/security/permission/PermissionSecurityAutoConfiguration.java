@@ -97,7 +97,13 @@ public class PermissionSecurityAutoConfiguration {
     public DynamicPermissionClient defaultDynamicPermissionClient(
             @Qualifier("loadBalancedRestClientBuilder") RestClient.Builder loadBalancedBuilder,
             @Value("${app.security.internal.token:}") String internalToken,
-            @Value("${spring.application.name:unknown}") String applicationName) {
-        return new DefaultDynamicPermissionClient(loadBalancedBuilder, internalToken, applicationName);
+            @Value("${spring.application.name:unknown}") String applicationName,
+            @Value("${SAMHAN_GATEWAY_ATTESTATION:}") String gatewayAttestation) {
+        return new DefaultDynamicPermissionClient(
+                loadBalancedBuilder,
+                "http://auth-service",
+                internalToken,
+                applicationName,
+                gatewayAttestation);
     }
 }

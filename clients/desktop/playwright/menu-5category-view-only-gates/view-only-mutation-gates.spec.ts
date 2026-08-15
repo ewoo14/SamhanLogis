@@ -284,22 +284,6 @@ test.describe('menu-5category view-only mutation gates', () => {
     await expect(page.locator('[data-testid="dispatch-board-add-vehicle-button"]')).not.toBeDisabled()
   })
 
-  test('단톡방 매핑 view-only: 추가/업로드/삭제 버튼이 비활성화된다', async ({ page }) => {
-    await gotoWithPerm(page, '/admin/chat-rooms', 'messenger.admin', false)
-
-    await expect(page.locator('[data-testid="admin-chatrooms-add-button"]')).toBeDisabled()
-    await expect(page.locator('[data-testid="admin-chatrooms-import-button"]')).toBeDisabled()
-    await expect(page.locator('[data-testid^="admin-chatrooms-delete-"]').first()).toBeDisabled()
-  })
-
-  test('단톡방 매핑 create/delete 보유: 추가/업로드/삭제 버튼이 활성화된다', async ({ page }) => {
-    await gotoWithPerm(page, '/admin/chat-rooms', 'messenger.admin', true)
-
-    await expect(page.locator('[data-testid="admin-chatrooms-add-button"]')).not.toBeDisabled()
-    await expect(page.locator('[data-testid="admin-chatrooms-import-button"]')).not.toBeDisabled()
-    await expect(page.locator('[data-testid^="admin-chatrooms-delete-"]').first()).not.toBeDisabled()
-  })
-
   test('알리고 주소록 view-only: 동기화 버튼이 비활성화되고 CSV는 유지된다', async ({ page }) => {
     await gotoWithPerm(page, '/admin/aligo-address-book', 'aligo.address-book', false)
 

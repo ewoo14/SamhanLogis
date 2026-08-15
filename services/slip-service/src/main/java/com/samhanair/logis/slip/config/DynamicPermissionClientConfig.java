@@ -18,7 +18,8 @@ public class DynamicPermissionClientConfig {
             @Value("${samhan.auth-service.connect-timeout-ms:2000}") int connectTimeoutMs,
             @Value("${samhan.auth-service.read-timeout-ms:3000}") int readTimeoutMs,
             @Value("${app.security.internal.token:}") String internalToken,
-            @Value("${spring.application.name:slip-service}") String applicationName) {
+            @Value("${spring.application.name:slip-service}") String applicationName,
+            @Value("${SAMHAN_GATEWAY_ATTESTATION:}") String gatewayAttestation) {
         // 동기 권한 호출은 사용자 요청 critical path 다. repo 내 RestClient 표준인 연결 2초/응답 3초를
         // 기본값으로 사용해 auth 장애를 게이트웨이의 600초 timeout 전에 fail-closed 한다.
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
@@ -28,6 +29,7 @@ public class DynamicPermissionClientConfig {
                 RestClient.builder().requestFactory(requestFactory),
                 authServiceBaseUrl,
                 internalToken,
-                applicationName);
+                applicationName,
+                gatewayAttestation);
     }
 }

@@ -53,4 +53,8 @@ public class ChatRoom extends BaseEntity {
         if (participants.stream().noneMatch(p -> p.getUserId().equals(userId) && p.isActive()))
             participants.add(ChatRoomParticipant.create(id, userId, owner));
     }
+    public void rename(String name) {
+        if (name == null || name.isBlank()) throw new IllegalArgumentException("방 이름은 비어 있을 수 없습니다");
+        this.roomName = name.trim();
+    }
 }

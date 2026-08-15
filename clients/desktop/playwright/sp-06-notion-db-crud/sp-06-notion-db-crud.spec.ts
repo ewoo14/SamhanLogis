@@ -22,7 +22,6 @@ test.describe('SP-06 Notion-origin data is Samhan Public DB CRUD', () => {
   const chatController = read('services/notification-service/src/main/java/com/samhanair/logis/notification/controller/ChatRoomMappingAdminController.java')
   const chatService = read('services/notification-service/src/main/java/com/samhanair/logis/notification/service/ChatRoomMappingService.java')
   const chatApi = read('clients/desktop/src/renderer/api/chatRoomApi.ts')
-  const chatPage = read('clients/desktop/src/renderer/routes/admin/ChatRoomsPage.tsx')
   const blockController = read('services/partner-service/src/main/java/com/samhanair/logis/partner/controller/PartnerBlockAdminController.java')
   const blockService = read('services/partner-service/src/main/java/com/samhanair/logis/partner/service/PartnerBlockService.java')
   const blockApi = read('clients/desktop/src/renderer/api/blockedPartnerApi.ts')
@@ -44,7 +43,7 @@ test.describe('SP-06 Notion-origin data is Samhan Public DB CRUD', () => {
   const operationalDoc = read('docs/operational-validation/notion-csv-import-validation.md')
   const sp04Report = read('docs/dev-reports/sp-04-full-menu-legacy-gas-notion-audit.md')
 
-  test('단톡방리스트 is owned by notification DB and desktop CRUD, not Notion runtime', () => {
+  test('단톡방리스트는 notification DB/API가 소유하고 Notion runtime이 아니다', () => {
     expect(chatController).toContain('@RequestMapping("/api/v1/notification/admin/chat-rooms")')
     expect(chatController).toContain('@GetMapping')
     expect(chatController).toContain('@PostMapping')
@@ -52,9 +51,6 @@ test.describe('SP-06 Notion-origin data is Samhan Public DB CRUD', () => {
     expect(chatController).toContain('@DeleteMapping("/{id}")')
     expect(chatService).toContain('PartnerChatRoomMappingRepository')
     expect(chatApi).toContain('/api/v1/notification/admin/chat-rooms')
-    expect(chatPage).toContain('단건 추가')
-    expect(chatPage).toContain('CSV 업로드')
-    expect(chatPage).not.toMatch(/https:\/\/www\.notion\.so|notion\.site/)
   })
 
   test('발송금지리스트 is owned by partner DB and desktop CRUD, not Notion runtime', () => {

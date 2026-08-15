@@ -12,7 +12,7 @@
  * - 판매     — 판매관리/견적서/주문서/거래처/DC설정/발송금지/전표정리/내일자전표/품목 관리/시트 동기화
  * - 구매     — 구매관리/재고이동 관리/입고 검수/재고실사/DPS 비교
  * - 회계     — 매출·입고전표/계정과목/분개장/세금계산서/시산표/재무보고서/마감/원장/운영 회계 항목
- * - 그룹웨어 — 링크발송/알리고 주소록/단톡방 매핑
+ * - 그룹웨어 — 링크발송/알리고 주소록/메신저
  * - 인사     — 인사 관리/권한설정/권한 일괄/그룹 권한/권한그룹 관리/권한 위임
  * - 배차     — 배차현황/가배차리스트/미배차리스트/배차안내 SMS/실배차 비교/배차지역 관리/배차 admin
  * - 창고 운영 — 창고관리/재고 현황/안전재고/보상 실패 복구/전표 수정 요청/사진 감사
@@ -40,6 +40,7 @@ import { canQueryPurchases, canQuerySales, useSessionStore } from '../stores/ses
 import { usePageTitleStore } from '../stores/pageTitle'
 // [SP-D1 cycle 2] 동적 RBAC 권한 훅 — 사이드바 메뉴 동적 hidden 연동.
 import { usePermissions } from '../hooks/usePermissions'
+import { useMenuCatalog } from '../hooks/useMenuCatalog'
 import { NotificationBellDropdown } from './NotificationBellDropdown'
 import { recordMenuAccess } from '../api/activityLog'
 import { resolveBuildAppVersion } from '../version/versionCheck'
@@ -376,6 +377,106 @@ export function AppLayout() {
 
   // [SP-D1 cycle 2] 동적 RBAC 권한 훅 — 5분 캐시. 사이드바 메뉴 hidden 연동.
   const { canAccess: dynamicCanAccess } = usePermissions()
+  const {
+    menus: menuCatalog,
+    isLoading: isMenuCatalogLoading,
+    isError: isMenuCatalogError,
+  } = useMenuCatalog()
+  const publicMenuCatalog = (menuCatalog ?? [])
+    .filter((entry) => entry.app === 'samhan-public')
+    .filter((entry) => dynamicCanAccess(entry.pageCode, 'view'))
+    .sort((left, right) => left.category.localeCompare(right.category, 'ko') || left.order - right.order)
+  const catalogGroups = Array.from(
+    publicMenuCatalog.reduce((groups, entry) => {
+      const group = groups.get(entry.category) ?? []
+      group.push(entry)
+      groups.set(entry.category, group)
+      return groups
+    }, new Map<string, typeof publicMenuCatalog>()),
+  )
+  const dispatchMenuTestIds: Record<string, string> = {
+    '/admin/users': 'sidebar-hr-users',
+    '/admin/carriers': 'sidebar-hr-carriers',
+    '/admin/permission-matrix': 'sidebar-hr-permission-matrix',
+    '/admin/permission-matrix/bulk': 'sidebar-hr-permission-bulk',
+    '/admin/permission-groups/matrix': 'sidebar-hr-permission-groups-matrix',
+    '/admin/permission-groups/manage': 'sidebar-hr-permission-groups-manage',
+    '/admin/permission-groups/delegation': 'sidebar-hr-permission-delegation',
+    '/admin/approval-line-config': 'sidebar-hr-approval-line-config',
+    '/admin/slip-cutoff': 'sidebar-hr-slip-cutoff',
+    '/admin/app-releases': 'sidebar-dev-app-releases',
+    '/admin/app-notices': 'sidebar-dev-popup-notice',
+    '/admin/activity-logs': 'sidebar-dev-activity-log',
+    '/admin/chat-rooms': 'sidebar-admin-chat-rooms',
+    '/inventory/compensation-failures': 'sidebar-warehouse-compensation-failures',
+    '/accounting/tax-invoices/batch': 'sidebar-accounting-tax-invoice-batch-issue',
+    '/sales/estimate-config': 'sidebar-sales-estimate-config',
+    '/accounting/bank-card-admin': 'sidebar-accounting-bank-card-admin',
+    '/dispatch-board/history': 'sidebar-dispatch-history',
+    '/admin/dispatch-groups': 'sidebar-dispatch-groups',
+    '/arologis/pre-classify': 'sidebar-arologis-preclassify',
+    '/arologis/unassigned': 'sidebar-arologis-unassigned',
+    '/arologis/dispatch-sms': 'sidebar-arologis-dispatch-sms',
+    '/arologis/dispatch-reconcile': 'sidebar-arologis-dispatch-reconcile',
+    '/admin/regions': 'sidebar-arologis-region-mgmt',
+    '/admin/external-carriers': 'sidebar-dispatch-external-carriers',
+    '/arologis/admin/auto-dispatch': 'sidebar-arologis-auto-dispatch',
+    '/arologis/admin/manual-dispatch': 'sidebar-arologis-manual-dispatch-admin',
+    '/arologis/admin/driver-assignment': 'sidebar-arologis-driver-assignment',
+    '/sales': 'sidebar-sales',
+    '/sales/estimates': 'sidebar-sales-estimates',
+    '/sales/partner-orders': 'sidebar-sales-partner-orders',
+    '/sales/order-approvals': 'sidebar-sales-partners',
+    '/sales/partner-dc-config': 'sidebar-sales-partner-dc-config',
+    '/admin/blocked-partners': 'sidebar-sales-blocked-partners',
+    '/sales/slip-cleanup': 'sidebar-sales-slip-cleanup',
+    '/sales/next-day-slip': 'sidebar-sales-next-day-slip',
+    '/products/catalog': 'sidebar-products-catalog',
+    '/products/estimate-items': 'sidebar-products-estimate-items',
+    '/products/classifications': 'sidebar-products-classifications',
+    '/products/price-schedule': 'sidebar-products-price-schedule',
+    '/admin/sheet-sync': 'sidebar-settings-sheet-sync',
+    '/purchases': 'sidebar-purchases',
+    '/transfers': 'sidebar-transfers',
+    '/warehouse/inbound-inspections': 'sidebar-warehouse-inbound-inspections',
+    '/warehouse/audit': 'sidebar-warehouse-dps-compare',
+    '/warehouse/dps-compare/by-product': 'sidebar-warehouse-dps-by-product',
+    '/accounting/sales-slips': 'sidebar-accounting-sales-slips',
+    '/accounting/purchase-slips': 'sidebar-accounting-purchase-slips',
+    '/accounting/accounts': 'sidebar-accounting-accounts',
+    '/accounting/journals': 'sidebar-accounting-journals',
+    '/accounting/tax-invoices': 'sidebar-accounting-tax-invoices',
+    '/accounting/tax-invoices/inbound': 'sidebar-accounting-tax-invoice-inbound',
+    '/accounting/balances': 'sidebar-accounting-balances',
+    '/sales/closing': 'sidebar-accounting-sales-closing',
+    '/accounting/period-close': 'sidebar-accounting-period-close',
+    '/accounting/sales-commission-settlements': 'sidebar-accounting-sales-commission-settlements',
+    '/accounting/statement-batch': 'sidebar-accounting-statement-batch',
+    '/accounting/partner-ledger': 'sidebar-accounting-partner-ledger',
+    '/accounting/hometax-export': 'sidebar-accounting-hometax-export',
+    '/accounting/supplier-profiles': 'sidebar-accounting-supplier-profile',
+    '/accounting/bank-transactions': 'sidebar-accounting-bank-transactions',
+    '/accounting/deposit-mappings': 'sidebar-accounting-deposit-mapping',
+    '/accounting/admin/cash-receipts': 'sidebar-accounting-cash-receipts',
+    '/accounting/daily-closing': 'sidebar-accounting-daily-closings',
+    '/accounting/ledgers': 'sidebar-accounting-ledgers',
+    '/accounting/admin/ledger/sales': 'sidebar-accounting-admin-sales-ledger',
+    '/accounting/admin/ledger/purchase': 'sidebar-accounting-admin-purchase-ledger',
+    '/accounting/admin/migration-ops': 'sidebar-accounting-admin-migration-ops',
+    '/admin/accounting-edit-requests': 'sidebar-accounting-admin-edit-requests',
+    '/groupware/approvals': 'sidebar-groupware-approvals',
+    '/groupware/approval-templates': 'sidebar-groupware-approval-templates',
+    '/groupware/document-templates': 'sidebar-groupware-document-templates',
+    '/sales/link-dispatch': 'sidebar-link-dispatch',
+    '/admin/aligo-address-book': 'sidebar-messenger-aligo-address-book',
+    '/messenger': 'sidebar-messenger',
+    '/warehouses': 'sidebar-warehouses',
+    '/inventory/stock-balance': 'sidebar-inventory-stock-balance',
+    '/inventory/inout-analysis': 'sidebar-inventory-inout-analysis',
+    '/inventory/safety-stock-alerts': 'sidebar-warehouse-safety-stock-alerts',
+    '/admin/slip-edit-requests': 'sidebar-warehouse-slip-edit-requests',
+    '/admin/photo-audit': 'sidebar-warehouse-photo-audit',
+  }
 
   // 외부 클릭 시 dropdown 닫기
   useEffect(() => {
@@ -628,7 +729,6 @@ export function AppLayout() {
   const showSafetyStockAlerts = dynamicCanAccess('inventory.safety-stock', 'view')
   // [Round A P3] 구 showWarehouseOps 집계 변수 삭제 — 창고운영 그룹 게이트 교체 후 미소비(dead) 였음.
   //   실제 그룹 가시성은 아래 showWarehouseOpsGroup(창고운영 자식 6개와 1:1 정합) 가 담당한다.
-  // [PR-D Phase B FE-D] 단톡방 매핑 — messenger.admin (MASTER/MANAGER). 그룹웨어 단일 노출.
   // [PR-E1 FE-5] 전표 정리 entry — SALES / MANAGER / MASTER
   const showSlipCleanup = dynamicCanAccess('slip.cleanup', 'view')
   const showNextDaySlip = dynamicCanAccess('slip.print.next-day', 'view')
@@ -664,6 +764,8 @@ export function AppLayout() {
   // [Round A P3] showRegionMgmt(arologis.region) 포함 — 배차지역 관리 단독 권한자가
   //   arologis 그룹 헤더+자식 전체를 잃던 선재 갭 해소(SidebarCategory show=false면 자식도 숨김).
   const showArologisGroup = showDispatchBoard || showArologis || showRegionMgmt
+  const hasCatalogMenu = !isMenuCatalogLoading && publicMenuCatalog.length > 0
+  const dispatchMenuCatalog = publicMenuCatalog.filter((entry) => entry.category === '배차')
   const showWarehouseOpsGroup =
     showInventoryWarehouse || showInventoryStockBalance || showInOutAnalysis || showSafetyStockAlerts
     || showInventoryCompensationFailures || showSlipEditRequests || showPhotoAudit
@@ -693,6 +795,40 @@ export function AppLayout() {
             알림 내역
           </NavLink>
 
+          {isMenuCatalogLoading ? (
+            <p role="status" data-testid="sidebar-menu-catalog-loading">
+              메뉴 권한을 확인하는 중입니다.
+            </p>
+          ) : isMenuCatalogError ? (
+            <p role="alert" data-testid="sidebar-menu-catalog-error">
+              메뉴 권한을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.
+            </p>
+          ) : catalogGroups.length === 0 ? (
+            <p data-testid="sidebar-menu-catalog-empty">권한이 있는 메뉴가 없습니다.</p>
+          ) : (
+            catalogGroups.map(([category, entries]) => (
+              <SidebarCategory
+                key={category}
+                label={category}
+                show
+                testId={`sidebar-category-toggle-${compactSidebarLabel(category)}`}
+                activeTargets={entries.map((entry) => entry.route)}
+              >
+                {entries.map((entry) => (
+                  <SidebarLink
+                    key={`${entry.app}:${entry.route}`}
+                    to={entry.route}
+                    show
+                    data-testid={dispatchMenuTestIds[entry.route] ?? `sidebar-catalog-${entry.route.replace(/[^a-zA-Z0-9]+/g, '-')}`}
+                  >
+                    {entry.label}
+                  </SidebarLink>
+                ))}
+              </SidebarCategory>
+            ))
+          )}
+
+          {false ? <>
           {/* [Phase 6 v4 → P2-1] 판매 그룹 — 견적서 SamhanLogis 도메인 (legacy webview 폐기) + 4종 sub.
               [SP-D4] estimates.list / sales.partner-order.list 동적 RBAC 연동. */}
           <SidebarCategory
@@ -1344,10 +1480,6 @@ export function AppLayout() {
             >
               알리고 주소록
             </SidebarLink>
-            {/* [Round B P2] 단톡방 매핑 — 그룹웨어 단일화(5대분류 consolidation).
-                기존 가드는 MASTER 그룹(빌트인) 사용자를 그룹웨어에서 배제하고 AdminLayout(인사 셸)의
-                중복 nav 로만 노출했으나, 그 중복을 제거하고 messenger.admin 권한자(MASTER 포함) 전원을
-                그룹웨어 단일 경로로 통일한다(showChatRoomAdmin 단독 게이트). */}
             <SidebarLink
               to="/messenger"
               show={showMessengerSend}
@@ -1355,30 +1487,9 @@ export function AppLayout() {
             >
               메신저
             </SidebarLink>
-            {/*
-             * 🚫 채팅 사이드바 진입점 비노출 (2026-08-12 개발책임자 결정)
-             *
-             * 채팅은 본체 메뉴가 아니라 **별도 패키징 앱**으로 간다.
-             *   "채팅창은 메뉴로 만들게 아니라 따로 카톡처럼 창을 띄워야지"
-             *   "별도 패키징 앱으로 하고 접속 중인지 여부도 알 수 있게 하자"
-             *
-             * #894 S1 은 서버·통신 토대(REST·SSE·방/메시지/참여자·권한)만 머지됐고
-             * 그 위에 얹을 클라이언트는 S2 에서 별도 앱으로 만든다.
-             * 그때까지 사용자에게 폐기 예정 형태를 노출하지 않는다.
-             *
-             * 라우트(/chat · /chat/:roomCode)는 개발·QA 용으로 살려 둔다.
-             */}
-            <SidebarLink
-              to="/chat"
-              show={showMessengerSend}
-              data-testid="sidebar-chat"
-            >
-              채팅
-            </SidebarLink>
             <SidebarLink
               to="/admin/chat-rooms"
               show={showChatRoomAdmin}
-              requiredRole="MASTER / MANAGER"
               data-testid="sidebar-admin-chat-rooms"
             >
               단톡방 매핑
@@ -1512,118 +1623,45 @@ export function AppLayout() {
 
           {/* [Round B P2] 그룹 헤더 라벨 'arologis'(코드명 노출) → 한국어 업무 라벨 '배차'.
               다른 6그룹과 일관(판매/구매/회계/그룹웨어/인사/창고 운영). testid 무관(라벨만). */}
-          <SidebarCategory
-            label="배차"
-            show={showArologisGroup}
-            testId="sidebar-category-toggle-배차"
-            activeTargets={[
-              '/dispatch-board/history',
-              '/admin/dispatch-groups',
-              '/arologis/pre-classify',
-              '/arologis/unassigned',
-              '/arologis/dispatch-sms',
-              '/arologis/dispatch-reconcile',
-              '/admin/regions',
-              '/admin/external-carriers',
-              '/arologis/admin/auto-dispatch',
-              '/arologis/admin/manual-dispatch',
-              '/arologis/admin/driver-assignment',
-            ]}
-          >
-              <SidebarLink
-                to="/dispatch-board/history"
-                show={showDispatchBoard}
-                requiredRole="DISPATCH / MANAGER / MASTER"
-                data-testid="sidebar-dispatch-history"
-              >
-                배차현황
-              </SidebarLink>
-              <SidebarLink
-                to="/admin/dispatch-groups"
-                show={showDispatchBoard}
-                requiredRole="DISPATCH / MANAGER / MASTER"
-                data-testid="sidebar-dispatch-groups"
-              >
-                배차 그룹
-              </SidebarLink>
-              {/* [Phase 10 PR-E1 FE-2] 가배차리스트 — MASTER/MANAGER/DISPATCH. */}
-              <SidebarLink
-                to="/arologis/pre-classify"
-                show={showArologisOps}
-                requiredRole="DISPATCH / MANAGER / MASTER"
-                data-testid="sidebar-arologis-preclassify"
-              >
-                가배차리스트
-              </SidebarLink>
-              {/* [Phase 10 PR-E1 FE-3] 미배차리스트 — MASTER/MANAGER/DISPATCH. */}
-              <SidebarLink
-                to="/arologis/unassigned"
-                show={showArologisOps}
-                requiredRole="DISPATCH / MANAGER / MASTER"
-                data-testid="sidebar-arologis-unassigned"
-              >
-                미배차리스트
-              </SidebarLink>
-              {/* [PR-E1 FE-6] 배차안내 SMS — DISPATCH/MANAGER/MASTER. */}
-              <SidebarLink
-                to="/arologis/dispatch-sms"
-                show={showDispatchSmsPage}
-                requiredRole="DISPATCH / MANAGER / MASTER"
-                data-testid="sidebar-arologis-dispatch-sms"
-              >
-                배차안내 SMS
-              </SidebarLink>
-              {/* [SP-04] 운송사 실배차 비교 — hidden route 를 공식 메뉴 entry 로 승격. */}
-              <SidebarLink
-                to="/arologis/dispatch-reconcile"
-                show={showArologisOps}
-                requiredRole="DISPATCH / MANAGER / MASTER"
-                data-testid="sidebar-arologis-dispatch-reconcile"
-              >
-                실배차 비교
-              </SidebarLink>
-              {/* [C5 후속 C-4] 배차지역 관리 — /admin/regions 라우트와 동일한 arologis.region VIEW 기준. */}
-              <SidebarLink
-                to="/admin/regions"
-                show={showRegionMgmt}
-                requiredRole="DISPATCH / MANAGER / MASTER"
-                data-testid="sidebar-arologis-region-mgmt"
-              >
-                배차지역 관리
-              </SidebarLink>
-              <SidebarLink
-                to="/admin/external-carriers"
-                show={showExternalCarriers}
-                requiredRole="DISPATCH / MANAGER / MASTER"
-                data-testid="sidebar-dispatch-external-carriers"
-              >
-                외부기사/배송사
-              </SidebarLink>
-              {/* [P1-5] arologis 배차 admin 3개 신규 메뉴 — MANAGER / MASTER. */}
-              <SidebarLink
-                to="/arologis/admin/auto-dispatch"
-                show={showArologisAdminPage}
-                requiredRole="MANAGER / MASTER"
-                data-testid="sidebar-arologis-auto-dispatch"
-              >
-                자동 매칭
-              </SidebarLink>
-              <SidebarLink
-                to="/arologis/admin/manual-dispatch"
-                show={showArologisAdminPage}
-                requiredRole="MANAGER / MASTER"
-                data-testid="sidebar-arologis-manual-dispatch-admin"
-              >
-                배차 관리
-              </SidebarLink>
-              <SidebarLink
-                to="/arologis/admin/driver-assignment"
-                show={showArologisAdminPage}
-                requiredRole="MANAGER / MASTER"
-                data-testid="sidebar-arologis-driver-assignment"
-              >
-                기사 배정
-              </SidebarLink>
+            <SidebarCategory
+              label="배차"
+              show={hasCatalogMenu && showArologisGroup}
+              testId="sidebar-category-toggle-배차"
+             activeTargets={[
+               '/dispatch-board/history',
+               '/admin/dispatch-groups',
+               '/arologis/pre-classify',
+               '/arologis/unassigned',
+               '/arologis/dispatch-sms',
+               '/arologis/dispatch-reconcile',
+               '/admin/regions',
+               '/admin/external-carriers',
+               '/arologis/admin/auto-dispatch',
+               '/arologis/admin/manual-dispatch',
+               '/arologis/admin/driver-assignment',
+             ]}
+           >
+             <SidebarLink to="/dispatch-board/history" show={dispatchMenuCatalog.some((entry) => entry.route === '/dispatch-board/history')} data-testid="sidebar-dispatch-history">
+               배차현황
+             </SidebarLink>
+             <SidebarLink to="/arologis/pre-classify" show={dispatchMenuCatalog.some((entry) => entry.route === '/arologis/pre-classify')} data-testid="sidebar-arologis-preclassify">
+               가배차리스트
+             </SidebarLink>
+             <SidebarLink to="/arologis/unassigned" show={dispatchMenuCatalog.some((entry) => entry.route === '/arologis/unassigned')} data-testid="sidebar-arologis-unassigned">
+               미배차리스트
+             </SidebarLink>
+             {dispatchMenuCatalog
+               .filter((entry) => entry.route === '/dispatch-board/history' || entry.route === '/arologis/pre-classify' || entry.route === '/arologis/unassigned')
+               .map((entry) => (
+               <SidebarLink
+                 key={entry.route}
+                 to={entry.route}
+                 show
+                 data-testid={dispatchMenuTestIds[entry.route]}
+               >
+                 {entry.label}
+               </SidebarLink>
+             ))}
           </SidebarCategory>
 
           <SidebarCategory
@@ -1702,6 +1740,7 @@ export function AppLayout() {
                 사진 감사
               </SidebarLink>
           </SidebarCategory>
+          </> : null}
         </nav>
         <div style={{ marginTop: 'auto', fontSize: 12, color: 'var(--color-neutral-500)' }}>
           {CURRENT_VERSION} · 사내 전용

@@ -22,6 +22,9 @@ public final class HttpHeaderConstants {
      */
     public static final String CALLER_ROLE_HEADER = "X-User-Role";
 
+    /** 독립 Arologis JWT 역할을 중앙 catalog가 읽는 전용 신뢰 헤더. */
+    public static final String AROLOGIS_ROLE_HEADER = "X-Arologis-Role";
+
     /** 거래처 사용자 본인 주문 검증용 거래처 코드 header. */
     public static final String PARTNER_CODE_HEADER = "X-Partner-Code";
 
@@ -97,6 +100,7 @@ public final class HttpHeaderConstants {
             CALLER_NAME_HEADER,
             USER_DEPARTMENT_HEADER,
             CALLER_ROLE_HEADER,
+            AROLOGIS_ROLE_HEADER,
             INTERNAL_TOKEN_HEADER,
             GATEWAY_ATTESTATION_HEADER
     );

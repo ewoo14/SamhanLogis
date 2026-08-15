@@ -4,12 +4,17 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Outlet, Route, Routes, useLocation } from 'react-router-dom'
 import { DispatchesLayout } from './DispatchesLayout'
 import { usePermissions } from '../../hooks/usePermissions'
+import { useMenuCatalog } from '../../hooks/useMenuCatalog'
 
 vi.mock('../../hooks/usePermissions', () => ({
   usePermissions: vi.fn(),
 }))
+vi.mock('../../hooks/useMenuCatalog', () => ({
+  useMenuCatalog: vi.fn(),
+}))
 
 const mockedUsePermissions = vi.mocked(usePermissions)
+const mockedUseMenuCatalog = vi.mocked(useMenuCatalog)
 
 describe('DispatchesLayout', () => {
   afterEach(() => {
@@ -26,6 +31,7 @@ describe('DispatchesLayout', () => {
       isError: false,
       refetch: vi.fn(),
     })
+    mockedUseMenuCatalog.mockReturnValue({ menus: catalogMenus(), isLoading: false, isError: false, refetch: vi.fn() })
 
     const user = userEvent.setup()
     renderDispatchesLayout()
@@ -46,7 +52,7 @@ describe('DispatchesLayout', () => {
     }
   })
 
-  it('권한 없는 사용자는 라우트와 같은 조건으로 수신 배차 그룹 진입점을 보지 못한다', () => {
+  it('카탈로그에 없는 사용자는 수신 배차 그룹 진입점을 보지 못한다', () => {
     mockedUsePermissions.mockReturnValue({
       canAccess: () => false,
       permissions: [],
@@ -54,6 +60,7 @@ describe('DispatchesLayout', () => {
       isError: false,
       refetch: vi.fn(),
     })
+    mockedUseMenuCatalog.mockReturnValue({ menus: [], isLoading: false, isError: false, refetch: vi.fn() })
 
     renderDispatchesLayout()
 
@@ -69,6 +76,7 @@ describe('DispatchesLayout', () => {
       isError: true,
       refetch,
     })
+    mockedUseMenuCatalog.mockReturnValue({ menus: [], isLoading: false, isError: false, refetch: vi.fn() })
 
     const user = userEvent.setup()
     renderDispatchesLayout()
@@ -91,6 +99,16 @@ function renderDispatchesLayout(): void {
       </Routes>
     </MemoryRouter>,
   )
+}
+
+function catalogMenus() {
+  return [
+    { app: 'arologis' as const, category: '배차', label: '수동 배차', route: '/dispatches/manual', pageCode: 'arologis.dispatch.admin', action: 'VIEW' as const, visible: true, order: 1 },
+    { app: 'arologis' as const, category: '배차', label: '가배차 분류', route: '/dispatches/pre-classify', pageCode: 'arologis.dispatch.ops', action: 'VIEW' as const, visible: true, order: 2 },
+    { app: 'arologis' as const, category: '배차', label: '미배차', route: '/dispatches/unassigned', pageCode: 'arologis.dispatch.ops', action: 'VIEW' as const, visible: true, order: 3 },
+    { app: 'arologis' as const, category: '배차', label: '실배차 비교', route: '/dispatches/reconcile', pageCode: 'arologis.dispatch.ops', action: 'VIEW' as const, visible: true, order: 4 },
+    { app: 'arologis' as const, category: '배차', label: '수신 배차 그룹', route: '/dispatches/received-groups', pageCode: 'arologis.dispatch.ops', action: 'VIEW' as const, visible: true, order: 5 },
+  ]
 }
 
 function LocationProbe(): JSX.Element {

@@ -21,13 +21,15 @@ import {
   claudeErrorMessage,
   createClaudeSession,
   listClaudeSessions,
+  runApprovalListTool,
+  type ClaudeToolResult,
   type ClaudeSession,
 } from "./claude/claude-api";
 import * as chatApi from "./api/chat-api";
 import * as presenceApi from "./api/presence-api";
 import * as mainApi from "./api/chatApi";
 import { shouldNotifyConversation } from "./conversation-notification";
-import type { Employee, PresenceStatus } from "./api/chat-api";
+import type { ChatRoom, Employee, PresenceStatus } from "./api/chat-api";
 
 declare global {
   interface Window {
@@ -185,6 +187,7 @@ function ConversationRoom({ roomCode, sessionCode, title, onBack }: { roomCode?:
   const [body, setBody] = useState("");
   const [answer, setAnswer] = useState("");
   const [error, setError] = useState("");
+  const [toolResult, setToolResult] = useState<ClaudeToolResult | null>(null);
   const messages = useQuery({
     queryKey: [sessionCode ? "claude" : "messages", sessionCode ?? roomCode],
     queryFn: () => chatApi.fetchMessages(roomCode!),
@@ -208,6 +211,11 @@ function ConversationRoom({ roomCode, sessionCode, title, onBack }: { roomCode?:
     onSuccess: (value) => { setAnswer(value); setBody(""); },
     onError: (value) => setError(claudeErrorMessage(value)),
   });
+  const runTool = useMutation({
+    mutationFn: () => runApprovalListTool(),
+    onSuccess: (value) => { setToolResult(value); setError(""); },
+    onError: (value) => setError(claudeErrorMessage(value)),
+  });
   const claude = Boolean(sessionCode);
   return (
     <main className="conversation-window" data-testid="conversation-window">
@@ -216,7 +224,26 @@ function ConversationRoom({ roomCode, sessionCode, title, onBack }: { roomCode?:
         <div><h1>{title || (claude ? "클로드 대화" : "대화")}</h1><p>{claude ? "클로드 세션" : "삼한 메신저"}</p></div>
       </header>
       <div className="message-scroll">
-        {claude ? (answer ? <p>{answer}</p> : null) : (
+        {claude ? (
+          <>
+            {answer ? <p>{answer}</p> : null}
+            <section aria-label="Claude 도구 호출">
+              <Button type="button" onClick={() => runTool.mutate()} disabled={runTool.isPending}>
+                {runTool.isPending ? "도구 실행 중" : "결재 문서 목록 도구 실행"}
+              </Button>
+              {toolResult ? (
+                <div aria-label="Claude 도구 결과">
+                  <p>{toolResult.toolDisplayName} · {toolResult.method} {toolResult.path}</p>
+                  <ul>
+                    {toolResult.result.map((room) => (
+                      <li key={room.approvalNo}>{room.approvalNo} · {room.title || "제목 없음"}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </section>
+          </>
+        ) : (
           <ul aria-label="대화 내용" className="message-list">{(messages.data ?? []).map((m, index, all) => {
             const previous = all[index - 1];
             const continued = Boolean(previous && previous.senderEmployeeCode === m.senderEmployeeCode && new Date(previous.sentAt).getTime() + 120000 >= new Date(m.sentAt).getTime());
@@ -243,6 +270,11 @@ function MessengerPage({ mode }: { mode: "individual" | "group" }) {
   const client = useQueryClient();
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Employee[]>([]);
+  const [groupName, setGroupName] = useState("");
+  const [editingRoom, setEditingRoom] = useState<ChatRoom | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editSelected, setEditSelected] = useState<string[]>([]);
+  const [error, setError] = useState("");
   const [mobileConversation, setMobileConversation] = useState<ConversationRequest | null>(null);
   const directRooms = useRef(new Map<string, string>());
   const me = useQuery({ queryKey: ["me"], queryFn: chatApi.fetchMe });
@@ -263,14 +295,21 @@ function MessengerPage({ mode }: { mode: "individual" | "group" }) {
     },
   });
   const createGroup = useMutation({
-    mutationFn: () =>
-      chatApi.createGroupRoom(
-        selected.map((e) => e.employeeCode!).filter(Boolean),
-      ),
+    mutationFn: () => chatApi.createGroupRoom(
+      Array.from(new Set([me.data?.employeeCode, ...selected.map((e) => e.employeeCode)].filter((code): code is string => Boolean(code)))),
+      groupName.trim(),
+    ),
     onSuccess: (room) => {
       openConversation({ roomCode: room.roomCode, title: displayName(room.roomName ?? "그룹 대화") }, () => setMobileConversation({ roomCode: room.roomCode, title: displayName(room.roomName ?? "그룹 대화") }));
       setSelected([]);
+      setGroupName(""); setError(""); void client.invalidateQueries({ queryKey: ["rooms", "group"] });
     },
+    onError: (value) => setError(value instanceof Error ? value.message : "그룹방을 만들 수 없습니다"),
+  });
+  const editGroup = useMutation({
+    mutationFn: () => chatApi.editGroupRoom(editingRoom!.roomCode, Array.from(new Set([me.data?.employeeCode, ...editSelected].filter((code): code is string => Boolean(code)))), editName.trim()),
+    onSuccess: () => { setEditingRoom(null); setError(""); void client.invalidateQueries({ queryKey: ["rooms", "group"] }); },
+    onError: (value) => setError(value instanceof Error ? value.message : "그룹방을 편집할 수 없습니다"),
   });
   const update = useMutation({
     mutationFn: presenceApi.updatePresence,
@@ -305,15 +344,13 @@ function MessengerPage({ mode }: { mode: "individual" | "group" }) {
             <div className="sidebar-title">
               <h2>{mode === "individual" ? "개별 대화" : "그룹 대화"}</h2>
               {mode === "group" ? (
-                <Button
-                  size="sm"
-                  onClick={() => createGroup.mutate()}
-                  disabled={!selected.length}
-                >
-                  새 그룹
-                </Button>
+                <div className="group-create-controls">
+                  <Input aria-label="그룹방 이름" value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder="그룹방 이름" />
+                  <Button size="sm" onClick={() => createGroup.mutate()} disabled={!selected.length || !groupName.trim()}>새 그룹</Button>
+                </div>
               ) : null}
             </div>
+            {error ? <p role="alert">{error}</p> : null}
             <Input
               aria-label="직원 검색"
               value={query}
@@ -350,37 +387,26 @@ function MessengerPage({ mode }: { mode: "individual" | "group" }) {
               <ul aria-label="group rooms" className="conversation-list group-room-list">
                 {(rooms.data ?? []).map((room) => (
                   <li key={room.roomCode}>
-                    <button type="button" className="conversation group-room" onClick={() => openConversation({ roomCode: room.roomCode, title: displayName(room.roomName ?? "그룹 대화") }, () => setMobileConversation({ roomCode: room.roomCode, title: displayName(room.roomName ?? "그룹 대화") }))}>
-                      <span className="room-avatar" aria-hidden="true">{displayName(room.roomName ?? room.partnerName ?? "그룹").slice(0, 1)}</span>
-                      <span className="room-copy"><strong>{displayName(room.roomName ?? room.partnerName ?? "그룹 대화")}{room.memberCount ? <em>{room.memberCount}</em> : null}</strong><small>{room.lastMessage ?? ""}</small></span>
-                      {room.lastMessageAt ? <time>{formatRoomTime(room.lastMessageAt)}</time> : null}
-                    </button>
+                    <div className="group-room-row">
+                      <button type="button" className="conversation group-room" onClick={() => openConversation({ roomCode: room.roomCode, title: displayName(room.roomName ?? "그룹 대화 (이름 미설정)") }, () => setMobileConversation({ roomCode: room.roomCode, title: displayName(room.roomName ?? "그룹 대화 (이름 미설정)") }))}>
+                        <span className="room-avatar" aria-hidden="true">{displayName(room.roomName ?? "그룹").slice(0, 1)}</span>
+                        <span className="room-copy"><strong>{displayName(room.roomName ?? "그룹 대화 (이름 미설정)")}{room.memberCount ? <em>{room.memberCount}</em> : null}</strong><small>{room.lastMessage ?? ""}</small></span>
+                        {room.lastMessageAt ? <time>{formatRoomTime(room.lastMessageAt)}</time> : null}
+                      </button>
+                      <button type="button" onClick={() => { setEditingRoom(room); setEditName(room.roomName ?? ""); setEditSelected((room.participants ?? []).map((p) => p.employeeCode).filter((code): code is string => Boolean(code) && code !== me.data?.employeeCode)); }}>그룹방 편집</button>
+                    </div>
                   </li>
                 ))}
               </ul>
               <div className="directory-list">
-                {filtered.map((employee) => (
-                  <button
-                    type="button"
-                    key={employee.employeeCode ?? employee.name}
-                    onClick={() =>
-                      setSelected((old) =>
-                        old.some(
-                          (e) => e.employeeCode === employee.employeeCode,
-                        )
-                          ? old.filter(
-                              (e) => e.employeeCode !== employee.employeeCode,
-                            )
-                          : [...old, employee],
-                      )
-                    }
-                  >
+                {filtered.map((employee) => employee.employeeCode ? (
+                  <button type="button" key={employee.employeeCode} onClick={() => setSelected((old) => old.some((e) => e.employeeCode === employee.employeeCode) ? old.filter((e) => e.employeeCode !== employee.employeeCode) : [...old, employee])}>
                     <Presence employee={employee} />
-                    {displayName(employee.name)}
-                    <small>{employee.departmentName}</small>
+                    {displayName(employee.name)} <small>{employee.departmentName} · {employee.employeeCode}</small>
                   </button>
-                ))}
+                ) : <span key={employee.name} role="status" aria-label={`${displayName(employee.name)} 담당자코드 미부여`}>{displayName(employee.name)} · {employee.departmentName} · 담당자코드 미부여</span>)}
               </div>
+              {editingRoom ? <section aria-label="그룹방 편집"><Input aria-label="편집할 그룹방 이름" value={editName} onChange={(event) => setEditName(event.target.value)} /><div className="directory-list">{filtered.map((employee) => employee.employeeCode ? <button type="button" key={employee.employeeCode} onClick={() => setEditSelected((old) => old.includes(employee.employeeCode!) ? old.filter((code) => code !== employee.employeeCode) : [...old, employee.employeeCode!])}>{displayName(employee.name)} · {employee.departmentName} · {employee.employeeCode}</button> : <span key={employee.name} role="status" aria-label={`${displayName(employee.name)} 담당자코드 미부여`}>{displayName(employee.name)} · 담당자코드 미부여</span>)}</div><Button onClick={() => editGroup.mutate()}>저장</Button><Button onClick={() => setEditingRoom(null)}>취소</Button></section> : null}
               </>
             )}
           </aside>
@@ -397,6 +423,8 @@ function sessionTitle(session: ClaudeSession): string {
 function ClaudePage() {
   const client = useQueryClient();
   const [mobileConversation, setMobileConversation] = useState<ConversationRequest | null>(null);
+  const [toolResult, setToolResult] = useState<ClaudeToolResult | null>(null);
+  const [toolError, setToolError] = useState("");
   const sessions = useQuery({
     queryKey: ["claude-sessions"],
     queryFn: () => listClaudeSessions(),
@@ -408,6 +436,11 @@ function ClaudePage() {
       openConversation({ sessionCode: s.sessionCode, title: sessionTitle(s) }, () => setMobileConversation({ sessionCode: s.sessionCode, title: sessionTitle(s) }));
     },
   });
+  const runTool = useMutation({
+    mutationFn: () => runApprovalListTool(),
+    onSuccess: (value) => { setToolResult(value); setToolError(""); },
+    onError: (value) => setToolError(claudeErrorMessage(value)),
+  });
   if (mobileConversation) return <ConversationRoom {...mobileConversation} onBack={() => setMobileConversation(null)} />;
   return (
     <main className="claude-app" data-testid="claude-app">
@@ -417,6 +450,22 @@ function ClaudePage() {
         </div>
         <Button onClick={() => create.mutate()}>새 세션</Button>
       </header>
+      <section aria-label="Claude 도구 호출">
+        <Button type="button" onClick={() => runTool.mutate()} disabled={runTool.isPending}>
+          {runTool.isPending ? "도구 실행 중" : "결재 문서 목록 도구 실행"}
+        </Button>
+        {toolError ? <p role="alert">{toolError}</p> : null}
+        {toolResult ? (
+          <div aria-label="Claude 도구 결과">
+            <p>{toolResult.toolDisplayName} · {toolResult.method} {toolResult.path}</p>
+            <ul>
+              {toolResult.result.map((approval) => (
+                <li key={approval.approvalNo}>{approval.approvalNo} · {approval.title || "제목 없음"}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+      </section>
       <ul className="session-list" aria-label="클로드 세션 목록">
         {(sessions.data ?? []).map((s) => (
           <li key={s.sessionCode}><button type="button" onClick={() => openConversation({ sessionCode: s.sessionCode, title: sessionTitle(s) }, () => setMobileConversation({ sessionCode: s.sessionCode, title: sessionTitle(s) }))}>

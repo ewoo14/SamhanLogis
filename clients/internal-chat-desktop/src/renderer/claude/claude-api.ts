@@ -24,6 +24,23 @@ export interface ClaudeSession {
   summaryMode?: 'REAL' | 'VIRTUAL' | 'CREDENTIAL_UNAVAILABLE'
 }
 
+export interface ClaudeApprovalSummary {
+  approvalNo: string
+  requesterName?: string | null
+  title?: string | null
+  documentType?: string | null
+  status: string
+}
+
+export interface ClaudeToolResult {
+  toolName: string
+  toolDisplayName: string
+  method: string
+  path: string
+  readOnly: boolean
+  result: ClaudeApprovalSummary[]
+}
+
 function baseUrl(): string {
   return String(import.meta.env.VITE_AUTH_API_BASE_URL ?? 'http://localhost:8080').replace(/\/+$/, '')
 }
@@ -62,6 +79,15 @@ export async function askClaude(question: string, options: RequestOptions = {}):
     throw { status: response.status, message: 'Claude 응답이 비어 있습니다.' } satisfies ClaudeApiError
   }
   return data.answer
+}
+
+export async function runApprovalListTool(options: Pick<RequestOptions, 'request' | 'token'> = {}): Promise<ClaudeToolResult> {
+  const request = options.request ?? fetch
+  const response = await request(`${baseUrl()}/admin/groupware/claude-tools/approval-list`, {
+    headers: { Accept: 'application/json', ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}) },
+    credentials: 'include',
+  })
+  return parseResponse<ClaudeToolResult>(response)
 }
 
 export function claudeErrorMessage(error: unknown): string {

@@ -1,12 +1,17 @@
 export type PresenceStatus = 'AVAILABLE' | 'AWAY' | 'ABSENT' | 'IN_MEETING' | 'ON_CALL' | 'OFFLINE'
 export interface Employee { employeeCode: string | null; name: string; jobTitle: string; departmentName: string; departmentOrder?: number; hireDate?: string | null; presenceStatus: PresenceStatus }
-export interface ChatRoom { roomCode: string; type: 'DIRECT' | 'GROUP' | 'SYSTEM'; roomName: string | null; partnerName?: string | null; partnerDepartment?: string | null; partnerEmployeeCode?: string | null; unreadCount?: number; memberCount?: number; lastMessage?: string | null; lastMessageAt?: string | null }
+export interface GroupParticipant { name: string; departmentName?: string | null; employeeCode?: string | null }
+export interface ChatRoom { roomCode: string; type: 'DIRECT' | 'GROUP' | 'SYSTEM'; roomName: string | null; partnerName?: string | null; partnerDepartment?: string | null; partnerEmployeeCode?: string | null; participants?: GroupParticipant[]; unreadCount?: number; memberCount?: number; lastMessage?: string | null; lastMessageAt?: string | null }
 export interface ChatMessage { roomCode: string; sequence: number; body: string; sentAt: string; senderName?: string | null; senderDepartment?: string | null; senderEmployeeCode?: string | null; mine?: boolean; read?: boolean }
 
 const base = String(import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080').replace(/\/+$/, '')
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${base}${path}`, { ...init, credentials: 'include', headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...(init?.headers ?? {}) } })
-  if (!response.ok) throw new Error(`채팅 API 요청 실패 status=${response.status}`)
+  if (!response.ok) {
+    let detail = `채팅 API 요청 실패 status=${response.status}`
+    try { const payload = await response.json() as { message?: string; error?: { message?: string } }; detail = payload.message ?? payload.error?.message ?? detail } catch { /* preserve status when body is not JSON */ }
+    throw new Error(detail)
+  }
   const payload = await response.json() as { data: T }
   return payload.data
 }
@@ -31,7 +36,8 @@ export async function fetchGroups(): Promise<ChatRoom[]> {
 }
 export const fetchMessages = (roomCode: string) => request<ChatMessage[]>(`/admin/groupware/chat/rooms/${encodeURIComponent(roomCode)}/messages`)
 export const createDirectRoom = (employeeCode: string) => request<ChatRoom>('/api/v1/admin/groupware/chat/rooms/direct/by-employee-code', { method: 'POST', body: JSON.stringify({ employeeCode }) })
-export const createGroupRoom = (employeeCodes: string[]) => request<ChatRoom>('/admin/groupware/chat/rooms/groups', { method: 'POST', body: JSON.stringify({ employeeCodes, roomName: null }) })
+export const createGroupRoom = (employeeCodes: string[], roomName: string) => request<ChatRoom>('/admin/groupware/chat/rooms/groups', { method: 'POST', body: JSON.stringify({ employeeCodes, roomName }) })
+export const editGroupRoom = (roomCode: string, employeeCodes: string[], roomName: string) => request<ChatRoom>(`/admin/groupware/chat/rooms/${encodeURIComponent(roomCode)}`, { method: 'PATCH', body: JSON.stringify({ employeeCodes, roomName }) })
 export const sendMessage = (roomCode: string, body: string) => request<ChatMessage>(`/admin/groupware/chat/rooms/${encodeURIComponent(roomCode)}/messages`, { method: 'POST', body: JSON.stringify({ body }) })
 export function subscribe(roomCode: string, onEvent: () => void): () => void {
   const controller = new AbortController()

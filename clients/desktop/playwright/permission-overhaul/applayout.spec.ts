@@ -97,13 +97,13 @@ test.describe('Phase 1 Stage 3 Task 14 AppLayout permission gates', () => {
     await page.goto(MATRIX_URL, { waitUntil: 'domcontentloaded' })
 
     await openSidebarCategory(page, '인사')
-    await expect(page.getByTestId('sidebar-hr-permission-matrix')).toBeVisible()
-    await expect(page.getByTestId('sidebar-hr-permission-bulk')).toBeVisible()
+    await expect(page.getByRole('link', { name: '권한설정' })).toBeVisible()
+    await expect(page.getByRole('link', { name: '권한 일괄 적용' })).toBeVisible()
 
-    await page.getByTestId('sidebar-hr-permission-bulk').click()
+    await page.getByRole('link', { name: '권한 일괄 적용' }).click()
     await expect(page).toHaveURL(/#\/admin\/permission-matrix\/bulk(?:\?.*)?$/)
 
-    await page.getByTestId('sidebar-hr-permission-matrix').click()
+    await page.getByRole('link', { name: '권한설정' }).click()
     await expect(page).toHaveURL(/#\/admin\/permission-matrix(?:\?.*)?$/)
   })
 
@@ -122,7 +122,7 @@ test.describe('Phase 1 Stage 3 Task 14 AppLayout permission gates', () => {
     await page.goto(noAdminUrl, { waitUntil: 'domcontentloaded' })
     await page.waitForLoadState('networkidle', { timeout: 8_000 }).catch(() => {})
 
-    await expect(page.getByTestId('sidebar-hr-permission-matrix')).toHaveCount(0)
-    await expect(page.getByTestId('sidebar-hr-permission-bulk')).toHaveCount(0)
+    await expect(page.getByRole('link', { name: '권한설정' })).toHaveCount(0)
+    await expect(page.getByRole('link', { name: '권한 일괄 적용' })).toHaveCount(0)
   })
 })
