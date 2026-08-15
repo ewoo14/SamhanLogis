@@ -611,9 +611,6 @@ function EditableLegacyDailyClosingTable({
       && visible[index + span]!.slipDate + '_' + visible[index + span]!.seqNo === key) span += 1
     return { start: true, span }
   }), [visible])
-  const total = (field: keyof DailyClosingSourceRow) => formatLegacyNumber(
-    visible.reduce((sum, row) => sum + (Number(row[field]) || 0), 0),
-  )
   const mergedCell = (
     value: ReactNode,
     column: string,
@@ -629,6 +626,62 @@ function EditableLegacyDailyClosingTable({
     overflowWrap: 'anywhere',
   }
   const num: CSSProperties = { ...cell, textAlign: 'right' }
+  const subtotalCell: CSSProperties = { ...cell, fontWeight: 700, backgroundColor: '#ebf8ff' }
+  const subtotalNum: CSSProperties = { ...num, fontWeight: 700, backgroundColor: '#ebf8ff' }
+  const totalCell: CSSProperties = { ...cell, fontWeight: 700, backgroundColor: '#e2e8f0' }
+  const totalNum: CSSProperties = { ...num, fontWeight: 700, backgroundColor: '#e2e8f0' }
+  const effectiveAmount = (row: DailyClosingSourceRow) => {
+    const key = dailyClosingAmountDraftKey(row)
+    const edited = drafts[key] ?? committedValues[key]
+    return edited
+      ? { quantity: row.quantity, unit: edited.unit, supply: edited.supply, vat: edited.vat, total: edited.total * row.quantity, price: edited.price, rate: edited.rate, grand: edited.total * row.quantity }
+      : {
+        quantity: row.quantity,
+        unit: Number(row.unitPriceWithVat ?? 0),
+        supply: Number(row.supplyAmount ?? 0),
+        vat: Number(row.vatAmount ?? 0),
+        total: Number(row.total ?? 0),
+        price: Number(row.productPrice ?? 0),
+        rate: Number(row.discountRate ?? 0),
+        grand: Number(row.grandTotal ?? 0),
+      }
+  }
+  const amountSummary = (summaryRows: DailyClosingSourceRow[]) => summaryRows.reduce((sum, row) => {
+    const amount = effectiveAmount(row)
+    return {
+      quantity: sum.quantity + amount.quantity,
+      unit: sum.unit + amount.unit,
+      supply: sum.supply + amount.supply,
+      vat: sum.vat + amount.vat,
+      total: sum.total + amount.total,
+      price: sum.price + amount.price,
+      rate: sum.rate + amount.rate,
+      grand: sum.grand + amount.grand,
+    }
+  }, { quantity: 0, unit: 0, supply: 0, vat: 0, total: 0, price: 0, rate: 0, grand: 0 })
+  const summaryRow = (
+    testId: string,
+    label: string,
+    summaryRows: DailyClosingSourceRow[],
+    summaryStyle: CSSProperties,
+    summaryNumStyle: CSSProperties,
+  ) => {
+    const summary = amountSummary(summaryRows)
+    return <tr data-testid={testId} style={{ backgroundColor: summaryStyle.backgroundColor }}>
+      <th colSpan={5} style={{ ...summaryStyle, textAlign: 'center', verticalAlign: 'middle' }}>{label}</th>
+      <th style={summaryNumStyle}>{formatLegacyNumber(summary.quantity)}</th>
+      <th style={summaryNumStyle}>{formatLegacyNumber(summary.unit)}</th>
+      <th style={summaryNumStyle}>{formatLegacyNumber(summary.supply)}</th>
+      <th style={summaryNumStyle}>{formatLegacyNumber(summary.vat)}</th>
+      <th style={summaryNumStyle}>{formatLegacyNumber(summary.total)}</th>
+      <th colSpan={2} style={summaryStyle} />
+      <th style={summaryNumStyle}>{formatLegacyNumber(summary.price)}</th>
+      <th style={summaryNumStyle}>{formatLegacyNumber(summary.rate)}</th>
+      <th style={summaryNumStyle}>{formatLegacyNumber(summary.grand)}</th>
+      <th style={summaryStyle} />
+      <th style={summaryStyle} />
+    </tr>
+  }
 
   return <div style={{ display: active ? undefined : 'none' }}>
     <Card style={{ marginBottom: 16 }}>
@@ -666,6 +719,18 @@ function EditableLegacyDailyClosingTable({
               {visible.map((row, index) => {
                 const merge = merges[index]!
                 const expandedRow = expanded === row.seqNo
+                const rowKey = row.slipDate + '_' + row.seqNo
+                const nextRow = visible[index + 1]
+                const isGroupEnd = !nextRow || rowKey !== nextRow.slipDate + '_' + nextRow.seqNo
+                const groupStart = (() => {
+                  let start = index
+                  while (start > 0) {
+                    const previous = visible[start - 1]!
+                    if (previous.slipDate + '_' + previous.seqNo !== rowKey) break
+                    start -= 1
+                  }
+                  return start
+                })()
                 return <Fragment key={row.slipDate + '-' + row.seqNo + '-' + index}>
                   <tr>
                     {mergedCell(row.dcCondition || '', 'DC', cell, merge)}
@@ -714,26 +779,20 @@ function EditableLegacyDailyClosingTable({
                       {expandedRow ? '상세 접기' : '상세 펼치기'}
                     </button>
                   </td></tr>
+                  {isGroupEnd ? summaryRow(
+                    'daily-closing-subtotal-row',
+                    '소계',
+                    visible.slice(groupStart, index + 1),
+                    subtotalCell,
+                    subtotalNum,
+                  ) : null}
                 </Fragment>
               })}
               {visible.length === 0 ? <tr><td colSpan={17} style={{ ...cell, textAlign: 'center', padding: 24 }}>
                 해당 탭의 원본행이 없습니다.
               </td></tr> : null}
             </tbody>
-            <tfoot><tr>
-              <th colSpan={5} style={{ ...cell, textAlign: 'right' }}>소계</th>
-              <th style={num}>{total('quantity')}</th>
-              <th style={num}>{total('unitPriceWithVat')}</th>
-              <th style={num}>{total('supplyAmount')}</th>
-              <th style={num}>{total('vatAmount')}</th>
-              <th style={num}>{total('total')}</th>
-              <th colSpan={2} style={cell} />
-              <th style={num}>{total('productPrice')}</th>
-              <th style={num}>{total('discountRate')}</th>
-              <th style={num}>{total('grandTotal')}</th>
-              <th style={cell} />
-              <th style={cell} />
-            </tr></tfoot>
+            <tfoot>{summaryRow('daily-closing-total-row', '합계', visible, totalCell, totalNum)}</tfoot>
           </table>
         </div>
       )}

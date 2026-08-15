@@ -294,4 +294,20 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
     expect(rate.parentElement?.style.display).toBe('inline-flex')
     expect(rate.nextElementSibling?.textContent).toBe('%')
   })
+
+  it('전표별 소계와 전체 합계가 서로 다른 실제 배경색으로 표시된다', async () => {
+    getDailyClosingRowsMock.mockResolvedValue([
+      ...parityRows,
+      { ...parityRows[0], seqNo: 48, productName: '두 번째 전표' },
+    ])
+    renderPage()
+
+    const table = await screen.findByTestId('daily-closing-table')
+    const subtotals = Array.from(table.querySelectorAll('[data-testid="daily-closing-subtotal-row"]')) as HTMLElement[]
+    const total = table.querySelector('[data-testid="daily-closing-total-row"]') as HTMLElement
+
+    expect(subtotals).toHaveLength(2)
+    expect(getComputedStyle(subtotals[0]!).backgroundColor).toBe('rgb(235, 248, 255)')
+    expect(getComputedStyle(total).backgroundColor).toBe('rgb(226, 232, 240)')
+  })
 })
