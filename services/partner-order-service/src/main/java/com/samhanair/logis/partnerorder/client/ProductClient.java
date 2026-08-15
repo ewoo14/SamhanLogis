@@ -11,6 +11,7 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
@@ -35,6 +36,7 @@ public class ProductClient {
     private final RestClient restClient;
     private final InternalAuthProperties internalAuthProperties;
 
+    @Autowired
     public ProductClient(@Qualifier("loadBalancedRestClientBuilder") RestClient.Builder builder,
                          InternalAuthProperties internalAuthProperties) {
         this.restClient = builder.baseUrl(PRODUCT_SERVICE_BASE).build();
