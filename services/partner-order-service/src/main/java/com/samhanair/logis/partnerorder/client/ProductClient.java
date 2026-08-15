@@ -200,6 +200,39 @@ public class ProductClient {
         }
     }
 
+    /** 주문서웹 confirm 전용 품목분류 조회. */
+    public List<ProductClassification> lookupClassificationsByModelCodes(List<String> modelCodes) {
+        Map<String, Object> body = Map.of("modelCodes", modelCodes);
+        try {
+            Map<String, Object> envelope = restClient.post()
+                    .uri("/products/internal/lookup-classifications-by-model-codes")
+                    .header(INTERNAL_TOKEN_HEADER, requireToken())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .retrieve()
+                    .onStatus(HttpStatusCode::isError, (req, res) -> {
+                        throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                                "품목분류 조회 실패: " + res.getStatusCode());
+                    })
+                    .body(new ParameterizedTypeReference<>() {});
+            Object data = envelope == null ? null : envelope.get("data");
+            if (!(data instanceof List<?> rawList)) {
+                throw new BusinessException(ErrorCode.INTERNAL_ERROR, "품목분류 응답 포맷 오류");
+            }
+            return rawList.stream().map(item -> {
+                @SuppressWarnings("unchecked") Map<String, Object> m = (Map<String, Object>) item;
+                return new ProductClassification((String) m.get("modelCode"),
+                        (String) m.get("productCategory"), (String) m.get("classificationL"),
+                        (String) m.get("classificationM"));
+            }).toList();
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (RuntimeException ex) {
+            log.error("ProductClient classification lookup failed: {}", ex.getMessage());
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "품목분류 조회 실패", ex);
+        }
+    }
+
     private ProductSummary toProductSummary(Object item) {
         @SuppressWarnings("unchecked")
         Map<String, Object> m = (Map<String, Object>) item;
@@ -231,9 +264,9 @@ public class ProductClient {
                 m.get("hasVariableDiscount") == null
                         ? null
                         : Boolean.valueOf(m.get("hasVariableDiscount").toString()),
-                 (String) m.get("physicalCategoryCode"),
-                 (String) m.get("discountOption"),
-                 Boolean.TRUE.equals(m.get("classificationAssigned")));
+                  (String) m.get("physicalCategoryCode"),
+                  (String) m.get("discountOption"),
+                  Boolean.TRUE.equals(m.get("classificationAssigned")));
     }
 
     private String requireToken() {
