@@ -49,18 +49,6 @@ public class DefaultDynamicPermissionClient implements DynamicPermissionClient {
     private final String callerServiceName;
     private final String gatewayAttestation;
 
-    public DefaultDynamicPermissionClient(RestClient.Builder loadBalancedBuilder, String internalToken, String callerServiceName) {
-        this(loadBalancedBuilder, AUTH_SERVICE_BASE, internalToken, callerServiceName);
-    }
-
-    public DefaultDynamicPermissionClient(
-            RestClient.Builder builder,
-            String authServiceBaseUrl,
-            String internalToken,
-            String callerServiceName) {
-        this(builder, authServiceBaseUrl, internalToken, callerServiceName, "");
-    }
-
     public DefaultDynamicPermissionClient(
             RestClient.Builder builder,
             String authServiceBaseUrl,

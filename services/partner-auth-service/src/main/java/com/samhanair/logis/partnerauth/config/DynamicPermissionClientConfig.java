@@ -38,11 +38,13 @@ public class DynamicPermissionClientConfig {
     public DynamicPermissionClient dynamicPermissionClient(
             @Value("${samhan.auth-service.url:http://localhost:8081}") String authServiceBaseUrl,
             @Value("${app.security.internal.token:}") String internalToken,
-            @Value("${spring.application.name:partner-auth-service}") String applicationName) {
+            @Value("${spring.application.name:partner-auth-service}") String applicationName,
+            @Value("${SAMHAN_GATEWAY_ATTESTATION:}") String gatewayAttestation) {
         return new DefaultDynamicPermissionClient(
                 RestClient.builder(),
                 authServiceBaseUrl,
                 internalToken,
-                applicationName);
+                applicationName,
+                gatewayAttestation);
     }
 }
