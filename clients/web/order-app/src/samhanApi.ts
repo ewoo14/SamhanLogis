@@ -258,7 +258,8 @@ function apiErrorMessage(error: unknown): string {
 
 function confirmHeaders(order: unknown): { headers: { 'X-Biz-Code': string } } {
   const bizCode = order && typeof order === 'object'
-    ? String((order as { bizno?: unknown }).bizno ?? '').trim()
+    ? String((order as { bizno?: unknown; custCode?: unknown }).bizno
+      ?? (order as { custCode?: unknown }).custCode ?? '').trim()
     : ''
   if (!bizCode) throw new Error('주문 사업자번호가 없습니다')
   return { headers: { 'X-Biz-Code': bizCode } }

@@ -74,4 +74,20 @@ class PartnerOrderLineSupplyVatTest {
         assertThat(line.getVatAmount()).isEqualByComparingTo("72728");
         assertThat(line.getLineTotal()).isEqualByComparingTo("800000");
     }
+
+    @Test
+    @DisplayName("레거시 주문서웹 VAT 포함 110005원은 공급가 100005원·VAT 10000원이고 음수 부호를 보존한다")
+    void legacyPriceUsesLegacyVatRoundingAndNegativeSign() {
+        PartnerOrderLine positive = PartnerOrderLine.createFromLegacyPrice(
+                UUID.randomUUID(), "LEGACY", "품목", "singleSets", 1,
+                new java.math.BigDecimal("110005"), null);
+        PartnerOrderLine negative = PartnerOrderLine.createFromLegacyPrice(
+                UUID.randomUUID(), "LEGACY-NEG", "품목", "singleSets", 1,
+                new java.math.BigDecimal("-110005"), null);
+
+        assertThat(positive.getSupplyAmount()).isEqualByComparingTo("100005");
+        assertThat(positive.getVatAmount()).isEqualByComparingTo("10000");
+        assertThat(negative.getSupplyAmount()).isEqualByComparingTo("-100005");
+        assertThat(negative.getVatAmount()).isEqualByComparingTo("-10000");
+    }
 }

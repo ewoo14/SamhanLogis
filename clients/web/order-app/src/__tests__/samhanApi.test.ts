@@ -509,6 +509,30 @@ describe('samhanApi.call', () => {
     expect(result).toEqual({ ok: false, orderNo: null, error: '주문 사업자번호가 없습니다' });
   });
 
+  it('bizno가 없어도 레거시 거래처코드(custCode) fallback으로 확정한다', async () => {
+    const order = { custCode: 'CUST-001' };
+    mocks.post
+      .mockResolvedValueOnce({
+        data: { success: true, data: { draftId: '33333333-3333-3333-3333-333333333333' } },
+      })
+      .mockResolvedValueOnce({
+        data: { success: true, data: { orderNo: '2026/08/16-3' } },
+      });
+
+    const result = await samhanApi.call('sendOrderFromUi', [
+      [{ section: 'HOME', model: 'HM-1', qty: 1 }],
+      order,
+    ]);
+
+    expect(mocks.post).toHaveBeenNthCalledWith(
+      2,
+      '/partner-orders/33333333-3333-3333-3333-333333333333/confirm',
+      expect.anything(),
+      { headers: { 'X-Biz-Code': 'CUST-001' } },
+    );
+    expect(result).toEqual({ ok: true, orderNo: '2026/08/16-3', error: null });
+  });
+
   /** ubuntu-latest에서 axios mock rejection의 서버 사유가 반환되는지 검증한다. */
   it('draft 또는 confirm 실패 시 서버 사유를 반환한다', async () => {
     mocks.post.mockRejectedValueOnce({

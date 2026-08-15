@@ -20,4 +20,12 @@ describe('S-03 shadow과 legacy 사용자 계산 경계', () => {
       manualLock: true,
     });
   });
+
+  it('원품 수량이 4이면 수동 수정된 자동 부속 77을 공식값 4로 재계산한다', () => {
+    expect(runLegacyS03({ sourceQuantity: 4, manualQuantity: 77 })).toEqual({
+      sourceQuantity: 4,
+      targetQuantity: 4,
+      manualLock: false,
+    });
+  });
 });

@@ -138,7 +138,7 @@ public class PartnerOrderLine extends BaseEntity {
         if (quantity <= 0) {
             throw new IllegalArgumentException("quantity 는 1 이상");
         }
-        if (priceVat == null || priceVat.signum() < 0) {
+        if (priceVat == null) {
             throw new IllegalArgumentException("priceVat 는 0 이상");
         }
         this.productId = productId;
@@ -161,6 +161,30 @@ public class PartnerOrderLine extends BaseEntity {
                                           String remark) {
         return createFromAuthoritativeAmounts(productId, modelName, productName, categoryKey,
                 quantity, priceVat, null, null, null, AmountAuthority.PRICE, remark);
+    }
+
+    /** 레거시 주문서웹 가격행 — VAT 포함 합계를 절대값 기준 HALF_UP으로 분리하고 음수를 허용한다. */
+    public static PartnerOrderLine createFromLegacyPrice(UUID productId, String modelName,
+                                                          String productName, String categoryKey,
+                                                          int quantity, BigDecimal priceVat,
+                                                          String remark) {
+        validateQuantity(quantity);
+        if (priceVat == null) throw new IllegalArgumentException("priceVat 필수");
+        BigDecimal total = priceVat.multiply(BigDecimal.valueOf(quantity));
+        VatAmountCalculator.Split positiveSplit = VatAmountCalculator.splitVatInclusive(
+                total.abs(), RoundingMode.HALF_UP);
+        VatAmountCalculator.Split split = total.signum() < 0
+                ? new VatAmountCalculator.Split(positiveSplit.supplyAmount().negate(),
+                        positiveSplit.vatAmount().negate(), total)
+                : positiveSplit;
+        PartnerOrderLine line = new PartnerOrderLine(productId, modelName, productName,
+                categoryKey, quantity, priceVat, remark);
+        line.subtotal = total;
+        line.supplyAmount = split.supplyAmount();
+        line.vatAmount = split.vatAmount();
+        line.amountAuthority = AmountAuthority.PRICE;
+        line.validateStorableAmounts();
+        return line;
     }
 
     /**

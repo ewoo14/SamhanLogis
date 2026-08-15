@@ -5608,7 +5608,12 @@ function setSingleDerivedQty_(candidate, fallback, quantity, reason){
   const actual = String(candidate || '').trim();
   const target = actual || String(fallback || '').trim();
   if(!actual && Number(quantity) > 0) noteSingleCatalogMissing_(target, reason);
-  if(actual) setDerivedQty('single', singleQty, actual, quantity);
+  if(actual){
+    // 레거시는 원품 재계산 시 자동 부속의 수동 override도 공식값으로 덮어쓴다.
+    if(typeof DERIVED_QTY_TARGETS !== 'undefined') DERIVED_QTY_TARGETS.single?.add?.(actual);
+    if(typeof MANUAL_QTY_LOCKS !== 'undefined') MANUAL_QTY_LOCKS.single?.delete?.(actual);
+    singleQty.set(actual, Math.max(0, Math.round(Number(quantity) || 0)));
+  }
   return target;
 }
 

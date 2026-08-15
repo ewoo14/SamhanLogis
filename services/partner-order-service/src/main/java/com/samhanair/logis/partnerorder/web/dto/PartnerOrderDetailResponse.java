@@ -95,8 +95,8 @@ public record PartnerOrderDetailResponse(
                 order.getSlipNo(),
                 order.getModifiedAt(),
                 order.getDeliveryAddress(),
-                null,
-                null,
+                order.getAuditAddress(),
+                order.getContactPhone(),
                 order.getDueDate() == null ? null : order.getDueDate().toString(),
                 order.getMemo(),
                 order.getLines().stream()
