@@ -5,10 +5,13 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.samhanair.logis.auth.menu.MenuCatalog;
 import com.samhanair.logis.auth.service.AccountPermissionService;
 import com.samhanair.logis.auth.service.DynamicPermissionService;
 import com.samhanair.logis.security.permission.PermissionAction;
+import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -91,7 +94,12 @@ class MenuCatalogControllerTest {
                 .andReturn().getResponse();
 
         JsonNode data = objectMapper.readTree(response.getContentAsString()).get("data");
-        assertThat(data).hasSize(97);
+        List<String> actualRoutes = new ArrayList<>();
+        data.forEach(node -> actualRoutes.add(node.get("route").asText()));
+        List<String> officialRoutes = MenuCatalog.entries().stream()
+                .map(entry -> entry.route())
+                .toList();
+        assertThat(actualRoutes).containsExactlyElementsOf(officialRoutes);
         assertThat(response.getContentAsString()).doesNotContain("/arologis/manual");
     }
 }
