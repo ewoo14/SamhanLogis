@@ -16,6 +16,10 @@
  */
 import { NavLink } from 'react-router-dom'
 import styles from './sales.module.css'
+import {
+  MISSING_SALES_EXTERNAL_URL_MESSAGE,
+  resolveSalesExternalUrl,
+} from './salesExternalUrl'
 
 const ITEMS = [
   { to: '/sales/estimates', label: '견적서 관리' },
@@ -29,24 +33,29 @@ const ITEMS = [
  * 거래처(파트너) 가 사업자번호 로그인으로 직접 사용하는 외부 웹앱.
  * 데스크탑 사용자는 새 브라우저 창에서 열어 본인 직원 동작이 아닌 거래처 입장에서 확인한다.
  *
- * URL 은 Vite 빌드 시 환경변수로 주입:
- *   VITE_WEB_ESTIMATE_URL — 웹 종합견적서 origin (기본값: http://localhost:5183)
- *   VITE_WEB_ORDER_URL    — 웹 주문서 origin (기본값: http://localhost:5180)
- * production 빌드 시 실제 도메인 (https://order.samhan-air.com 등) 으로 override.
+ * URL 은 Vite 빌드 시 환경변수로 주입한다.
+ *   VITE_WEB_ESTIMATE_URL — 웹 종합견적서 origin (운영: https://estimate.samhan-air.com/)
+ *   VITE_WEB_ORDER_URL    — 웹 주문서 origin (운영: https://order.samhan-air.com)
+ * dev 빌드에서만 로컬 fallback 을 사용하며, 운영 빌드의 누락은 명시적으로 실패한다.
  */
 const EXTERNAL_ITEMS = [
   {
-    url: import.meta.env.VITE_WEB_ESTIMATE_URL ?? 'http://localhost:5183',
+    url: resolveSalesExternalUrl(import.meta.env.VITE_WEB_ESTIMATE_URL, import.meta.env.DEV, 'http://localhost:5183'),
     label: '웹 종합견적서',
   },
   {
-    url: import.meta.env.VITE_WEB_ORDER_URL ?? 'http://localhost:5180',
+    url: resolveSalesExternalUrl(import.meta.env.VITE_WEB_ORDER_URL, import.meta.env.DEV, 'http://localhost:5180'),
     label: '웹 주문서',
   },
 ]
 
 export function SalesSubNav() {
-  const openExternal = (url: string) => {
+  const openExternal = (url: string | undefined) => {
+    if (!url) {
+      window.alert(MISSING_SALES_EXTERNAL_URL_MESSAGE)
+      console.error('[SalesSubNav] 외부 웹앱 URL 미설정')
+      return
+    }
     const bridge = window.samhanLegacy
     if (!bridge) {
       // 웹(비-Electron) 빌드에는 preload 브리지(samhanLegacy)가 없다 → 새 탭 폴백.
@@ -100,7 +109,7 @@ export function SalesSubNav() {
         </span>
         {EXTERNAL_ITEMS.map((item) => (
           <button
-            key={item.url}
+            key={item.label}
             type="button"
             onClick={() => openExternal(item.url)}
             title={`${item.label} — 거래처가 직접 사용하는 외부 웹앱 (새 브라우저 창)`}
