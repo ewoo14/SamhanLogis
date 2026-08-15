@@ -49,7 +49,7 @@ BUILD SUCCESSFUL in 1m 3s
 ## 구현 요지
 
 - `OrderWarehouseByClassification`은 빈 주문/무적중을 `00003`, 하나라도 exact 분류 적중을 전체 `2`로 판정한다.
-- 분류 누락·미지는 확정을 막지 않고 `Decision.unclassifiedModels` 경고로 드러낸다.
+- 분류 누락·미지는 확정을 막지 않고 `Decision.unclassifiedModels` 경고로 드러낸다. 정상 분류값이지만 9조건에 비적중인 품목은 미분류로 기록하지 않는다.
 - `PartnerOrderConfirmService.confirm`에서만 분류 lookup과 판정을 호출한다. 판정 결과는 확정 history payload의 `warehouseCode`와 실행 로그에 남긴다.
 - 레거시와 달라질 수 있는 32개 모델은 실행 시 모델코드와 분류값을 UUID 없이 로그로 식별한다. 창고 값을 별도로 임의 변경하지 않았다.
 
@@ -83,15 +83,18 @@ BUILD SUCCESSFUL in 1m 3s
 | distinct `model_name` | 6 |
 | 첫 주문 생성 | 2026-06-08 |
 | 마지막 주문 생성 | 2026-08-07 |
-| product DB에서 모델코드 매칭 | 3 |
-| 그중 `catM` 없음 | 2 (`AR-EH05`, `AXJ-YA2512N`) |
-| product DB 미매칭 모델 | 3 |
+| product DB에서 모델 매칭 | 4 |
+| 그중 `catM` 없음 | 2 |
+| product DB 미매칭 모델 | 2 |
+| `products` 비삭제 전체 / `status=ACTIVE` | 3,084 / 2,982 |
 
-주문 모델은 `AJ060MXHNBC1`(HOME, L/M 있음), `AR-EH05`(SINGLE, M 없음), `AXJ-YA2512N`(HOME, M 없음), `AR05TXEAAWKNEU-11`, `AR15TXEAAWKNEU-07`, `AWR-WE13`(product DB 미매칭)이다.
+주문 모델은 `AJ060MXHNBC1`, `AR-EH05`, `AXJ-YA2512N`, `AR05TXEAAWKNEU-11`, `AR15TXEAAWKNEU-07`, `AWR-WE13N`이다. 검증자 대조 결과는 distinct 6, 매칭 4, 미매칭 2, 매칭 중 `catM` 없음 2다. `AWR-WE13` 표기는 실제 주문 모델인 `AWR-WE13N`으로 정정했다.
 
 ### 정정 정책
 
-미분류·미지 분류·product lookup 미매칭은 확정을 막지 않는다. 레거시 `some` 기준에서 known hit가 아니므로 창고 판정에는 적중시키지 않고 `00003` 기본값에 둔다. 대신 `Decision.unclassifiedModels`와 `unclassifiedCount`를 만들고, confirm 실행 로그 및 history payload에 모델코드와 건수를 기록한다. 이 정책은 업무적으로 확인이 필요한 가정으로 보고하며, 개발책임자가 다른 창고 정책을 정하면 판정기 한 곳만 변경하면 된다.
+미분류·미지 분류·product lookup 미매칭은 창고 판정 단계에서 확정을 막지 않는다. 레거시 `some` 기준에서 known hit가 아니므로 창고 판정에는 적중시키지 않고 `00003` 기본값에 둔다. 정상 분류값이 있는 비적중 품목은 미분류 목록에 넣지 않는다. 대신 실제 미분류만 `Decision.unclassifiedModels`와 `unclassifiedCount`로 만들고 confirm 실행 로그 및 history payload에 모델코드와 건수를 기록한다.
+
+단, 가격 계산 단계의 상품 미매칭은 별도 계약이다. `PartnerOrderPriceCalculationService.calculate()`가 분류 판정보다 먼저 `lookupByModelCodes` 결과가 없는 라인에 `BusinessException(NOT_FOUND, "제품 카탈로그 없음: <modelCode>")`을 던진다. `git blame`과 이력상 이 방어선은 `6a219fa8a7`(2026-08-12)에 도입되었고, 상품 식별·가격표·할인·서버 DC를 근거 없이 계산하거나 가격 없는 주문을 저장하지 못하게 하는 목적이다. 따라서 이번 수정에서 이 예외를 풀지 않았다. 즉 “상품 DB 미매칭도 주문 확정 허용”은 창고 판정 단계에는 성립하지만, 현재 가격 계약까지 포함한 전체 주문 확정에는 성립하지 않는다. 가격을 못 구하는 품목을 확정할지 여부는 업무 결정이 필요하다.
 
 ### 정정 RED 원문
 
@@ -113,4 +116,26 @@ FAILURE: There were failing tests
 
 BUILD SUCCESSFUL in 51s
 15 actionable tasks: 2 executed, 13 up-to-date
+```
+
+### 정상 분류 비적중 오기록 회귀
+
+`AJ060MXHNBC1`(HOME_MULTI/실외기/단배관)과 `AWR-WE13N`(HOME_MULTI/부자재/리모컨)은 실제 분류가 존재하지만 9조건에 적중하지 않는다. 기존 구현은 적중 목록에 없다는 이유만으로 미분류로 기록했다. `classificationAssigned`를 product-service snapshot에 포함하고, 존재·유효한 분류와 미존재/미지 분류를 분리했다. 이에 따라 두 모델은 `00003`이면서 `unclassifiedModels=[]`다.
+
+이번 회귀의 RED 원문은 위 RED 실행에서 새 5필드 `Item` 생성자가 없어 컴파일 실패한 상태다.
+
+```text
+OrderWarehouseByClassificationTest.java:102: error: constructor Item in record Item cannot be applied to given types
+  required: String,String,String,String
+  found:    String,String,String,String,boolean
+BUILD FAILED
+```
+
+수정 후 GREEN 원문:
+
+```text
+./gradlew --no-daemon :services:partner-order-service:test --tests '*OrderWarehouseByClassificationTest'
+
+BUILD SUCCESSFUL in 1m 11s
+15 actionable tasks: 3 executed, 12 up-to-date
 ```

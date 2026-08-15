@@ -49,22 +49,11 @@ public final class OrderWarehouseByClassification {
 
     private boolean isMissingOrUnknown(Item item) {
         if (item == null || blank(item.modelCode()) || blank(item.productCategory())
-                || blank(item.catL()) || blank(item.catM())) {
+                || !item.classificationAssigned() || blank(item.catL()) || blank(item.catM())) {
             return true;
         }
         if (!KNOWN_PRODUCT_CATEGORIES.contains(item.productCategory())) {
             return true;
-        }
-        if ("HOME_MULTI".equals(item.productCategory())) {
-            return !HOME_HITS.contains(normalize(item.catL()) + "|" + normalize(item.catM()));
-        }
-        if ("SINGLE_SET".equals(item.productCategory()) || "SINGLE_PART".equals(item.productCategory())) {
-            String l = normalize(item.catL());
-            return !SINGLE_HIT_L.contains(l) && !SINGLE_HIT_PAIRS.contains(l + "|" + normalize(item.catM()))
-                    && !Set.of("4way 냉난방", "냉난방 스탠드", "4way 냉방전용", "1way 냉방전용",
-                    "냉전 스탠드", "냉전 벽걸이", "1way 냉난방", "덕트", "비스포크 스탠드",
-                    "냉난방 벽걸이", "가정용 에어컨").contains(l)
-                    && !"360".equals(l);
         }
         return false;
     }
@@ -72,7 +61,12 @@ public final class OrderWarehouseByClassification {
     private static String normalize(String value) { return value == null ? "" : value.trim(); }
     private static boolean blank(String value) { return value == null || value.isBlank(); }
 
-    public record Item(String modelCode, String productCategory, String catL, String catM) { }
+    public record Item(String modelCode, String productCategory, String catL, String catM,
+                       boolean classificationAssigned) {
+        public Item(String modelCode, String productCategory, String catL, String catM) {
+            this(modelCode, productCategory, catL, catM, !blank(catL) || !blank(catM));
+        }
+    }
     public record Decision(String warehouseCode, List<String> unclassifiedModels) {
         public int unclassifiedCount() { return unclassifiedModels.size(); }
     }

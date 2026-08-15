@@ -227,7 +227,7 @@ public class PartnerOrderConfirmService {
             String modelCode = modelCodeSnapshot(line.product());
             ProductClassification classification = byModelCode.get(modelCode);
             if (classification == null) {
-                return new OrderWarehouseByClassification.Item(modelCode, null, null, null);
+                return new OrderWarehouseByClassification.Item(modelCode, null, null, null, false);
             }
             if (LEGACY_CLASSIFICATION_DIFF_MODELS.contains(modelCode)) {
                 log.info("order-warehouse classification diff candidate: modelCode={}, productCategory={}, catL={}, catM={}",
@@ -235,7 +235,8 @@ public class PartnerOrderConfirmService {
                         classification.classificationM());
             }
             return new OrderWarehouseByClassification.Item(modelCode, classification.productCategory(),
-                    classification.classificationL(), classification.classificationM());
+                    classification.classificationL(), classification.classificationM(),
+                    classification.classificationAssigned());
         }).toList();
         OrderWarehouseByClassification.Decision decision = new OrderWarehouseByClassification().decide(items);
         if (decision.unclassifiedCount() > 0) {

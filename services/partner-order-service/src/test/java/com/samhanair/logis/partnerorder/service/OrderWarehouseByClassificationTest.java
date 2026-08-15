@@ -1,7 +1,6 @@
 package com.samhanair.logis.partnerorder.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -49,6 +48,24 @@ class OrderWarehouseByClassificationTest {
     }
 
     @Test
+    void classifiedHomeMultiNonHit_isNotRecordedAsUnclassified() {
+        OrderWarehouseByClassification.Decision decision = new OrderWarehouseByClassification().decide(
+                List.of(item("AJ060MXHNBC1", "HOME_MULTI", "실외기", "단배관", true)));
+
+        assertThat(decision.warehouseCode()).isEqualTo("00003");
+        assertThat(decision.unclassifiedModels()).isEmpty();
+    }
+
+    @Test
+    void classifiedHomeAccessoryNonHit_isNotRecordedAsUnclassified() {
+        OrderWarehouseByClassification.Decision decision = new OrderWarehouseByClassification().decide(
+                List.of(item("AWR-WE13N", "HOME_MULTI", "부자재", "리모컨", true)));
+
+        assertThat(decision.warehouseCode()).isEqualTo("00003");
+        assertThat(decision.unclassifiedModels()).isEmpty();
+    }
+
+    @Test
     void missingClassification_defaultsButReturnsVisibleWarning() {
         OrderWarehouseByClassification.Decision decision = new OrderWarehouseByClassification().decide(
                 List.of(item("UNKNOWN-CLASSIFICATION", "SINGLE_SET", null, null)));
@@ -60,7 +77,7 @@ class OrderWarehouseByClassificationTest {
     @Test
     void unknownClassification_defaultsButReturnsVisibleWarning() {
         OrderWarehouseByClassification.Decision decision = new OrderWarehouseByClassification().decide(
-                List.of(item("UNKNOWN-CLASSIFICATION", "SINGLE_SET", "신규분류", "미지")));
+                List.of(item("UNKNOWN-CLASSIFICATION", "SINGLE_SET", "신규분류", "미지", false)));
 
         assertThat(decision.warehouseCode()).isEqualTo("00003");
         assertThat(decision.unclassifiedModels()).containsExactly("UNKNOWN-CLASSIFICATION");
@@ -77,5 +94,12 @@ class OrderWarehouseByClassificationTest {
     private static OrderWarehouseByClassification.Item item(
             String modelCode, String productCategory, String catL, String catM) {
         return new OrderWarehouseByClassification.Item(modelCode, productCategory, catL, catM);
+    }
+
+    private static OrderWarehouseByClassification.Item item(
+            String modelCode, String productCategory, String catL, String catM,
+            boolean classificationAssigned) {
+        return new OrderWarehouseByClassification.Item(
+                modelCode, productCategory, catL, catM, classificationAssigned);
     }
 }

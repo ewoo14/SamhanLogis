@@ -223,7 +223,8 @@ public class ProductClient {
                 @SuppressWarnings("unchecked") Map<String, Object> m = (Map<String, Object>) item;
                 return new ProductClassification((String) m.get("modelCode"),
                         (String) m.get("productCategory"), (String) m.get("classificationL"),
-                        (String) m.get("classificationM"));
+                        (String) m.get("classificationM"),
+                        Boolean.TRUE.equals(m.get("classificationAssigned")));
             }).toList();
         } catch (BusinessException ex) {
             throw ex;
