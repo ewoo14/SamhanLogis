@@ -52,6 +52,9 @@ class SlipQueryServiceTest {
     @Mock
     private UserInternalClient userInternalClient;
 
+    @Mock
+    private DailyClosingSourceResolver dailyClosingSourceResolver;
+
     @InjectMocks
     private SlipQueryService service;
 
@@ -135,6 +138,8 @@ class SlipQueryServiceTest {
         }
         when(slipRepository.findDailyClosingOutboundSlips(any(), anyCollection()))
                 .thenReturn(List.of(slips));
+        when(dailyClosingSourceResolver.resolve(any(), any()))
+                .thenReturn(new DailyClosingRowResponse.SourceValues(null, null, null, "원천 미확보"));
 
         List<DailyClosingRowResponse> rows = dailyClosingQueryService.findRows(
                 LocalDate.of(2026, 8, 14));
@@ -163,6 +168,8 @@ class SlipQueryServiceTest {
         ReflectionTestUtils.setField(slip, "lines", List.of(line));
         when(slipRepository.findDailyClosingOutboundSlips(any(), anyCollection()))
                 .thenReturn(List.of(slip));
+        when(dailyClosingSourceResolver.resolve(any(), any()))
+                .thenReturn(new DailyClosingRowResponse.SourceValues(null, null, null, "원천 미확보"));
 
         DailyClosingRowResponse row = dailyClosingQueryService
                 .findRows(LocalDate.of(2026, 8, 14)).get(0);
@@ -171,8 +178,37 @@ class SlipQueryServiceTest {
         assertThat(row.quantity()).isEqualTo(2);
         assertThat(row.unitPriceWithVat()).isEqualByComparingTo("1100");
         assertThat(row.total()).isEqualByComparingTo("2200");
+        assertThat(row.grandTotal()).isEqualByComparingTo("2200");
         assertThat(row.confirmation()).isEqualTo(DailyClosingRowResponse.Confirmation.UNDETERMINED);
         assertThat(row.confirmationReason()).contains("원천");
+    }
+
+    @Test
+    void 일마감_원본행은_정가_DC조건_할인율_총계_postedAt을_원천값으로_채운다() {
+        Slip slip = slip("2026/08/14-100", "dev_sales");
+        ReflectionTestUtils.setField(slip, "status", SlipStatus.CONFIRMED);
+        SlipLine line = mock(SlipLine.class);
+        when(line.getProductName()).thenReturn("품목 B");
+        when(line.getQuantity()).thenReturn(2);
+        when(line.getUnitPriceWithVat()).thenReturn(new java.math.BigDecimal("800"));
+        when(line.getSupplyAmount()).thenReturn(new java.math.BigDecimal("1454.55"));
+        when(line.getVatAmount()).thenReturn(new java.math.BigDecimal("145.45"));
+        ReflectionTestUtils.setField(slip, "lines", List.of(line));
+
+        DailyClosingRowResponse row = DailyClosingRowResponse.from(slip, line,
+                new DailyClosingRowResponse.SourceValues(
+                        new java.math.BigDecimal("1000"),
+                        "홈45%&상업46% / 360 -3만",
+                        java.time.LocalDateTime.of(2026, 8, 14, 11, 47),
+                        null));
+
+        assertThat(row.productPrice()).isEqualByComparingTo("1000");
+        assertThat(row.discountRate()).isEqualByComparingTo("20");
+        assertThat(row.grandTotal()).isEqualByComparingTo("1600");
+        assertThat(row.dcAmount()).isEqualByComparingTo("200");
+        assertThat(row.dcCondition()).isEqualTo("홈45%&상업46% / 360 -3만");
+        assertThat(row.accountingPostedAt()).isEqualTo(java.time.LocalDateTime.of(2026, 8, 14, 11, 47));
+        assertThat(row.confirmation()).isEqualTo(DailyClosingRowResponse.Confirmation.CONFIRMED);
     }
 
     private Page<SlipResponse> query() {

@@ -26,6 +26,7 @@ public record DcConfigResponse(
         @Schema(description = "1등급 옵션 정액 DC") BigDecimal discountFirstGradeAmount,
         @Schema(description = "단가 반올림 단위 (원)") Integer unitRoundTo,
         @Schema(description = "단가 반올림 모드") UnitRoundMode unitRoundMode,
+        @Schema(description = "단위처리 사용 여부") Boolean unitProcessingEnabled,
         @Schema(description = "시드 출처") DcConfigSource source,
         @Schema(description = "비고") String note
 ) {
@@ -44,6 +45,7 @@ public record DcConfigResponse(
                 config.getDiscountFirstGradeAmount(),
                 config.getUnitRoundTo(),
                 config.getUnitRoundMode(),
+                config.getUnitProcessingEnabled(),
                 config.getSource(),
                 config.getNote()
         );

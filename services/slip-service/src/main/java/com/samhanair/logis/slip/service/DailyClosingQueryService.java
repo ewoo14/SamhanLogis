@@ -21,6 +21,7 @@ public class DailyClosingQueryService {
             SlipStatus.CONFIRMED, SlipStatus.DELIVERED, SlipStatus.COMPLETED);
 
     private final SlipRepository slipRepository;
+    private final DailyClosingSourceResolver sourceResolver;
 
     public List<DailyClosingRowResponse> findRows(LocalDate slipDate) {
         if (slipDate == null) {
@@ -29,7 +30,7 @@ public class DailyClosingQueryService {
         return slipRepository.findDailyClosingOutboundSlips(slipDate, INCLUDED_STATUSES).stream()
                 .filter(slip -> INCLUDED_STATUSES.contains(slip.getStatus()))
                 .flatMap(slip -> slip.getLines().stream()
-                        .map(line -> DailyClosingRowResponse.from(slip, line)))
+                        .map(line -> DailyClosingRowResponse.from(slip, line, sourceResolver.resolve(slip, line))))
                 .toList();
     }
 }
