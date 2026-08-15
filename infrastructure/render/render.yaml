@@ -39,6 +39,8 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "20"
+      - key: ORDER_APP_ORIGIN
+        value: https://order.samhan-air.com
       - key: NODE_ENV
         value: production
       # 릴리스 wrapper는 명시 버전 없이는 Render build/start를 통과시키지 않는다.
@@ -131,5 +133,7 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "20"
+      - key: VITE_ESTIMATE_APP_URL
+        value: https://quote.samhan-air.com
       - key: VITE_SAMHAN_BACKEND_BASE_URL
         sync: false

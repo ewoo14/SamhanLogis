@@ -18206,7 +18206,7 @@ function renderSnapshotTable(list) {
       year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false
     }).format(d);
 
-    const previewBtn = safeEstimateImageSrc(item.image) ? '<button class="btn-mini" style="padding:6px 12px; font-size:13px; background:#f59e0b; color:#fff; border:none;" onclick="showSnapshotPreview(' + index + ')">보기</button>' : '<span style="color:#aaa; font-size:12px;">없음</span>';
+    const previewBtn = (safeEstimateImageSrc(item.image) || item.data) ? '<button class="btn-mini" style="padding:6px 12px; font-size:13px; background:#f59e0b; color:#fff; border:none;" onclick="showSnapshotPreview(' + index + ')">보기</button>' : '<span style="color:#aaa; font-size:12px;">없음</span>';
 
     html += '<tr style="border-bottom:1px solid #eee;">' +
               '<td style="padding:15px; color:#374151;">' + escapeEstimateHtml(dateStr) + '</td>' +
@@ -18231,11 +18231,39 @@ window.restoreSnapshot = function(index) {
 /* 견적 미리보기 이미지 팝업 */
 function showSnapshotPreview(index) {
   const item = window.loadedSnapshotData[index];
-  if (!item || !item.image) {
+  if (!item) {
     alert('저장된 미리보기 이미지가 없습니다.');
     return;
   }
   logAction('조회', '저장내역 미리보기 - ' + (item.custName || '미상'));
+
+  // V100 이후에는 preview_image를 저장하지 않는다. 원본 snapshot_state를
+  // 임시 DOM으로 복원해 이미지 없이도 동일한 저장 상태를 확인한다.
+  if (!safeEstimateImageSrc(item.image) && item.data) {
+    const state = decodeSnapshotState(item.data);
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:230000;display:flex;align-items:center;justify-content:center;padding:20px;';
+    const box = document.createElement('div');
+    box.style.cssText = 'background:#fff;max-width:900px;width:100%;max-height:90vh;overflow:auto;border-radius:12px;padding:20px;';
+    const title = document.createElement('h3');
+    title.textContent = (item.custName || '저장된 견적') + ' — 저장 상태 미리보기';
+    const pre = document.createElement('pre');
+    pre.style.cssText = 'white-space:pre-wrap;word-break:break-word;background:#f8fafc;padding:14px;border-radius:8px;font-size:12px;';
+    pre.textContent = JSON.stringify(state || {}, null, 2);
+    const close = document.createElement('button');
+    close.className = 'btn';
+    close.textContent = '닫기';
+    close.onclick = () => overlay.remove();
+    box.append(title, pre, close);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+    return;
+  }
+
+  if (!safeEstimateImageSrc(item.image)) {
+    alert('저장된 미리보기 이미지가 없습니다.');
+    return;
+  }
   
   const overlay = document.createElement('div');
   overlay.style.position = 'fixed';

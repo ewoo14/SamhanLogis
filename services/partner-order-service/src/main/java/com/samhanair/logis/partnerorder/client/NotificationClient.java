@@ -66,6 +66,19 @@ public class NotificationClient {
                 "body", safeTruncate(body, 2000)));
     }
 
+    /** 주문 확정 후 외부 거래처 확인 메일을 notification-service에 기록·전달한다. */
+    public void sendExternalEmail(String recipientAddress, String subject, String body) {
+        if (recipientAddress == null || recipientAddress.isBlank()) {
+            return;
+        }
+        sendInternal(Map.of(
+                "recipientType", "EXTERNAL_EMAIL",
+                "recipientAddress", safeTruncate(recipientAddress, 200),
+                "channel", "EMAIL",
+                "subject", safeTruncate(subject, 200),
+                "body", safeTruncate(body, 2000)));
+    }
+
     private void sendInternal(Map<String, Object> requestBody) {
         String token = internalAuthProperties.getToken();
         if (token == null || token.isBlank()) {

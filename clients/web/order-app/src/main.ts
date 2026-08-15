@@ -85,6 +85,20 @@ window.__SAMHAN_QUANTITY_SYNC__ = {
 // ─── 1) shim 동기 설치 + head 선주입 bootstrap 보존 ───
 installLegacyShim(window.__SAMHAN_BOOTSTRAP__ || {})
 
+// 네이버 자격증명은 estimate-app 서버에만 있으므로, 서버가 활성화한 경우에만
+// 정적 주문서의 네이버 버튼을 노출한다. 조회 실패도 숨은 기본값으로 삼지 않는다.
+void samhanApi
+  .fetchAddressSearchStatus()
+  .then((status) => {
+    document.dispatchEvent(new CustomEvent('samhan:address-search-capability', { detail: status }))
+  })
+  .catch((error: unknown) => {
+    console.warn('[v4 main] 주소검색 서버 확인 실패', error)
+    document.dispatchEvent(new CustomEvent('samhan:address-search-capability', {
+      detail: { enabled: false, error: '네이버 주소검색 서버를 확인할 수 없습니다.' },
+    }))
+  })
+
 void mountOrderVersionGate({
   currentVersion: CURRENT_VERSION,
   apiBaseUrl: VERSION_API_BASE_URL,

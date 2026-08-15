@@ -182,6 +182,7 @@ public class NotificationHistorySeeder implements CommandLineRunner {
             case USER -> "USER_NOTI";
             case PARTNER -> "PARTNER_NOTI";
             case EXTERNAL_PHONE -> "OTP_SMS";
+            case EXTERNAL_EMAIL -> "EXTERNAL_EMAIL";
         };
 
         NotificationRequest request = NotificationRequest.open(recipientType, recipientId,

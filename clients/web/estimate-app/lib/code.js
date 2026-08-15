@@ -2500,8 +2500,10 @@ async function getQuoteHistory(startDate, endDate) {
     headers: SNAPSHOT_HEADERS,
   });
   if (resp.status < 200 || resp.status >= 300) {
-    Logger.log(`[getQuoteHistory] ${resp.status} → 빈 목록`);
-    return [];
+    const error = new Error(`snapshot history failed: HTTP ${resp.status}`);
+    error.statusCode = resp.status;
+    error.responseData = resp.data;
+    throw error;
   }
   // ApiResponse 봉투 {success, data:[...]} 언래핑(미언래핑 시 목록 항상 빈값 회귀).
   return unwrapList(resp.data);
@@ -2517,8 +2519,10 @@ async function getQuoteHistoryByCustomer(custName) {
     headers: SNAPSHOT_HEADERS,
   });
   if (resp.status < 200 || resp.status >= 300) {
-    Logger.log(`[getQuoteHistoryByCustomer] ${resp.status} → 빈 목록`);
-    return [];
+    const error = new Error(`snapshot customer history failed: HTTP ${resp.status}`);
+    error.statusCode = resp.status;
+    error.responseData = resp.data;
+    throw error;
   }
   return unwrapList(resp.data);
 }
@@ -2568,21 +2572,6 @@ async function searchNaverAddress(query) {
 function buildAddressRequests_(q) {
   const list = [];
 
-  // 도로명주소 우선
-  if (ROAD_API_KEY) {
-    list.push({
-      req: {
-        url: 'https://business.juso.go.kr/addrlink/addrLinkApi.do'
-          + '?currentPage=1&countPerPage=10&resultType=json'
-          + '&confmKey=' + encodeURIComponent(ROAD_API_KEY)
-          + '&keyword=' + encodeURIComponent(q),
-        method: 'get',
-        muteHttpExceptions: true,
-      },
-      parse: parseJusoResponse_,
-    });
-  }
-
   // 네이버 지역 검색 상호
   if (NAVER_SEARCH_ID && NAVER_SEARCH_SECRET) {
     list.push({
@@ -2598,6 +2587,21 @@ function buildAddressRequests_(q) {
         },
       },
       parse: parseNaverLocalResponse_,
+    });
+  }
+
+  // 도로명주소
+  if (ROAD_API_KEY) {
+    list.push({
+      req: {
+        url: 'https://business.juso.go.kr/addrlink/addrLinkApi.do'
+          + '?currentPage=1&countPerPage=10&resultType=json'
+          + '&confmKey=' + encodeURIComponent(ROAD_API_KEY)
+          + '&keyword=' + encodeURIComponent(q),
+        method: 'get',
+        muteHttpExceptions: true,
+      },
+      parse: parseJusoResponse_,
     });
   }
 
