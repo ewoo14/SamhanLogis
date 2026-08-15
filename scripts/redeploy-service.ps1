@@ -27,7 +27,8 @@
 param(
     [Parameter(Mandatory = $true, Position = 0)]
     [string[]] $Service,
-    [switch] $SkipBuild
+    [switch] $SkipBuild,
+    [switch] $ValidateOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -67,6 +68,63 @@ $composeFiles = @(
 )
 $portfixFiles = @(Get-ChildItem -Path (Join-Path $repoRoot 'infrastructure/docker-compose.*-port-override.yml') -File -ErrorAction SilentlyContinue | Sort-Object Name)
 foreach ($portfixFile in $portfixFiles) { $composeFiles += $portfixFile.FullName }
+
+function Get-RequiredComposeEnvNames {
+    param([Parameter(Mandatory = $true)][string[]]$ComposeFiles)
+
+    $required = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach ($composeFile in $ComposeFiles) {
+        $composeText = Get-Content -LiteralPath $composeFile -Raw -Encoding UTF8
+        # Credentials are identified from the compose contract itself:
+        # interpolated SAMHAN token/attestation names, plus literal environment
+        # assignments whose key names carry the same credential suffix. This
+        # also covers the local overlay's intentional dev token literal without
+        # making the redeploy script a second, hand-maintained compose manifest.
+        foreach ($match in [regex]::Matches($composeText, '\$\{(?<name>SAMHAN_[A-Za-z0-9_]*(?:TOKEN|ATTESTATION))(?::[-?][^}]*)?\}')) {
+            [void]$required.Add($match.Groups['name'].Value)
+        }
+        foreach ($line in ($composeText -split "`r?`n")) {
+            if ($line -match '^\s*(?<name>SAMHAN_[A-Za-z0-9_]*(?:TOKEN|ATTESTATION))\s*:\s*(?<value>\S.*)$' -and $matches.value -notmatch '^\$\{') {
+                [void]$required.Add($matches.name)
+            }
+        }
+    }
+    return @($required | Sort-Object)
+}
+
+function Assert-RequiredComposeCredentials {
+    param(
+        [Parameter(Mandatory = $true)][string]$EnvPath,
+        [Parameter(Mandatory = $true)][string[]]$ComposeFiles
+    )
+
+    $requiredNames = @(Get-RequiredComposeEnvNames -ComposeFiles $ComposeFiles)
+    if (-not (Test-Path -LiteralPath $EnvPath -PathType Leaf)) {
+        $names = $requiredNames -join ', '
+        throw "CREDENTIAL_FILE_MISSING: infrastructure/.env.local 파일이 없습니다. 이 파일에 $names 를 넣어라. 값은 기존 정상 배포 PC의 보호된 환경변수 또는 운영 Secrets Manager에서 확인하십시오."
+    }
+
+    $values = @{}
+    foreach ($line in Get-Content -LiteralPath $EnvPath -Encoding UTF8) {
+        if ($line -match '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$') {
+            $name = $matches[1]
+            $value = $matches[2].Trim()
+            if ($value.StartsWith('"') -and $value.EndsWith('"')) { $value = $value.Substring(1, $value.Length - 2) }
+            if ($value.StartsWith("'") -and $value.EndsWith("'")) { $value = $value.Substring(1, $value.Length - 2) }
+            $values[$name] = $value
+        }
+    }
+
+    $emptyNames = @($requiredNames | Where-Object { -not $values.ContainsKey($_) -or [string]::IsNullOrWhiteSpace([string]$values[$_]) })
+    if ($emptyNames.Count -gt 0) {
+        throw "CREDENTIAL_KEY_EMPTY: 다음 키가 비어 있거나 없습니다: $($emptyNames -join ', '). infrastructure/.env.local 에 해당 키를 넣어라. 값은 기존 정상 배포 PC의 보호된 환경변수 또는 운영 Secrets Manager에서 확인하십시오."
+    }
+    return $values
+}
+
+$credentialValues = Assert-RequiredComposeCredentials -EnvPath $localEnvPath -ComposeFiles $composeFiles
+Write-Host ('CREDENTIAL_CHECK_PASS: compose 필수 자격 검사 통과 ({0})' -f ((Get-RequiredComposeEnvNames -ComposeFiles $composeFiles) -join ', ')) -ForegroundColor DarkGray
+if ($ValidateOnly) { return }
 
 $composeArgs = @()
 foreach ($f in $composeFiles) { $composeArgs += @('-f', $f) }
