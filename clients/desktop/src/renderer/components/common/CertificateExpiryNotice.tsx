@@ -1,10 +1,9 @@
 import { useEffect } from 'react'
 import { AppUpdateNotice } from '@samhan/design-system'
-import registry from '../../../../../../scripts/certificate-registry.cjs'
-import { classifyCertificateExpiry } from '../../../../../../scripts/certificate-expiry.cjs'
-import { resolveCertificateMetadata } from '../../../../../../scripts/certificate-expiry-fixtures.cjs'
+import registry from '../../../../../../docs/operations/certificates/samhan-internal-release.json'
+import { classifyCertificateExpiry, resolveCertificateMetadata, type CertificateMetadata } from '../../certificateExpiryRuntime'
 
-export function CertificateExpiryNotice({ now = new Date(), metadata }: { now?: Date; metadata?: typeof registry }): JSX.Element | null {
+export function CertificateExpiryNotice({ now = new Date(), metadata }: { now?: Date; metadata?: CertificateMetadata }): JSX.Element | null {
   const resolvedMetadata = metadata ?? resolveCertificateMetadata(
     registry,
     typeof window === 'undefined' ? '' : window.location.search,
