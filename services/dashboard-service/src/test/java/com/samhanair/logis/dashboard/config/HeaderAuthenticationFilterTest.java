@@ -23,10 +23,11 @@ class HeaderAuthenticationFilterTest {
         request.addHeader("X-User-Role", "MASTER");
         request.addHeader("X-User-Groups",
                 "11111111-1111-1111-1111-111111111111, 22222222-2222-2222-2222-222222222222");
+        request.addHeader("X-Samhan-Gateway-Attestation", "test-attestation");
         var response = new MockHttpServletResponse();
         var chain = new MockFilterChain();
 
-        new HeaderAuthenticationFilter().doFilter(request, response, chain);
+        new HeaderAuthenticationFilter("test-attestation").doFilter(request, response, chain);
 
         var authentication = SecurityContextHolder.getContext().getAuthentication();
         assertThat(authentication).isNotNull();

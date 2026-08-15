@@ -22,6 +22,7 @@ import {
 } from '../api/groupwareApproval'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
+import { DocumentNumberLink } from '../components/DocumentNumberLink'
 
 const STATUS_OPTIONS: Array<{ value: ApprovalStatus | ''; label: string }> = [
   { value: '', label: '전체' },
@@ -80,9 +81,10 @@ export function GroupwareApprovalListPage() {
       width: '170px',
       mobilePriority: 'hidden',
       render: (row) => (
-        <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
-          {row.approvalNo}
-        </span>
+        <DocumentNumberLink
+          number={row.approvalNo}
+          to={row.approvalId ? `/groupware/approvals/${row.approvalId}` : ''}
+        />
       ),
     },
     {

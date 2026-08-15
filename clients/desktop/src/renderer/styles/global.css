@@ -128,6 +128,47 @@ html[data-theme="dark"], body[data-theme="dark"] {
   box-shadow: inset 4px 0 0 var(--action-brand);
 }
 
+/* S4: 전표 라인 입력칸은 단가 출처 칩과 행 합계 칸 때문에 행별 높이가 달라지지 않게 한다.
+ * LineRow는 design-system 소유라 수정하지 않고, 이 화면의 소비자 범위에서만 열/간격을 정리한다. */
+.sfp-line-table {
+  --col-sum: 0px;
+}
+
+.sfp-line-table [class*='lineRow'],
+.sfp-line-table [class*='lineHeader'] {
+  column-gap: 8px;
+}
+
+.sfp-line-table [class*='priceMemoryNote'],
+.sfp-line-table [class*='priceChangedStatus'],
+.sfp-line-table [class*='cellSum'] {
+  display: none !important;
+}
+
+/* S4 견적서 desktop 행도 같은 간격/고정 최소 높이 계약을 사용한다. */
+.estimate-line-input-grid {
+  column-gap: 8px;
+  grid-auto-rows: minmax(40px, auto);
+  align-items: stretch;
+}
+
+.estimate-line-input-grid .price-source-note,
+.estimate-line-input-grid .price-change-indicator {
+    display: none;
+}
+
+.s4-line-metadata-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .push-permission-denied-toast {
   position: fixed;
   right: 16px;

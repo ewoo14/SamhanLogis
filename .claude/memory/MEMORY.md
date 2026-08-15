@@ -50,6 +50,7 @@
 - [🚨🚨 조인 키로 쓰는 코드 컬럼이 비어 있…](feedback_join_key_column_empty_uuid_populated.md)
 - [🚨🚨 fix 는 결함이 아니라 정상 경로를…](feedback_fix_blocks_normal_path.md)
 - [🚨 머지 충돌 해소는 fix 다 — git…](feedback_merge_conflict_resolution_is_a_fix.md)
+- [🚨 병렬 트랙은 워크트리에 main 을 자주 머지하라](feedback_merge_main_into_worktree_regularly.md)
 - [🚨 새 데이터로 도는 QA 는 기존 행 호…](feedback_fresh_data_qa_misses_legacy_rows.md)
 - [🚨 머지 전 재수렴 의무·CI green≠…](feedback_reconvergence_before_merge.md)
 - [기획 spec 기존 결정 교차검증](feedback_spec_cross_check_prior_decisions.md)

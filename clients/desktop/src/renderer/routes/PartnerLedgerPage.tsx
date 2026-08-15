@@ -828,7 +828,6 @@ function LedgerDetailTable({ data }: { data: LedgerData }) {
           >
             <thead>
               <tr>
-                <th style={{ ...thStyle, width: 110 }}>일자</th>
                 <th style={{ ...thStyle, width: 160 }}>분개번호</th>
                 <th style={{ ...thStyle, width: 90 }}>문서</th>
                 <th style={{ ...thStyle, width: 180 }}>배송주소</th>
@@ -840,7 +839,7 @@ function LedgerDetailTable({ data }: { data: LedgerData }) {
             </thead>
             <tbody>
               <tr style={{ background: '#FFFBEB' }}>
-                <td colSpan={5} style={{ ...tdStyle, fontWeight: 600 }}>
+                <td colSpan={4} style={{ ...tdStyle, fontWeight: 600 }}>
                   기초 잔액 ({data.periodFrom} 이전)
                 </td>
                 <td style={tdStyle}>—</td>
@@ -851,7 +850,6 @@ function LedgerDetailTable({ data }: { data: LedgerData }) {
               </tr>
               {(data.lines ?? []).map((ln, idx) => (
                 <tr key={`${ln.date}-${ln.journalNo}-${idx}`}>
-                  <td style={tdStyle}>{ln.date}</td>
                   <td style={tdStyle}>{ln.journalNo}</td>
                   <td style={tdStyle}>
                     {ln.effect === 'PAYMENT'
@@ -876,7 +874,7 @@ function LedgerDetailTable({ data }: { data: LedgerData }) {
             </tbody>
             <tfoot>
               <tr style={{ background: '#F3F4F6' }}>
-                <td colSpan={5} style={{ ...tdStyle, fontWeight: 600 }}>
+                <td colSpan={4} style={{ ...tdStyle, fontWeight: 600 }}>
                   합계
                 </td>
                 <td

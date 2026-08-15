@@ -54,6 +54,7 @@ import type { UnifiedEstimateListRow } from './estimateUnifiedListModel'
 import { UNIFIED_ESTIMATE_SOURCE_LABELS, UNIFIED_ESTIMATE_SOURCE_FILTER_LABELS } from './estimateUnifiedListModel'
 import { restoreScrollAnchorWhenReady, saveScrollAnchor, type ReturnToLocation } from '../utils/returnContract'
 import { toOrderPathId } from '../utils/orderNo'
+import { DocumentNumberLink } from '../components/DocumentNumberLink'
 
 const STATUS_VARIANT: Record<EstimateStatus, 'neutral' | 'brand' | 'success' | 'warning' | 'danger'> = {
   QUOTE_DRAFT: 'neutral',
@@ -328,17 +329,6 @@ export function EstimateListPage() {
       ),
     },
     {
-      key: 'estimateDate',
-      header: '작성일',
-      width: '110px',
-      mobilePriority: 'hidden',
-      render: (row) => (
-        <span style={row.isDeleted ? DELETED_ROW_TEXT_STYLE : undefined}>
-          {row.estimateDate}
-        </span>
-      ),
-    },
-    {
       key: 'validUntil',
       header: '유효기간',
       width: '120px',
@@ -459,13 +449,6 @@ export function EstimateListPage() {
       ),
     },
     {
-      key: 'writtenAt',
-      header: '작성일',
-      width: '160px',
-      mobilePriority: 'hidden',
-      render: (row) => <span style={row.isDeleted ? DELETED_ROW_TEXT_STYLE : undefined}>{row.writtenAt ?? ''}</span>,
-    },
-    {
       key: 'amount',
       header: '합계',
       width: '160px',
@@ -497,12 +480,17 @@ export function EstimateListPage() {
       mobilePriority: 'primary',
       render: (row) => (
         <>
-          {row.source === 'estimate' && !row.isDeleted ? (
-            <Link
-              to={row.navigationPath ?? '#'}
-              state={{ returnTo, returnEntryKey: location.key }}
-              onClick={(event) => { event.stopPropagation(); saveScrollAnchor(location.key) }}
-            >{row.documentNo}</Link>
+          {(row.source === 'estimate' || row.source === 'order') && !row.isDeleted ? (
+            <DocumentNumberLink
+              number={row.documentNo}
+              to={row.navigationPath}
+              detailWindow={{
+                documentType: row.source === 'estimate' ? 'ESTIMATE' : 'PARTNER_ORDER',
+                documentId: row.source === 'estimate'
+                  ? row.id.slice('estimate:'.length)
+                  : toOrderPathId(row.id.slice('order:'.length)),
+              }}
+            />
           ) : <span style={row.isDeleted ? DELETED_ROW_TEXT_STYLE : undefined}>{row.documentNo}</span>}
           {row.isDeleted ? <Badge
             variant="neutral"
@@ -510,6 +498,19 @@ export function EstimateListPage() {
             style={{ marginLeft: 8 }}
           >삭제됨</Badge> : null}
         </>
+      ),
+    },
+    {
+      key: 'writtenAt',
+      header: '작성일',
+      width: '120px',
+      mobilePriority: 'secondary',
+      render: (row) => (
+        <span style={row.isDeleted ? DELETED_ROW_TEXT_STYLE : undefined}>
+          {row.source === 'web-quote-snapshot' || row.source === 'web-partner-order-draft'
+            ? (row.writtenAt ? row.writtenAt.slice(0, 10) : '')
+            : ''}
+        </span>
       ),
     },
     {
@@ -524,13 +525,6 @@ export function EstimateListPage() {
       width: '120px',
       mobilePriority: 'secondary',
       render: (row) => <span style={row.isDeleted ? DELETED_ROW_TEXT_STYLE : undefined}>{row.owner ?? ''}</span>,
-    },
-    {
-      key: 'writtenAt',
-      header: '작성일',
-      width: '160px',
-      mobilePriority: 'hidden',
-      render: (row) => <span style={row.isDeleted ? DELETED_ROW_TEXT_STYLE : undefined}>{row.writtenAt ?? ''}</span>,
     },
     {
       key: 'amount',

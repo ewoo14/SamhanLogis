@@ -278,10 +278,11 @@ describe('EstimateListPage E2 list realtime and restore', () => {
     expect(badge.textContent).toContain('삭제됨')
     expect(estimateNo.contains(badge)).toBe(false)
 
-    for (const cellText of ['데스크톱', '삭제거래처', '2026-07-07', '₩110,000']) {
+    for (const cellText of ['데스크톱', '삭제거래처', '₩110,000']) {
       const cell = within(row).getByText(cellText)
       expect(cell.getAttribute('style') ?? '').toContain('line-through')
     }
+    expect(within(row).queryByText('2026-07-07')).toBeNull()
 
     // 공유 DataTable 은 현재 삭제행에 aria-disabled 를 설정하지 않는다 — 클릭 차단은
     // rowClickable(false → onClick 미부착) + onRowClick isDeleted 가드로 처리한다

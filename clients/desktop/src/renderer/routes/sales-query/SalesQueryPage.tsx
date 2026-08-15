@@ -43,6 +43,7 @@ import { usePermissions } from '../../hooks/usePermissions'
 import { exportSlips } from '../../api/excelExportApi'
 import { useExcelDownload, makeExportFilename } from '../../hooks/useExcelDownload'
 import { ExcelDownloadError } from '../../components/ExcelDownloadError'
+import { DocumentNumberLink } from '../../components/DocumentNumberLink'
 import axios from 'axios'
 
 const PAGE_SIZE = 50
@@ -294,7 +295,8 @@ export function SalesQueryPage() {
   /** DataGrid 열 정의 (행 선택 체크박스 열 제외 — DataGrid 자체 셀 선택 사용) */
   const dataGridColumns: DataGridColumn<SlipQueryRow>[] = useMemo(
     () => [
-      { key: 'slipNo',            label: '판매번호',    filter: 'text' },
+      { key: 'slipNo',            label: '판매번호',    filter: 'text',
+        render: (row: SlipQueryRow) => <DocumentNumberLink number={row.slipNo} to={row.id ? `/sales/${row.id}` : ''} detailWindow={row.id ? { documentType: 'OUTBOUND_SLIP', documentId: row.id } : undefined} /> },
       { key: 'partnerName',       label: '거래처',      filter: 'text' },
       { key: 'businessNumber',    label: '거래처코드',   filter: 'text' },
       { key: 'deliveryAddress',   label: '배송주소',    filter: 'text' },
@@ -312,7 +314,6 @@ export function SalesQueryPage() {
       { key: 'printed',           label: '인쇄',        filter: 'select' as const,
         format: (v: unknown) => v ? '완료' : '미완' },
       { key: 'paymentDueDate',    label: '입금예정일',  filter: 'text' },
-      { key: 'slipDate',          label: '출고일자',    filter: 'text' },
       { key: 'status',            label: '상태',        filter: 'select' as const,
         format: (v: unknown) => typeof v === 'string' ? (SLIP_STATUS_LABEL[v] ?? v) : '—' },
       {
@@ -327,7 +328,11 @@ export function SalesQueryPage() {
             size="sm"
             onClick={(e) => {
               e.stopPropagation()
-              navigate(`/sales/${row.id}`)
+              if (row.id && window.samhanDetailWindow) {
+                void window.samhanDetailWindow.open({ documentType: 'OUTBOUND_SLIP', documentId: row.id, route: `/sales/${row.id}` })
+              } else if (row.id) {
+                navigate(`/sales/${row.id}`)
+              }
             }}
             aria-label={`${row.slipNo} 상세 보기`}
             data-testid={`sales-query-detail-${toPublicTestId(row.slipNo)}`}
@@ -340,9 +345,9 @@ export function SalesQueryPage() {
     [navigate, warehouses],
   )
   // 체크박스(1)+순번(2)+판매번호(3)+거래처(4)+거래처코드(5)+배송주소(6)+품목(7)
-  // +특이사항(8)+금액(9)+출고창고(10)+출고일자(11)+인수자번호(12)+전표수정내역(13)
-  // +감리주소(14)+프로젝트명(15)+담당자명(16)+인쇄(17)+입금예정일(18)+상태(19)+상세(20)
-  const tableColumnCount = 20
+  // +특이사항(8)+금액(9)+출고창고(10)+인수자번호(11)+전표수정내역(12)
+  // +감리주소(13)+프로젝트명(14)+담당자명(15)+인쇄(16)+입금예정일(17)+상태(18)+상세(19)
+  const tableColumnCount = 19
 
   // ── 전체선택 (현재 페이지) ──
   const allPageIds   = useMemo(() => rows.map((r) => r.id), [rows])
@@ -686,7 +691,6 @@ export function SalesQueryPage() {
               <Th width="160px">특이사항</Th>
               <Th width="100px" align="right">금액</Th>
               <Th width="100px">출고창고</Th>
-              <Th width="100px">출고일자</Th>
               <Th width="120px">인수자번호</Th>
               <Th width="90px">전표수정내역</Th>
               <Th width="160px">감리주소</Th>
@@ -738,7 +742,7 @@ export function SalesQueryPage() {
                     {/* 순번 */}
                     <Td align="center">{rowIndex}</Td>
                     {/* 판매번호 — UUID 비공개: slipNo 만 표시 */}
-                    <Td>{row.slipNo}</Td>
+                    <Td><DocumentNumberLink number={row.slipNo} to={row.id ? `/sales/${row.id}` : ''} detailWindow={row.id ? { documentType: 'OUTBOUND_SLIP', documentId: row.id } : undefined} /></Td>
                     {/* 거래처 */}
                     <Td>{row.partnerName ?? '—'}</Td>
                     {/* 거래처코드 = businessNumber (사업자등록번호) */}
@@ -757,8 +761,6 @@ export function SalesQueryPage() {
                     <Td align="right">{fmtAmount(row.displayTotalAmount ?? row.totalAmount)}</Td>
                     {/* 출고창고 — sourceWarehouseId resolve */}
                     <Td>{resolveWarehouseName(row.sourceWarehouseId, warehouses)}</Td>
-                    {/* 출고일자 */}
-                    <Td>{row.slipDate ?? '—'}</Td>
                     {/* 인수자 번호 */}
                     <Td>{row.recipientPhone ?? '—'}</Td>
                     {/* 전표수정내역 */}

@@ -11,7 +11,9 @@ function Assert-Contract([bool] $condition, [string] $message) {
 
 Assert-Contract ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) 'redeploy-service.ps1 must be UTF-8 BOM encoded for Windows PowerShell 5.1'
 Assert-Contract ($text -match '& docker compose @composeArgs up -d --build --no-deps \$svc') 'deployment must invoke docker compose with compose file arguments'
-Assert-Contract ($text -match 'if \(Test-Path \$portfix\)') 'portfix overlay must remain conditional'
+Assert-Contract ($text -match '\$portfixFiles' -and $text -match 'SilentlyContinue') 'portfix overlay discovery must remain conditional'
+Assert-Contract ($text -match 'Get-ChildItem' -and $text -match 'docker-compose\.\*-port-override\.yml') 'portfix overlays must be discovered from existing override files'
+Assert-Contract ($text -notmatch 'docker-compose\.local-portfix\.yml') 'deployment must not depend on the removed local-portfix filename'
 Assert-Contract ($text -match '--no-deps') 'deployment must not recreate dependencies'
 Assert-Contract ($text -match '\$LASTEXITCODE -ne 0') 'external command failures must be propagated'
 Assert-Contract ($text -notmatch '& docker @composeArgs up') 'deployment must not invoke top-level docker with compose arguments'

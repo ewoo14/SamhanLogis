@@ -88,3 +88,6 @@ eureka:
     enabled: false
     register-with-eureka: false
     fetch-registry: false
+samhan:
+  security:
+    gateway-attestation-enforcement: ${SAMHAN_GATEWAY_ATTESTATION_ENFORCEMENT:true}

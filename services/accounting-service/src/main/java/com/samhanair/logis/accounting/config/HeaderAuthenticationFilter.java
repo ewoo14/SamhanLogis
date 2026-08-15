@@ -12,6 +12,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -34,17 +36,35 @@ import org.springframework.web.filter.OncePerRequestFilter;
  */
 public class HeaderAuthenticationFilter extends OncePerRequestFilter {
 
+
     private static final String UNAUTHORIZED_MESSAGE = "인증 정보가 올바르지 않습니다";
 
     private final ObjectMapper objectMapper;
+    private final String expectedAttestation;
+    private final boolean enforceAttestation;
 
     public HeaderAuthenticationFilter(ObjectMapper objectMapper) {
+        this(objectMapper, "", false);
+    }
+
+    public HeaderAuthenticationFilter(ObjectMapper objectMapper, String expectedAttestation) {
+        this(objectMapper, expectedAttestation, true);
+    }
+
+    public HeaderAuthenticationFilter(ObjectMapper objectMapper, String expectedAttestation,
+                                      boolean enforceAttestation) {
         this.objectMapper = objectMapper;
+        this.expectedAttestation = expectedAttestation == null ? "" : expectedAttestation;
+        this.enforceAttestation = enforceAttestation;
     }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
+        if (isPublic(request) || isInternalPath(request) || isInternalPrincipal()) {
+            chain.doFilter(request, response);
+            return;
+        }
         String userId = request.getHeader(HttpHeaderConstants.CALLER_ID_HEADER);
         String groups = request.getHeader(HttpHeaderConstants.USER_GROUPS_HEADER);
 
@@ -53,6 +73,10 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
                 || request.getHeader(HttpHeaderConstants.IS_SYSTEM_MASTER_HEADER) != null;
         if ((userId == null || userId.isBlank()) && hasPartialIdentity) {
             writeUnauthorized(response);
+            return;
+        }
+        if (enforceAttestation && !isGatewayAttested(request)) {
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             return;
         }
         if ((userId == null || userId.isBlank()) && request.getRequestURI().startsWith("/accounting/codef/")) {
@@ -87,6 +111,32 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
         }
 
         chain.doFilter(request, response);
+    }
+
+    private boolean isPublic(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        return "/swagger-ui.html".equals(path)
+                || path.startsWith("/actuator/")
+                || path.startsWith("/v3/api-docs/")
+                || path.startsWith("/swagger-ui/");
+    }
+
+    private boolean isInternalPath(HttpServletRequest request) {
+        return request.getRequestURI().startsWith("/internal/");
+    }
+
+    private boolean isInternalPrincipal() {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        return authentication != null
+                && com.samhanair.logis.security.InternalTokenFilter.INTERNAL_PRINCIPAL
+                        .equals(authentication.getName());
+    }
+
+    private boolean isGatewayAttested(HttpServletRequest request) {
+        String actual = request.getHeader(HttpHeaderConstants.GATEWAY_ATTESTATION_HEADER);
+        if (expectedAttestation.isBlank() || actual == null || actual.isBlank()) return false;
+        return MessageDigest.isEqual(expectedAttestation.getBytes(StandardCharsets.UTF_8),
+                actual.getBytes(StandardCharsets.UTF_8));
     }
 
     private boolean isUuid(String value) {

@@ -33,6 +33,7 @@ import {
 } from '../api/taxInvoiceApi'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
+import { DocumentNumberLink } from '../components/DocumentNumberLink'
 
 const STATUS_OPTIONS: Array<{ value: TaxInvoiceStatus | ''; label: string }> = [
   { value: '', label: '전체' },
@@ -91,14 +92,13 @@ export function TaxInvoiceListPage() {
       header: '세금계산서번호',
       width: '180px',
       mobilePriority: 'primary',
-      render: (row) =>
-        row.taxInvoiceNo ? (
-          <span style={{ fontVariantNumeric: 'tabular-nums' }}>
-            {row.taxInvoiceNo}
-          </span>
-        ) : (
-          <span style={{ color: '#9CA3AF' }}>—</span>
-        ),
+      render: (row) => (
+        <DocumentNumberLink
+          number={row.taxInvoiceNo}
+          to={row.id ? `/accounting/tax-invoices/${row.id}` : ''}
+          detailWindow={row.id ? { documentType: 'TAX_INVOICE', documentId: row.id } : undefined}
+        />
+      ),
     },
     {
       key: 'partnerBusinessNo',
@@ -116,13 +116,6 @@ export function TaxInvoiceListPage() {
       header: '거래처',
       mobilePriority: 'secondary',
       render: (row) => row.partnerName,
-    },
-    {
-      key: 'supplyDate',
-      header: '작성일',
-      width: '120px',
-      mobilePriority: 'hidden',
-      render: (row) => row.supplyDate,
     },
     {
       key: 'supplyAmount',

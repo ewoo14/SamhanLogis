@@ -33,6 +33,7 @@ import { usePermissions } from '../hooks/usePermissions'
 import { exportStocks } from '../api/excelExportApi'
 import { useExcelDownload, makeExportFilename } from '../hooks/useExcelDownload'
 import { ExcelDownloadError } from '../components/ExcelDownloadError'
+import { DocumentNumberLink } from '../components/DocumentNumberLink'
 
 const STATUS_VARIANT: Record<
   TransferStatus,
@@ -61,7 +62,10 @@ export function TransferListPage() {
   })
 
   const columns: DataTableColumn<TransferSummary>[] = [
-    { key: 'transferNo', header: '이동번호', width: '180px', mobilePriority: 'primary' },
+    {
+      key: 'transferNo', header: '이동번호', width: '180px', mobilePriority: 'primary',
+      render: (row) => <DocumentNumberLink number={row.transferNo} to={row.id ? `/transfers/${row.id}` : ''} detailWindow={{ documentType: 'TRANSFER', documentId: row.id }} />,
+    },
     {
       key: 'sourceWarehouseCode',
       header: '출발 창고',

@@ -30,13 +30,19 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
     private static final String USER_GROUPS_HEADER = "X-User-Groups";
     private static final String GATEWAY_ATTESTATION_HEADER = "X-Samhan-Gateway-Attestation";
     private final String gatewayAttestation;
+    private final boolean enforceAttestation;
 
     public HeaderAuthenticationFilter() {
-        this(null);
+        this("", false);
     }
 
     public HeaderAuthenticationFilter(String gatewayAttestation) {
+        this(gatewayAttestation, true);
+    }
+
+    public HeaderAuthenticationFilter(String gatewayAttestation, boolean enforceAttestation) {
         this.gatewayAttestation = gatewayAttestation;
+        this.enforceAttestation = enforceAttestation;
     }
 
     @Override
@@ -64,7 +70,7 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
 
         if (userId != null && !userId.isBlank()
                 && SecurityContextHolder.getContext().getAuthentication() == null) {
-            if (!isValidGatewayAttestation(request.getHeader(GATEWAY_ATTESTATION_HEADER))) {
+            if (enforceAttestation && !isValidGatewayAttestation(request.getHeader(GATEWAY_ATTESTATION_HEADER))) {
                 response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "gateway attestation required");
                 return;
             }

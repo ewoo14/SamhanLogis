@@ -89,6 +89,8 @@ app:
     internal:
       # Phase 8 2차 — SAMHAN_INTERNAL_TOKEN 표준, INTERNAL_AUTH_TOKEN legacy fallback (Phase 10 cutover 시점 단일화).
       token: ${SAMHAN_INTERNAL_TOKEN}
+      # 일반 서비스의 기존 계약: 토큰 누락은 SecurityConfig의 /internal/** authorization에서 403.
+      allow-missing-token: true
   # Stage 4 local-test seed (DashboardSnapshotSeeder) toggle. dev profile + 본 toggle 모두 true 인 경우만 seed.
   # 운영 / staging 데이터 오염 방지 — default false. KPI 135 + 실시간재고 200 + 매출집계 150 + MV refresh.
   dashboard:

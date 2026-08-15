@@ -178,12 +178,6 @@ export function GeneralLedgerPage() {
   const columns: DataTableColumn<GeneralLedgerLine>[] = useMemo(
     () => [
       {
-        key: 'date',
-        header: '일자',
-        width: '110px',
-        render: (ln) => ln.date,
-      },
-      {
         key: 'journalNo',
         header: '분개번호',
         width: '160px',

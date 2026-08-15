@@ -12,7 +12,7 @@
  * - `nodeIntegration: false` — 렌더러 프로세스에서 require/process 차단
  * - preload 스크립트만 IPC 게이트웨이 역할 수행
  */
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { registerAuthIpcHandlers } from './ipc/auth-token.js'
@@ -20,6 +20,8 @@ import { getLegacyEstimateUrl } from './legacy-asset.js'
 import { isAllowedExternalUrl } from './external-url.js'
 import { registerAutoUpdateIpcHandlers } from './auto-update.js'
 import { resolveCertificateFixtureQuery } from '../../../../scripts/certificate-expiry-fixtures.cjs'
+import { DetailWindowRegistry, type DetailWindowRequest } from './detail-window-registry.js'
+import { isAllowedDetailWindowRoute } from './detail-window-route.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -28,6 +30,8 @@ const __dirname = dirname(__filename)
  * 메인 윈도우 인스턴스 — 다중 윈도우는 본 슬라이스 범위 외.
  */
 let mainWindow: BrowserWindow | null = null
+const detailWindowDirty = new WeakMap<BrowserWindow, boolean>()
+let detailWindowRegistry: DetailWindowRegistry<BrowserWindow>
 
 function isAllowedAppNavigation(url: string): boolean {
   if (url === 'about:blank') return true
@@ -107,7 +111,55 @@ function createMainWindow(): void {
   })
 }
 
+function detailWindowUrl(route: string): string {
+  const devUrl = process.env['ELECTRON_RENDERER_URL']
+  const hash = `${route}?detailWindow=1`
+  if (devUrl) return `${devUrl.replace(/\/$/, '')}#${hash}`
+  return hash
+}
+
+function createDetailWindow(request: DetailWindowRequest): BrowserWindow {
+  const detailWindow = new BrowserWindow({
+    width: 1280,
+    height: 800,
+    minWidth: 1024,
+    minHeight: 720,
+    autoHideMenuBar: true,
+    title: `${request.documentType} ${request.documentId}`,
+    webPreferences: {
+      devTools: !app.isPackaged,
+      preload: join(__dirname, '../preload/index.cjs'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  })
+  detailWindowDirty.set(detailWindow, false)
+  detailWindow.on('close', (event) => {
+    if (!detailWindowDirty.get(detailWindow)) return
+    const result = dialog.showMessageBoxSync(detailWindow, {
+      type: 'warning',
+      buttons: ['계속 편집', '저장하지 않고 닫기'],
+      defaultId: 0,
+      cancelId: 0,
+      title: '저장되지 않은 편집',
+      message: '저장되지 않은 편집 내용이 있습니다. 닫으면 사라집니다.',
+    })
+    if (result === 0) event.preventDefault()
+  })
+  detailWindow.webContents.on('will-navigate', (event, url) => {
+    if (!isAllowedAppNavigation(url)) event.preventDefault()
+  })
+  detailWindow.on('maximize', () => detailWindow.webContents.send('detail-window:maximized-change', true))
+  detailWindow.on('unmaximize', () => detailWindow.webContents.send('detail-window:maximized-change', false))
+  const devUrl = process.env['ELECTRON_RENDERER_URL']
+  if (devUrl) void detailWindow.loadURL(detailWindowUrl(request.route))
+  else void detailWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: `${request.route}?detailWindow=1` })
+  return detailWindow
+}
+
 app.whenReady().then(() => {
+  detailWindowRegistry = new DetailWindowRegistry(createDetailWindow)
   registerAuthIpcHandlers()
   registerAutoUpdateIpcHandlers()
   // [Phase 6 v4] legacy estimate webview asset URL 조회 IPC.
@@ -125,6 +177,27 @@ app.whenReady().then(() => {
   })
   ipcMain.handle('updater:quit', () => {
     app.quit()
+  })
+  ipcMain.handle('detail-window:open', (_event, payload: DetailWindowRequest) => {
+    if (!payload?.documentId || !payload.route || !isAllowedDetailWindowRoute(payload.route)) {
+      throw new Error('Invalid detail window route')
+    }
+    detailWindowRegistry.open(payload)
+  })
+  ipcMain.handle('detail-window:close', (event) => {
+    const detailWindow = BrowserWindow.fromWebContents(event.sender)
+    detailWindow?.close()
+  })
+  ipcMain.handle('detail-window:toggle-maximize', (event) => {
+    const detailWindow = BrowserWindow.fromWebContents(event.sender)
+    if (!detailWindow) return false
+    if (detailWindow.isMaximized()) detailWindow.unmaximize()
+    else detailWindow.maximize()
+    return detailWindow.isMaximized()
+  })
+  ipcMain.handle('detail-window:set-dirty', (event, dirty: boolean) => {
+    const detailWindow = BrowserWindow.fromWebContents(event.sender)
+    if (detailWindow) detailWindowDirty.set(detailWindow, dirty === true)
   })
   createMainWindow()
 

@@ -62,7 +62,6 @@ import {
   Badge,
   Button,
   DataTable,
-  SlipNumberDisplay,
   SlipStatusBadge,
   type DataTableColumn,
   type DeliveryTagCode,
@@ -76,6 +75,7 @@ import { exportSlips } from '../api/excelExportApi'
 import { useExcelDownload, makeExportFilename } from '../hooks/useExcelDownload'
 import { ExcelDownloadError } from '../components/ExcelDownloadError'
 import { SlipListRealtimeClient } from '../realtime/SlipListRealtimeClient'
+import { DocumentNumberLink } from '../components/DocumentNumberLink'
 import { useCollectionRealtime } from '../realtime/useCollectionRealtime'
 import './SlipListPage.css'
 import {
@@ -232,12 +232,16 @@ export function SlipListPage({ mode }: SlipListPageProps) {
         // 취소선은 SlipNumberDisplay(inline-flex atomic box) 자신에 직접 지정 — 조상 span 의
         // line-through 는 atomic 자손에 전파되지 않아 전표번호가 취소선 없이 렌더되던 회귀 해소.
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0, maxWidth: '100%' }}>
-          <SlipNumberDisplay
-            slipDate={row.slipDate}
-            seqNo={row.seqNo}
-            size="sm"
-            style={row.isDeleted ? SLIP_DELETED_ROW_TEXT_STYLE : undefined}
-          />
+          <span style={row.isDeleted ? SLIP_DELETED_ROW_TEXT_STYLE : undefined}>
+            <DocumentNumberLink
+              number={row.slipNo}
+              to={row.id ? `${basePath}/${row.id}` : ''}
+              detailWindow={row.id ? {
+                documentType: isOutbound ? 'OUTBOUND_SLIP' : 'INBOUND_SLIP',
+                documentId: row.id,
+              } : undefined}
+            />
+          </span>
           {row.isDeleted ? (
             <Badge
               variant="neutral"
