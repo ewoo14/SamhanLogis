@@ -6,6 +6,8 @@ import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.LinkedHashSet;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -27,5 +29,11 @@ public class InternalSalesAccountingSlipController {
             result.putIfAbsent((String) row[0], (LocalDateTime) row[1]);
         });
         return ApiResponse.ok(result);
+    }
+
+    @GetMapping("/exists")
+    public ApiResponse<Set<String>> exists(
+            @RequestParam("sourceSlipNo") List<String> sourceSlipNos) {
+        return ApiResponse.ok(new LinkedHashSet<>(allocations.findExistingSourceSlipNos(sourceSlipNos)));
     }
 }

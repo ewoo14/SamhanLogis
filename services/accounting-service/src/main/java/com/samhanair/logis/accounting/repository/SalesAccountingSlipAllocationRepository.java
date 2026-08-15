@@ -40,6 +40,11 @@ public interface SalesAccountingSlipAllocationRepository extends JpaRepository<S
         """)
     List<Object[]> findPostedAtBySourceSlipNoIn(@Param("sourceSlipNos") Collection<String> sourceSlipNos);
 
+    /** posted 전이라도 allocation이 있으면 이미 회계전표가 생성된 것으로 판정한다. */
+    @Query("SELECT DISTINCT a.sourceSlipNo FROM SalesAccountingSlipAllocation a "
+            + "WHERE a.sourceSlipNo IN :sourceSlipNos AND a.isDeleted = false")
+    List<String> findExistingSourceSlipNos(@Param("sourceSlipNos") Collection<String> sourceSlipNos);
+
     /**
      * 특정 출고전표 line 에 이미 할당된 금액 합계.
      * over-allocation 가드 트랜잭션에서 호출.

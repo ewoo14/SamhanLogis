@@ -530,6 +530,23 @@ public class SlipLine extends BaseEntity {
         validateStorableAmounts();
     }
 
+    /** 일마감 금액 전용 경로에서 VAT 포함 단가와 권위 금액을 함께 갱신한다. */
+    public void changeUnitPriceWithVat(BigDecimal newUnitPriceWithVat) {
+        validateUnitPrice(newUnitPriceWithVat);
+        BigDecimal lineInclVat = newUnitPriceWithVat.multiply(BigDecimal.valueOf(this.quantity))
+                .setScale(0, RoundingMode.HALF_UP);
+        VatAmountCalculator.Split vatSplit = VatAmountCalculator.splitVatInclusive(
+                lineInclVat, RoundingMode.HALF_UP);
+        this.lineTotal = vatSplit.supplyAmount();
+        this.supplyAmount = vatSplit.supplyAmount();
+        this.vatAmount = vatSplit.vatAmount();
+        this.unitPrice = this.supplyAmount.divide(BigDecimal.valueOf(this.quantity), 2,
+                RoundingMode.HALF_UP);
+        this.unitPriceWithVat = newUnitPriceWithVat.setScale(2, RoundingMode.HALF_UP);
+        this.unitPriceDomain = UnitPriceDomain.VAT_INCLUSIVE;
+        validateStorableAmounts();
+    }
+
     /**
      * 라인 메모 변경. null/공백 도 허용 (메모 제거).
      *

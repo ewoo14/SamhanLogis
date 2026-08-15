@@ -42,6 +42,13 @@ public class SlipClosedDateGuard {
         throw new SlipClosedDateException();
     }
 
+    /** 일마감 금액 수정은 잠긴 날짜의 예외 권한 우회도 허용하지 않는다. */
+    public void assertAmountEditAllowed(SlipType slipType, LocalDate slipDate) {
+        if (isClosed(slipType, slipDate)) {
+            throw new SlipClosedDateException();
+        }
+    }
+
     /** 날짜 마감과 예외 권한을 함께 판정한다. 대체 출고일 탐색에서도 같은 정책을 재사용한다. */
     public boolean isCreatable(SlipType slipType, LocalDate slipDate, String requesterId) {
         return isCreatable(slipType, slipDate, requesterId, null);
