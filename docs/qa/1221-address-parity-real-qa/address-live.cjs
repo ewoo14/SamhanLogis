@@ -1,9 +1,10 @@
 const { chromium } = require('../../../clients/web/estimate-app/node_modules/playwright');
 const path = require('node:path');
+const { resolveQaShotsDir } = require('../../../scripts/lib/qa-shots-dir.cjs');
 
 const orderUrl = process.env.QA_ORDER_URL;
 const estimateUrl = process.env.QA_ESTIMATE_URL;
-const screenshotDir = __dirname;
+const screenshotDir = resolveQaShotsDir(__dirname);
 const secretValues = [
   process.env.QA_SECRET_1,
   process.env.QA_SECRET_2,
