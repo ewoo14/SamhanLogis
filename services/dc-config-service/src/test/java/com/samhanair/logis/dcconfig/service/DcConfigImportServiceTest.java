@@ -286,6 +286,12 @@ class DcConfigImportServiceTest {
         assertThatThrownBy(() -> DcConfigImportService.parsePercent("abc%"))
                 .isInstanceOf(IllegalArgumentException.class);
 
+        // 실제 2026-07-28 원천 DC CSV의 fraction 표기: 0.45는 0.45여야 한다.
+        assertThat(DcConfigImportService.parsePercent("0.45"))
+                .isEqualByComparingTo(new BigDecimal("0.4500"));
+        assertThatThrownBy(() -> DcConfigImportService.parsePercent("46"))
+                .isInstanceOf(IllegalArgumentException.class);
+
         // parseCurrency
         assertThat(DcConfigImportService.parseCurrency("₩20,000"))
                 .isEqualByComparingTo("20000.00");

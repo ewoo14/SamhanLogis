@@ -168,6 +168,48 @@ class PartnerBlockImportServiceTest {
     }
 
     @Test
+    void parseNotionDateTime_sameInstantAcrossFormats_usesSameStoredAxis() {
+        LocalDateTime korean = service.parseNotionDateTime("2026년 4월 26일 오전 7:36");
+        LocalDateTime iso = service.parseNotionDateTime("2026-04-25 22:36:00Z");
+
+        assertThat(iso).isEqualTo(korean);
+    }
+
+    @Test
+    void importCsv_actualIsoUtcTimestamp_isImported() {
+        // 실제 2026-07-28 BLOCK 원천의 헤더·사업자명·ISO 시각을 그대로 사용한다.
+        String csv = "이카운트 사업자명,생성 일시\n"
+                + "주식회사 삼성이엔지 (윤정희),2026-04-25 22:36:20Z\n"
+                + "(주)에어뱅크,2026-04-25 22:36:54Z\n"
+                + "주식회사 대승 (에스원이엔지),2026-04-25 22:36:57Z\n"
+                + "(주)을지공조시스템,2026-04-25 22:36:49Z\n"
+                + "에스원이엔지 (주),2026-04-25 22:36:40Z\n"
+                + "훼밀리공조 주식회사,2026-04-25 22:36:46Z\n";
+        String[] names = {
+            "주식회사 삼성이엔지 (윤정희)", "(주)에어뱅크", "주식회사 대승 (에스원이엔지)",
+            "(주)을지공조시스템", "에스원이엔지 (주)", "훼밀리공조 주식회사"
+        };
+        String[] codes = {
+            "3128640516", "1428116616", "6348602237", "1068616876", "1138620591", "2188121662"
+        };
+        for (int i = 0; i < names.length; i++) {
+            String name = names[i];
+            String code = codes[i];
+            when(partnerService.findByNameForLookup(name)).thenReturn(Optional.of(stub(code, name)));
+            when(blockService.isBlocked(code)).thenReturn(false);
+        }
+
+        BlockedPartnerImportResult result = service.importCsv(csvStream(csv, false), "admin-1");
+
+        assertThat(result.totalRows()).isEqualTo(6);
+        assertThat(result.imported()).isEqualTo(6);
+        assertThat(result.rejected()).isEmpty();
+        verify(blockService, times(6)).block(anyString(), any(), any(LocalDateTime.class),
+                eq("NOTION_IMPORT"), anyString());
+        verify(partnerService, times(6)).findByNameForLookup(anyString());
+    }
+
+    @Test
     void parseNotionDateTime_blank_returnsNow() {
         LocalDateTime parsed = service.parseNotionDateTime("");
 

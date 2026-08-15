@@ -14,6 +14,8 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
@@ -200,7 +202,8 @@ public class PartnerBlockImportService {
     }
 
     /**
-     * Notion datetime 파싱 ("2026년 4월 26일 오전 7:36" → LocalDateTime). 빈 문자열 시 now() fallback.
+     * Notion datetime 파싱 (한국어 표기 또는 ISO UTC/offset 표기 → LocalDateTime).
+     * 빈 문자열 시 now() fallback.
      *
      * <p>visibility = package-private — 테스트 직접 호출용.
      */
@@ -208,7 +211,16 @@ public class PartnerBlockImportService {
         if (raw == null || raw.isBlank()) {
             return LocalDateTime.now();
         }
-        return LocalDateTime.parse(raw.trim(), NOTION_DATETIME);
+        String value = raw.trim();
+        try {
+            return LocalDateTime.parse(value, NOTION_DATETIME);
+        } catch (DateTimeParseException koreanFormatFailure) {
+            // 실제 export의 "2026-04-25 22:36:20Z"처럼 날짜와 시간 사이가 공백인
+            // ISO offset 형식도 허용한다. 한국어 표기 및 BaseEntity LocalDateTime 축과
+            // 일치하도록 KST wall-clock 값으로 저장한다.
+            String iso = value.replaceFirst("^(\\d{4}-\\d{2}-\\d{2})\\s+", "$1T");
+            return OffsetDateTime.parse(iso).withOffsetSameInstant(ZoneOffset.ofHours(9)).toLocalDateTime();
+        }
     }
 
     private int indexOf(String[] header, String column) {

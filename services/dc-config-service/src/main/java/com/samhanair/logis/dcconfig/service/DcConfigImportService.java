@@ -250,17 +250,28 @@ public class DcConfigImportService {
     }
 
     /**
-     * "46%" → BigDecimal(0.4600), null/빈 문자열 → null. 소수점 4자리 (NUMERIC(5,4)).
+     * "46%" → BigDecimal(0.4600), "0.46" → BigDecimal(0.4600), null/빈 문자열 → null.
+     * 소수점 4자리 (NUMERIC(5,4)).
      */
     static BigDecimal parsePercent(String raw) {
         String v = normalize(raw);
         if (v == null) {
             return null;
         }
-        String trimmed = v.endsWith("%") ? v.substring(0, v.length() - 1).trim() : v;
+        boolean percentSuffix = v.endsWith("%");
+        String trimmed = percentSuffix ? v.substring(0, v.length() - 1).trim() : v;
         try {
-            BigDecimal pct = new BigDecimal(trimmed);
-            return pct.divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP);
+            BigDecimal value = new BigDecimal(trimmed);
+            // 원천 CSV는 45%와 0.45 두 표현을 모두 사용한다. suffix가 없는 값은
+            // 이미 0..1 fraction으로 보존하고, suffix가 있을 때만 percentage를 환산한다.
+            BigDecimal fraction = (percentSuffix
+                            ? value.divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP)
+                            : value)
+                    .setScale(4, RoundingMode.HALF_UP);
+            if (fraction.signum() < 0 || fraction.compareTo(BigDecimal.ONE) > 0) {
+                throw new IllegalArgumentException("퍼센트 범위 초과 [" + raw + "]");
+            }
+            return fraction;
         } catch (NumberFormatException ex) {
             throw new IllegalArgumentException("퍼센트 파싱 실패 [" + raw + "]");
         }
