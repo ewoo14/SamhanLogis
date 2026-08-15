@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
+import { resolveQaShotsDir } from '../../../../scripts/lib/qa-shots-dir.cjs'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -7,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 const here = path.dirname(fileURLToPath(import.meta.url))
 const baseUrl = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5175'
 const apiBase = process.env['API_BASE'] ?? 'http://127.0.0.1:8080'
-const shots = path.resolve(here, '../../../../docs/qa/1219-daily-closing-cc043f652-real-qa')
+const shots = resolveQaShotsDir(path.resolve(here, '../../../../docs/qa/1219-daily-closing-cc043f652-real-qa'))
 fs.mkdirSync(shots, { recursive: true })
 
 async function signIn(page: Page) {
