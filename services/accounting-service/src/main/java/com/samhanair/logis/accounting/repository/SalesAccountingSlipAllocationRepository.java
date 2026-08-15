@@ -26,6 +26,20 @@ public interface SalesAccountingSlipAllocationRepository extends JpaRepository<S
     @Query("SELECT a FROM SalesAccountingSlipAllocation a WHERE a.sourceSlipNo IN :sourceSlipNos AND a.isDeleted = false")
     List<SalesAccountingSlipAllocation> findActiveBySourceSlipNoIn(@Param("sourceSlipNos") Collection<String> sourceSlipNos);
 
+    /** 원천 출고전표 번호별 회계 posted_at을 연관관계 fetch 없이 조회한다. */
+    @Query("""
+        SELECT a.sourceSlipNo, slip.postedAt
+        FROM SalesAccountingSlipAllocation a
+        JOIN a.salesSlipLine line
+        JOIN line.slip slip
+        WHERE a.sourceSlipNo IN :sourceSlipNos
+          AND a.isDeleted = false
+          AND line.isDeleted = false
+          AND slip.isDeleted = false
+          AND slip.postedAt IS NOT NULL
+        """)
+    List<Object[]> findPostedAtBySourceSlipNoIn(@Param("sourceSlipNos") Collection<String> sourceSlipNos);
+
     /**
      * 특정 출고전표 line 에 이미 할당된 금액 합계.
      * over-allocation 가드 트랜잭션에서 호출.

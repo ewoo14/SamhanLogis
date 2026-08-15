@@ -22,6 +22,43 @@
  */
 import { apiClient, type ApiEnvelope } from './client'
 
+/** slip-service 일마감 원본행 — 레거시 17열 + 확장 검증값. */
+export interface DailyClosingSourceRow {
+  dcCondition: string | null
+  slipDate: string
+  seqNo: number
+  warehouseName: string | null
+  productName: string
+  quantity: number
+  unitPriceWithVat: string | number | null
+  supplyAmount: string | number | null
+  vatAmount: string | number | null
+  total: string | number | null
+  partnerName: string
+  partnerCode: string
+  productPrice: string | number | null
+  discountRate: string | number | null
+  grandTotal: string | number | null
+  confirmation: 'CONFIRMED' | 'MISMATCH' | 'UNDETERMINED'
+  confirmationReason: string | null
+  accountingPostedAt: string | null
+  dcAmount: string | number | null
+  sourceStatus: string
+  modelName?: string | null
+  categoryKey?: string | null
+  deliveryPrice?: string | null
+  expectedRate?: string | null
+}
+
+/** 출고일 기준으로 레거시 일마감 원본행을 조회한다. */
+export async function getDailyClosingRows(slipDate: string): Promise<DailyClosingSourceRow[]> {
+  const res = await apiClient.get<ApiEnvelope<DailyClosingSourceRow[]>>(
+    '/slips/query/daily-closing',
+    { params: { slipDate } },
+  )
+  return res.data.data
+}
+
 /** 마감 기간 유형 — BE `PeriodType`. */
 export type PeriodType = 'DAILY' | 'MONTHLY'
 

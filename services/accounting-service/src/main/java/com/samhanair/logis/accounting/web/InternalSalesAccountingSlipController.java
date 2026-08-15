@@ -23,9 +23,8 @@ public class InternalSalesAccountingSlipController {
     public ApiResponse<Map<String, LocalDateTime>> postedAt(
             @RequestParam("sourceSlipNo") List<String> sourceSlipNos) {
         Map<String, LocalDateTime> result = new LinkedHashMap<>();
-        allocations.findActiveBySourceSlipNoIn(sourceSlipNos).forEach(allocation -> {
-            var slip = allocation.getSalesSlipLine().getSlip();
-            if (slip.getPostedAt() != null) result.putIfAbsent(allocation.getSourceSlipNo(), slip.getPostedAt());
+        allocations.findPostedAtBySourceSlipNoIn(sourceSlipNos).forEach(row -> {
+            result.putIfAbsent((String) row[0], (LocalDateTime) row[1]);
         });
         return ApiResponse.ok(result);
     }
