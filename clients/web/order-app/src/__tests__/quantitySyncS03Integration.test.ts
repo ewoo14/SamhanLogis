@@ -13,11 +13,14 @@ describe('S-03 shadow과 legacy 사용자 계산 경계', () => {
     });
   });
 
-  it('사용자가 target에 입력한 77은 설정 조회 때문에 지워지지 않는다', () => {
+  it('legacy GAS는 수동 입력된 target 77도 원품 4로 재계산한다', () => {
+    // tools/legacy-gas/거래처 발송 주문서/index.html:4793-4800
+    // if(SS_CEILING_PUMP_ID!=null){ ... singleQty.set(SS_CEILING_PUMP_ID,pumpQty); }
+    // 원본 GAS의 단독 파생 수량은 수동잠금 없이 재계산 결과로 덮어쓴다.
     expect(runLegacyS03({ sourceQuantity: 4, manualQuantity: 77 })).toEqual({
       sourceQuantity: 4,
-      targetQuantity: 77,
-      manualLock: true,
+      targetQuantity: 4,
+      manualLock: false,
     });
   });
 
