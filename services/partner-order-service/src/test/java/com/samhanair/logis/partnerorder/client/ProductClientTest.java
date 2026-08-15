@@ -17,6 +17,11 @@ import com.samhanair.logis.security.InternalAuthProperties;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
+import java.util.Base64;
+import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
@@ -136,6 +141,56 @@ class ProductClientTest {
         assertThat(product.productType()).isEqualTo("BUNDLE");
         assertThat(product.categoryKey()).isEqualTo("homemulti");
         server.verify();
+    }
+
+    @Test
+    void lookupByModelCodes_실제Http의OpaqueId를_ProductSummary로복원한다() throws Exception {
+        UUID productId = UUID.fromString("00000000-0000-0000-0000-000000000102");
+        UUID categoryId = UUID.fromString("00000000-0000-0000-0000-000000000202");
+        HttpServer httpServer = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+        httpServer.createContext("/products/internal/lookup-by-model-codes", exchange -> {
+            String response = """
+                    {"success":true,"data":[{
+                      "id":"%s",
+                      "name":"홈멀티 실외기",
+                      "modelName":"AJ060MXHNBC1",
+                      "categoryId":"%s",
+                      "sellingPrice":"770000.00",
+                      "status":"ACTIVE",
+                      "modelCode":"AJ060MXHNBC1",
+                      "productType":"BUNDLE"
+                    }]}""".formatted(opaque(productId), opaque(categoryId));
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            byte[] body = response.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, body.length);
+            try (OutputStream output = exchange.getResponseBody()) {
+                output.write(body);
+            }
+        });
+        httpServer.start();
+        try {
+            InternalAuthProperties props = new InternalAuthProperties();
+            props.setToken(TOKEN);
+            ProductClient httpClient = new ProductClient(
+                    RestClient.builder(), props, "http://localhost:" + httpServer.getAddress().getPort());
+
+            List<ProductSummary> products = httpClient.lookupByModelCodes(List.of("AJ060MXHNBC1"));
+
+            assertThat(products).singleElement().satisfies(product -> {
+                assertThat(product.id()).isEqualTo(productId);
+                assertThat(product.categoryId()).isEqualTo(categoryId);
+                assertThat(product.modelCode()).isEqualTo("AJ060MXHNBC1");
+            });
+        } finally {
+            httpServer.stop(0);
+        }
+    }
+
+    private static String opaque(UUID value) {
+        ByteBuffer bytes = ByteBuffer.allocate(16)
+                .putLong(value.getMostSignificantBits())
+                .putLong(value.getLeastSignificantBits());
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes.array());
     }
 
     @Test

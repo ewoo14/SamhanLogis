@@ -36,7 +36,7 @@ class ProductClientLookupByModelCodesTest {
                 .mapToObj(i -> "TEST-MODEL-%04d".formatted(i))
                 .toList();
         String data = modelCodes.stream()
-                .map(code -> "{\"id\":\"00000000-0000-0000-0000-000000000001\",\"name\":\"실상품\","
+                .map(code -> "{\"id\":\"AAAAAAAAAAAAAAAAAAAAAQ\",\"name\":\"실상품\","
                         + "\"modelCode\":\"" + code + "\",\"categoryKey\":\"homemulti\"}")
                 .collect(java.util.stream.Collectors.joining(","));
         String body = "{\"success\":true,\"data\":[" + data + "]}";

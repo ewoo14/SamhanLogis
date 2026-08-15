@@ -41,6 +41,12 @@ public class ProductClient {
         this.internalAuthProperties = internalAuthProperties;
     }
 
+    ProductClient(RestClient.Builder builder, InternalAuthProperties internalAuthProperties,
+                  String productServiceBaseUrl) {
+        this.restClient = builder.baseUrl(productServiceBaseUrl).build();
+        this.internalAuthProperties = internalAuthProperties;
+    }
+
     /**
      * productId 리스트의 카탈로그 정보를 일괄 조회.
      *
@@ -238,12 +244,12 @@ public class ProductClient {
         @SuppressWarnings("unchecked")
         Map<String, Object> m = (Map<String, Object>) item;
         return new ProductSummary(
-                UUID.fromString((String) m.get("id")),
+                OpaqueUuidDecoder.decode((String) m.get("id")),
                 (String) m.get("name"),
                 (String) m.get("modelName"),
                 m.get("categoryId") == null
                         ? null
-                        : UUID.fromString((String) m.get("categoryId")),
+                        : OpaqueUuidDecoder.decode((String) m.get("categoryId")),
                 m.get("sellingPrice") == null
                         ? null
                         : new java.math.BigDecimal(m.get("sellingPrice").toString()),
