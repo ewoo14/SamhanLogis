@@ -4,6 +4,7 @@ param(
   [int]$FirstReleaseNumber = 9101,
   [int]$SecondReleaseNumber = 9102,
   [int]$FeedPort = 19112,
+  [int]$CaptureDebugPort = 0,
   [int]$TimeoutSeconds = 240
 )
 
@@ -87,6 +88,10 @@ try {
   Copy-Item (Join-Path $appDir "release\$ReleaseDate-$SecondReleaseNumber\latest.yml") $feedProductRoot -Force
   Get-ChildItem (Join-Path $appDir "release\$ReleaseDate-$SecondReleaseNumber") -Filter '*.exe' | Copy-Item -Destination $feedProductRoot -Force
   Get-ChildItem (Join-Path $appDir "release\$ReleaseDate-$SecondReleaseNumber") -Filter '*.blockmap' | Copy-Item -Destination $feedProductRoot -Force
+  if ($CaptureDebugPort -gt 0) {
+    Get-ChildItem $feedProductRoot -Filter '*.exe' | Remove-Item -Force
+    Get-ChildItem $feedProductRoot -Filter '*.blockmap' | Remove-Item -Force
+  }
   $feedProcess = Start-Process python -ArgumentList @('-u','-m','http.server',"$FeedPort",'--bind','127.0.0.1') -WorkingDirectory $feedRoot -PassThru -WindowStyle Hidden
   Wait-Until { try { (Invoke-WebRequest "http://127.0.0.1:$FeedPort/arologis/latest.yml" -UseBasicParsing).StatusCode -eq 200 } catch { $false } } 'arologis feed HTTP'
   $firstVersion = "$ReleaseDate-$FirstReleaseNumber"; $installDir = Join-Path $installRoot $firstVersion
@@ -101,7 +106,13 @@ try {
     Where-Object { $_.DisplayName -eq 'Arologis Desktop' } | Select-Object -First 1 -ExpandProperty PSPath
   $beforeHash = (Get-FileHash (Join-Path $installDir 'resources\app.asar')).Hash
   [Environment]::SetEnvironmentVariable('AROLOGIS_UPDATE_HARNESS_APPROVE', '1', 'Process')
-  $app = Start-Process (Join-Path $installDir 'Arologis Desktop.exe') -PassThru
+  $installedExe = Join-Path $installDir 'Arologis Desktop.exe'
+  $startArgs = if ($CaptureDebugPort -gt 0) { @("--remote-debugging-port=$CaptureDebugPort") } else { @() }
+  $app = Start-Process $installedExe -ArgumentList $startArgs -PassThru
+  if ($CaptureDebugPort -gt 0) {
+    & node (Join-Path $repo 'scripts/capture-electron-banner.cjs') 'clients/arologis-desktop' ([string]$CaptureDebugPort) 'arologis'
+    Assert-True ($LASTEXITCODE -eq 0) 'Arologis banner capture failed.'
+  }
   Wait-Until { try { (Invoke-WebRequest "http://127.0.0.1:$FeedPort/arologis/latest.yml?run=$runId" -UseBasicParsing).StatusCode -eq 200 } catch { $false } } 'updater feed request'
   Wait-Until { try { (InstalledVersion) -eq "$($ReleaseDate.Replace('-', '/'))-$SecondReleaseNumber" } catch { $false } } 'quitAndInstall restart to 9102'
   $afterHash = (Get-FileHash (Join-Path $installDir 'resources\app.asar')).Hash

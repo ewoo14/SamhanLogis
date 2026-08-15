@@ -1,0 +1,10 @@
+{
+  "certificateId": "samhan-internal-release",
+  "subject": "CN=Samhan Internal Release",
+  "thumbprint": "",
+  "notBefore": "",
+  "notAfter": "",
+  "warningDays": 30,
+  "owner": "개발책임자",
+  "status": "pending-issuance"
+}

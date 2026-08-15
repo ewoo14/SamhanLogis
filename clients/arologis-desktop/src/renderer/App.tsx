@@ -11,6 +11,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AppRouter } from './routes'
 import { useAuthStore } from './stores/authStore'
 import { AppVersionGate } from './components/common/AppVersionGate'
+import { CertificateExpiryNotice } from './components/common/CertificateExpiryNotice'
 
 /**
  * 단일 QueryClient — 5분 staleTime + 1회 retry.
@@ -39,6 +40,7 @@ export function App(): JSX.Element {
       <AppVersionGate bootstrapped={bootstrapped}>
         <AppRouter />
       </AppVersionGate>
+      <CertificateExpiryNotice />
     </QueryClientProvider>
   )
 }

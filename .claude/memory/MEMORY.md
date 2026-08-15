@@ -145,6 +145,7 @@
 - [order-app CI=tsc typech…](feedback_order_app_typecheck_not_vitest.md)
 - [Playwright 로컬 버전 skew](feedback_playwright_local_version_skew.md)
 - [rename file: junction 함정](feedback_rename_filedep_junction.md)
+- [🚨 `.cjs` named import 는 빌드는 되고 Vite dev 만 죽는다](feedback_cjs_named_import_breaks_vite_dev.md)
 - [Electron 패키지 함정](feedback_electron_packaging_gotchas.md)
 - [Testcontainers Windows…](feedback_testcontainers_windows_docker.md)
 - [로컬 스택+데스크톱 실QA 함정](project_local_stack_qa_gotchas.md)

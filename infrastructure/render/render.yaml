@@ -33,7 +33,7 @@ services:
     # autoDeploy 비활성 — main 머지 즉시 production 배포 회피.
     # cutover 절차는 infrastructure/render/deploy-checklist.md 의 "수동 deploy" step 참조.
     autoDeploy: false
-    buildCommand: npm ci
+    buildCommand: npm ci && npm run build:release
     startCommand: node server.js
     healthCheckPath: /healthz
     envVars:
@@ -41,6 +41,11 @@ services:
         value: "20"
       - key: NODE_ENV
         value: production
+      # 릴리스 wrapper는 명시 버전 없이는 Render build/start를 통과시키지 않는다.
+      - key: SAMHAN_RELEASE_BUILD
+        value: "1"
+      - key: VITE_APP_VERSION
+        sync: false
       # Render Starter 512MB RAM 한계 — V8 heap 400MB 로 cap 하여 OOM-kill 회피.
       # cafe24 deploy template 의 --max-old-space-size=512 가드와 동일 정책.
       - key: NODE_OPTIONS

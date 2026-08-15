@@ -8,6 +8,7 @@
     "dev": "vite",
     "local-dev": "node ../../../scripts/run-client-local-dev.cjs web-mobile-public",
     "build": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit && vite build",
+    "build:release": "node ../../../scripts/web-release-build.cjs mobile-public",
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",

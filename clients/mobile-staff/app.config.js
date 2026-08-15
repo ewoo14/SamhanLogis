@@ -32,8 +32,8 @@ const APP_VARIANT = process.env.APP_VARIANT || 'staff';
 
 /** EAS Build 시 CI 가 EXPO_BUILD_NUMBER=<n> 을 주입한다. 로컬 기본값 = 1. */
 const BUILD_NUMBER = process.env.EXPO_BUILD_NUMBER || '1';
-const EAS_PROJECT_ID = process.env.EAS_PROJECT_ID || 'PLACEHOLDER_EAS_PROJECT_ID';
-const HAS_EAS_PROJECT_ID = EAS_PROJECT_ID !== 'PLACEHOLDER_EAS_PROJECT_ID';
+const EAS_PROJECT_ID = process.env.EAS_PROJECT_ID || 'e0a532b1-4728-44a2-8349-5738894392a1';
+const HAS_EAS_PROJECT_ID = Boolean(EAS_PROJECT_ID);
 const EAS_UPDATE_URL =
   process.env.EXPO_PUBLIC_EAS_UPDATE_URL || `https://u.expo.dev/${EAS_PROJECT_ID}`;
 

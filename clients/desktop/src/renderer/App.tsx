@@ -11,6 +11,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AppRouter } from './routes'
 import { useSessionStore } from './stores/session'
 import { AppVersionGate } from './components/common/AppVersionGate'
+import { CertificateExpiryNotice } from './components/common/CertificateExpiryNotice'
 import { BiometricLockGate } from './components/common/BiometricLockGate'
 import { AppNoticeGate } from './components/common/AppNoticeGate'
 import { registerQueryClient } from './queryClientRegistry'
@@ -47,6 +48,7 @@ export function App() {
           <AppRouter />
         </BiometricLockGate>
       </AppVersionGate>
+      <CertificateExpiryNotice />
       <AppNoticeGate bootstrapped={bootstrapped} authenticated={hasSession} />
     </QueryClientProvider>
   )

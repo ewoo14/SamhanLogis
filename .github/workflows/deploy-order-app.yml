@@ -44,8 +44,10 @@ jobs:
         # Phase 7 2차 — deploy 직전 test gate. test script 미정의 시 silent skip.
         run: npm test --if-present
 
-      - name: vite build (dist 산출)
-        run: npm run build
+      - name: 릴리스 wrapper build + dist 버전 사후검증
+        env:
+          VITE_APP_VERSION: ${{ vars.SAMHAN_RELEASE_VERSION }}
+        run: npm run build:release
 
       - name: Cloudflare 토큰 설정 여부 확인
         id: cfcheck

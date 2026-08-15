@@ -37,6 +37,37 @@ metadata:
 
 🔑 **드라이버는 증거가 아니라 재현 편의다.** 그리고 회수하면 하네스 가드를 깬다 — 2026-08-09 에 `${BASE_URL}/경로` 하드코딩과 `resolveQaShotsDir` 미경유로 **main 이 실제로 red 가 됐다**. 자세히는 [[feedback_qa_harness_commit_breaks_ci]].
 
+## 🚨 2026-08-15 증보 — 삭제가 "used by another process" 로 막힐 때
+
+유령 디렉터리 14개가 전부 실패했다. **그리고 그것을 물고 있던 프로세스 중에는 지금 도는 트랙 것이 섞여 있었다.**
+
+```text
+worktrees 참조 프로세스 65개
+  유령만 참조   26개   ← 이것만 종료해야 한다
+  도는 트랙 것  39개   (w901b 21 · w910b 11 · wdc 7)
+🚨 이름·패턴으로 죽이면 남의 라운드가 죽는다
+   실제로 같은 밤에 검색식 매칭으로 다른 워크트리의 vite 를 죽인 사고가 있었다
+```
+
+**PID 마다 참조 경로를 뽑아 유령/라이브를 갈라라.**
+```powershell
+Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -like '*worktrees*' -or $_.CommandLine -like '*worktrees*' }
+# "$($_.ExecutablePath) $($_.CommandLine)" 에서 worktrees[\\/]([A-Za-z0-9_]+) 를 뽑아
+# 유령만 참조하고 라이브를 안 건드리는 것만 Stop-Process
+```
+
+### 프로세스를 다 죽여도 안 지워지면 — **긴 경로다**
+
+```text
+증상   빈 디렉터리인데 "being used by another process"
+       또는 'listenablefuture-9999.0-empty-to-avoid-conflict-with-guava.pom' 을 못 찾는다
+원인   gradle 캐시 경로가 MAX_PATH(260자)를 넘는다
+해법   cmd /c rmdir /s /q "\\?\<절대경로>"     ← \\?\ 접두어가 MAX_PATH 를 우회
+실측   Remove-Item 으로 4/14 → \\?\ rmdir 로 나머지 10/10 즉시 삭제
+```
+
+🚩 `robocopy /MIR` 로 빈 디렉터리를 미러하는 우회는 **훅에 막힌다**(경로 인자를 삭제 대상으로 오인). `\\?\` 를 쓰라.
+
 ## 실측 — 제거는 느리다
 
 각 워크트리가 `node_modules` 포함 전체 체크아웃이라 **하나에 수십 초** 걸린다. 25개를 한 번에 돌리면 2분 타임아웃에 걸린다.
