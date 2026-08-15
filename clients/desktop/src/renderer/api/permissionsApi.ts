@@ -354,7 +354,7 @@ export interface MenuCatalogEntry {
   category: string
   label: string
   route: string
-  pageCode: string
+  pageCode: PageCode
   action: 'VIEW'
   visible: boolean
   order: number
