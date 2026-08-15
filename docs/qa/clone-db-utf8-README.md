@@ -10,9 +10,9 @@
 
 ```bash
 export QA_CLONE_SOURCE_USER=samhan
-export QA_CLONE_SOURCE_PASSWORD='원본 비밀번호'
+export QA_CLONE_SOURCE_PASSWORD='<credential-from-env>'
 export QA_CLONE_TARGET_USER=qa_clone
-export QA_CLONE_TARGET_PASSWORD='격리본 비밀번호'
+export QA_CLONE_TARGET_PASSWORD='<credential-from-env>'
 bash scripts/qa/clone-db-utf8.sh slip_db partner_db
 ```
 

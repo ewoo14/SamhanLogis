@@ -95,7 +95,7 @@ test('R7 홈택스 실 사용자 경로 입력에서 거래처코드가 사업�
 
   const query = await request.get(
     `${HEAD_API}/internal/slips/sales-query?from=2026-08-09&to=2026-08-10&page=0&size=200`,
-    { headers: { 'X-Internal-Token': 'dev-internal-token-change-me' } },
+    { headers: { 'X-Internal-Token': 'CHANGE_ME_LOCAL_ONLY' } },
   )
   expect(query.status()).toBe(200)
   const rows = (await query.json()).data.content as Array<Record<string, any>>

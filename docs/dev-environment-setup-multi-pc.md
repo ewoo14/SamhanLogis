@@ -38,23 +38,36 @@ cd c:\dev\SamhanLogis
 
 > 스크립트 본문은 **ASCII 전용**입니다. PowerShell 5.1 이 BOM 없는 UTF-8 `.ps1` 을 ANSI 로 읽어 한글 문자열이 깨지면 파싱 자체가 실패하기 때문입니다([[feedback_powershell_utf8_writes]]). 한글 설명은 이 문서가 담당합니다.
 
-### 1-B. 환경 변수 (.env)
+### 1-B. 환경 변수 (`infrastructure/.env`)
 
-`.env` 는 `.gitignore` 처리되어 sync 되지 않습니다 (DB 패스워드 / API Key 등 secret 보호).
+`infrastructure/.env` 는 `.gitignore` 처리되어 PC 간 sync·commit 대상이 아닙니다. 저장소에는
+필요한 키 이름만 [`infrastructure/.env.example`](../infrastructure/.env.example)로 둡니다.
+
+회사 PC처럼 `.env`가 루트와 `infrastructure/` 모두에 없을 때도 launcher가 먼저 파일을 준비합니다.
 
 ```powershell
-# 1. .env.example 을 .env 로 복사
-Copy-Item .env.example .env
+cd C:\dev\Samhan-Public
 
-# 2. 메모장 등으로 열어서 값 채우기
-notepad .env
+# 선택 사항: 키 목록을 확인하고, 복사한 placeholder도 launcher가 안전한 랜덤값으로 교체한다.
+Copy-Item infrastructure\.env.example infrastructure\.env
+
+# 표준 launcher. clients를 띄우지 않아도 .env 생성·인프라/서비스 검증은 수행한다.
+.\scripts\launch-local-stack.ps1 -SkipClients
 ```
 
-채워야 하는 주요 값:
-- `POSTGRES_PASSWORD` — 로컬 PostgreSQL 비밀번호 (자유)
-- `JWT_SECRET` — 로컬 dev 용 임의 문자열 (32자 이상)
-- `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` — 로컬 MinIO 자격 증명
-- (기타 외부 API 키는 dev 단계에서 mock 토글로 미설정 가능)
+동작 규칙은 다음과 같습니다.
+
+- `.env` 없음: 기존 `samhan-*` 컨테이너가 있으면 컨테이너 설정에서 값을 조용히 복구하고, 없으면 새 로컬 랜덤값을 생성해 `infrastructure/.env`에 씁니다.
+- `.env` 있음: 모든 필수 키가 채워져 있으면 기동합니다. `.env.example`을 그대로 복사한 placeholder만 있는 경우는 위와 같이 랜덤값으로 채웁니다.
+- `.env` 일부만 있음: 시작하지 않고 누락 키 이름만 안내합니다. 기존 DB 볼륨과 새 자격이 어긋나는 상태를 자동으로 만들지 않기 위한 동작입니다.
+- `docker compose`를 launcher 없이 직접 실행하고 `.env`가 없으면 필수 키 오류로 명확히 실패합니다. 기존 스택은 자동 재기동하지 않습니다.
+
+`infrastructure/.env`의 전체 키 목록은 `.env.example`을 기준으로 합니다. 외부 vendor 자격은
+기존 정책대로 빈 값으로 두고, 개발용 MinIO·PostgreSQL·RabbitMQ·Grafana 자격은 launcher가 생성한
+값만 사용합니다. 자격 값은 launcher 콘솔·서비스 로그에 출력하지 않습니다.
+
+이미 실행 중인 스택을 새 코드로 재기동해야 할 때는 개발책임자의 별도 재기동/자격 회전 지시가
+필요합니다. 이번 변경은 주입 체계만 만들며, 이미 공개된 자격의 회전은 별도 작업입니다.
 
 #### 라이브 QA 자격 파일 (S1 / 이슈 #1101)
 
@@ -123,7 +136,7 @@ arologis-service 전용 (`infrastructure/env-templates/arologis-service.env` 복
 ### 1-D. Docker 인프라 기동
 
 ```powershell
-docker-compose up -d
+.\scripts\launch-local-stack.ps1 -SkipClients
 # PostgreSQL 14개 DB + Redis + RabbitMQ + MinIO + Elasticsearch + Prometheus + Grafana
 ```
 
@@ -203,8 +216,8 @@ git push
 | 증상 | 원인 | 해결 |
 |---|---|---|
 | Claude 가 메모리 규칙 모름 | sync 스크립트 미실행 | `.\scripts\sync-claude-memory.ps1` |
-| 빌드 실패 / 환경변수 누락 | `.env` 미생성 | `.env.example` 복사 후 값 채움 |
-| DB 연결 실패 | Docker 미기동 | `docker-compose up -d` |
+| 빌드 실패 / 환경변수 누락 | `.env` 일부 누락 | `.\scripts\launch-local-stack.ps1 -SkipClients` 실행 후 누락 키 보완 |
+| DB 연결 실패 | Docker 미기동 또는 `.env` 일부 누락 | Docker Desktop 시작 후 launcher 실행, 누락 키 확인 |
 | 이카운트 Excel 없음 | raw 폴더 비어있음 | 이카운트 콘솔에서 재다운로드 |
 | 현재 작업 상황 모름 | 핸드오프 노트 미확인 | `docs/handoff/CURRENT-WORK.md` 읽기 |
 | gradlew Permission denied | 실행 비트 누락 | `git update-index --chmod=+x gradlew` |

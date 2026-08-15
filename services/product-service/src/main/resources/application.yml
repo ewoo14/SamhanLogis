@@ -7,8 +7,8 @@ spring:
     name: product-service
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:product_db}
-    username: ${DB_USER:samhan}
-    password: ${DB_PASSWORD:samhan_dev_pw}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
   jackson:
     # FE-LOW2 (#688 S3 R1 리뷰) — partner-order-service application.yml 과 동일 가드.
     # EstimateCatalogInternalController.priceChangeSchedule()/priceBaseline() 등이 반환하는
@@ -43,7 +43,7 @@ app:
   security:
     internal:
       # Phase 8 2차 — SAMHAN_INTERNAL_TOKEN 우선, INTERNAL_AUTH_TOKEN legacy fallback (Phase 10 cutover 시점 단일화)
-      token: ${SAMHAN_INTERNAL_TOKEN:${INTERNAL_AUTH_TOKEN:dev-internal-token-change-me}}
+      token: ${SAMHAN_INTERNAL_TOKEN:${INTERNAL_AUTH_TOKEN:CHANGE_ME_LOCAL_ONLY}}
       # W10-4 (PR #99) DV-3 — product-service 자체 prefix /products/internal/ + ROLE_INTERNAL + missing 토큰 즉시 401
       path-prefix: /products/internal/
       role: INTERNAL

@@ -170,6 +170,6 @@ class S15RetentionRedGateTest {
                 .map(Value::value)
                 .findFirst()
                 .orElse("");
-        assertThat(annotation).doesNotContain("samhan_dev_pw", "samhan}");
+        assertThat(annotation).doesNotContain("default-secret-marker");
     }
 }

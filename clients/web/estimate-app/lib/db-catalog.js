@@ -30,7 +30,7 @@ const DC_CONFIG_BASE =
 const INTERNAL_TOKEN =
   process.env.SAMHAN_INTERNAL_TOKEN ||
   process.env.INTERNAL_AUTH_TOKEN ||
-  'dev-internal-token-change-me';
+  'CHANGE_ME_LOCAL_ONLY';
 const BASE = `${PRODUCT_BASE}/products/internal/estimate-catalog`;
 
 const ax = axios.create({ timeout: 20000, validateStatus: () => true });

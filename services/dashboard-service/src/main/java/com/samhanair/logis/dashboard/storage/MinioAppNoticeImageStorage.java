@@ -34,7 +34,7 @@ public class MinioAppNoticeImageStorage implements AppNoticeImageStorage {
 
     public MinioAppNoticeImageStorage(
             @Value("${app.notice.minio.endpoint:http://localhost:9000}") String endpoint,
-            @Value("${app.notice.minio.access-key:samhan}") String accessKey,
+            @Value("${app.notice.minio.access-key}") String accessKey,
             @Value("${app.notice.minio.secret-key:}") String secretKey,
             @Value("${app.notice.minio.bucket:samhan-attachments}") String bucket,
             @Value("${app.notice.minio.presigned-expiry-seconds:300}") int presignedExpirySeconds) {

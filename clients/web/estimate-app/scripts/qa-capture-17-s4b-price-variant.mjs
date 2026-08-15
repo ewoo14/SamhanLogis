@@ -6,7 +6,7 @@
  *    homemulti.defaultPreChange=true 로 PUT 저장이 이미 반영되어 있어야 한다.
  *  - estimate-app 서버(`node server.js`, 기본 :5183)가 CATALOG_SOURCE=db(기본값) 로 기동 중이어야
  *    한다(PRODUCT_SERVICE_URL 기본 http://localhost:8084, SAMHAN_INTERNAL_TOKEN 기본
- *    dev-internal-token-change-me — .env 미설정 시 이 기본값 그대로 사용됨).
+ *    CHANGE_ME_LOCAL_ONLY — .env 미설정 시 placeholder가 사용됨).
  *  - checkUserAuth 접속 게이트 통과를 위해 user-service 에 존재하는 [DEV-SEED] 이메일을
  *    `?email=` 쿼리로 전달한다(기본 DEFAULT_USER_EMAIL=dev@samhan-air.com 은 시드에 없어 미승인
  *    처리되어 전체 body 가 "접근 권한 없음" 문구로 대체되므로 반드시 override 필요).

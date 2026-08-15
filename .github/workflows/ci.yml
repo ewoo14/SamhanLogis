@@ -140,6 +140,27 @@ jobs:
           docker version
           docker ps
 
+      - name: CI 임시 자격 생성 (실 개발 스택 자격 미사용)
+        shell: bash
+        run: |
+          set -euo pipefail
+          ci_secret() { openssl rand -hex 32; }
+          ci_value() {
+            local name="$1" value="$2"
+            echo "::add-mask::$value"
+            echo "$name=$value" >> "$GITHUB_ENV"
+          }
+          ci_value SAMHAN_GATEWAY_ATTESTATION "$(ci_secret)"
+          ci_value SAMHAN_INTERNAL_TOKEN "$(ci_secret)"
+          ci_value INTERNAL_AUTH_TOKEN "$(ci_secret)"
+          ci_value SAMHAN_JWT_SECRET "$(ci_secret)"
+          ci_value JWT_SECRET "$(ci_secret)"
+          ci_value SAMHAN_AROLOGIS_JWT_SECRET "$(ci_secret)"
+          ci_value DB_USER "ci_${GITHUB_RUN_ID}"
+          ci_value DB_PASSWORD "$(ci_secret)"
+          ci_value SAMHAN_S3_ACCESS_KEY "ci_${GITHUB_RUN_ID}"
+          ci_value SAMHAN_S3_SECRET_KEY "$(ci_secret)"
+
       # 5차 fix: --no-daemon 제거 — assemble→test 사이 JVM 워밍업 재활용 (52s 절약).
       - name: assemble (전 모듈)
         run: ./gradlew assemble
@@ -647,6 +668,9 @@ jobs:
 
       - name: 자격 소비자 discovery 계약 테스트
         run: node --test scripts/lib/qa-credentials.test.cjs
+
+      - name: 자격·환경 초기화 계약 테스트
+        run: node --test scripts/credential-hardening.contract.test.cjs
 
       # Playwright spec hard gate 는 후속 슬라이스 — 본 PR 에서는 shell guard 단독
       # (SP-08-7 notion-zero-guard 패턴 일관). spec testDir 외부 testMatch 이슈 (No tests found)

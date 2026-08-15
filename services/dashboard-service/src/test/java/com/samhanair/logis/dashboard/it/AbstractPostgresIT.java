@@ -14,6 +14,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
  * 를 통과시킨다. CI Linux runner 에서 실 IT 진행.
  */
 @ExtendWith(AbstractPostgresIT.DockerAvailableCondition.class)
+@org.springframework.context.annotation.Import(com.samhanair.logis.security.test.GatewayAttestationMockMvcConfig.class)
 public abstract class AbstractPostgresIT {
 
     @SuppressWarnings("resource")

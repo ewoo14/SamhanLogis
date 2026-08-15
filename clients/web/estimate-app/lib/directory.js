@@ -21,7 +21,7 @@ const USER_BASE = process.env.USER_SERVICE_URL || 'http://localhost:8083';
 const INTERNAL_TOKEN =
   process.env.SAMHAN_INTERNAL_TOKEN ||
   process.env.INTERNAL_AUTH_TOKEN ||
-  'dev-internal-token-change-me';
+  'CHANGE_ME_LOCAL_ONLY';
 
 const ax = axios.create({ timeout: 15000, validateStatus: () => true });
 const PARTNER_PAGE_LIMIT = 5000;

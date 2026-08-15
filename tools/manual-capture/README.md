@@ -145,8 +145,8 @@ node tools\manual-capture\sync-screenshots.js
 
 ```json
 "auth": {
-  "kimmiseon": { "loginId": "kimmiseon", "password": "Pass1234!" },
-  "salesUser": { "loginId": "salesuser", "password": "Pass1234!" }
+  "kimmiseon": { "loginId": "kimmiseon", "passwordEnv": "QA_MASTER_PASSWORD" },
+  "salesUser": { "loginId": "salesuser", "passwordEnv": "QA_MASTER_PASSWORD" }
 }
 ```
 

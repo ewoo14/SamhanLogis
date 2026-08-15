@@ -28,6 +28,8 @@ dependencyManagement {
 }
 
 dependencies {
+    compileOnly project(':shared:common')
+
     // Spring Boot autoconfiguration + ConfigurationProperties + servlet filter
     api 'org.springframework.boot:spring-boot-autoconfigure'
     api 'org.springframework.boot:spring-boot'
@@ -43,6 +45,11 @@ dependencies {
     // SP-D5: Spring AOP (PermissionAspect @Around)
     api 'org.springframework:spring-aop'
     api 'org.aspectj:aspectjweaver'
+
+    // 테스트 컨텍스트에서만 import되는 MockMvc attestation 공통 설정
+    compileOnly 'org.springframework.boot:spring-boot-test'
+    compileOnly 'org.springframework.boot:spring-boot-test-autoconfigure'
+    compileOnly 'org.springframework:spring-test'
 
     // SP-D6: shared DefaultDynamicPermissionClient (RestClient) + Jackson JsonNode 응답 파싱
     api 'org.springframework:spring-web'

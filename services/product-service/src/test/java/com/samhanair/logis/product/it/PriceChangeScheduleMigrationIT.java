@@ -8,6 +8,7 @@ import java.sql.ResultSet;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -24,10 +25,11 @@ import org.testcontainers.containers.PostgreSQLContainer;
  */
 class PriceChangeScheduleMigrationIT {
 
+    private static final String POSTGRES_PASSWORD = UUID.randomUUID().toString();
     private static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine")
             .withDatabaseName("price_schedule_upgrade_db")
-            .withUsername("samhan")
-            .withPassword("samhan_dev_pw");
+            .withUsername(UUID.randomUUID().toString())
+            .withPassword(POSTGRES_PASSWORD);
 
     @BeforeAll
     static void applyV25Fixture() throws Exception {

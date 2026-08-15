@@ -17,6 +17,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -41,6 +42,9 @@ class AccountingSlipLinkEligibilityHttpIT extends AbstractPostgresIT {
     @org.springframework.beans.factory.annotation.Autowired
     private TestRestTemplate restTemplate;
 
+    @Value("${SAMHAN_GATEWAY_ATTESTATION}")
+    private String gatewayAttestation;
+
     @Test
     void gateway형_MASTER는_역할_헤더_없이_통과하고_SALES는_위조_역할도_거부한다() {
         UUID sourceId = UUID.randomUUID();
@@ -63,8 +67,9 @@ class AccountingSlipLinkEligibilityHttpIT extends AbstractPostgresIT {
         assertThat(sales.getBody()).contains("\"allowed\":false", "PERMISSION_DENIED");
     }
 
-    private static HttpHeaders headers(UUID accountId, String userId, String systemMaster, String groups, String role) {
+    private HttpHeaders headers(UUID accountId, String userId, String systemMaster, String groups, String role) {
         HttpHeaders headers = new HttpHeaders();
+        headers.set("X-Samhan-Gateway-Attestation", gatewayAttestation);
         headers.set("X-User-Id", accountId.toString());
         headers.set("X-Is-System-Master", systemMaster);
         headers.set("X-User-Groups", groups);

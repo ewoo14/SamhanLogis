@@ -5,18 +5,22 @@ the **data services** (PostgreSQL, Redis, RabbitMQ, Elasticsearch, MinIO) and
 the **monitoring stack** (Prometheus, Grafana, Nginx reverse-proxy stub) on a
 single bridge network `samhan-net`.
 
-> All credentials in this directory are **DEV-ONLY**. Never reuse them in
-> staging or production environments.
+> Credentials are loaded from `infrastructure/.env` (gitignored). Never reuse
+> local values in staging or production environments.
+
+`infrastructure/.env`가 없으면 `..\scripts\launch-local-stack.ps1 -SkipClients`가
+placeholder를 로컬 랜덤값으로 교체하거나 기존 컨테이너 환경에서 조용히 복구합니다.
+일부 키만 있는 `.env`는 시작하지 않고 누락 키를 안내합니다.
 
 ## Lifecycle
 
 | Action | Command |
 | ------ | ------- |
-| Start  | `docker compose -f infrastructure/docker-compose.yml up -d` |
-| Stop   | `docker compose -f infrastructure/docker-compose.yml down` |
-| Wipe (remove volumes) | `docker compose -f infrastructure/docker-compose.yml down -v` |
-| Logs   | `docker compose -f infrastructure/docker-compose.yml logs -f <service>` |
-| Status | `docker compose -f infrastructure/docker-compose.yml ps` |
+| Start  | `..\scripts\launch-local-stack.ps1 -SkipClients` |
+| Stop   | `docker compose --env-file infrastructure/.env -f infrastructure/docker-compose.yml down` |
+| Wipe (remove volumes) | `docker compose --env-file infrastructure/.env -f infrastructure/docker-compose.yml down -v` |
+| Logs   | `docker compose --env-file infrastructure/.env -f infrastructure/docker-compose.yml logs -f <service>` |
+| Status | `docker compose --env-file infrastructure/.env -f infrastructure/docker-compose.yml ps` |
 
 ## Connection Reference (DEV-ONLY)
 
@@ -24,20 +28,20 @@ single bridge network `samhan-net`.
 
 | Service | Host:Port | User | Password | Notes |
 | ------- | --------- | ---- | -------- | ----- |
-| PostgreSQL    | `localhost:5432`  | `samhan` | `samhan_dev_pw` | 10 service DBs auto-created (see `postgres/init/`) |
+| PostgreSQL    | `localhost:5432`  | `samhan` | `infrastructure/.env` | 10 service DBs auto-created (see `postgres/init/`) |
 | Redis         | `localhost:6379`  | -        | -               | No auth in dev |
-| RabbitMQ AMQP | `localhost:5672`  | `samhan` | `samhan_dev_pw` | |
-| RabbitMQ UI   | http://localhost:15672 | `samhan` | `samhan_dev_pw` | Management plugin |
+| RabbitMQ AMQP | `localhost:5672`  | `samhan` | `infrastructure/.env` | |
+| RabbitMQ UI   | http://localhost:15672 | `samhan` | `infrastructure/.env` | Management plugin |
 | Elasticsearch | http://localhost:9200 | -    | -               | Security disabled (single-node) |
-| MinIO API     | http://localhost:9000 | `samhan` | `samhan_dev_pw` | S3-compatible |
-| MinIO Console | http://localhost:9001 | `samhan` | `samhan_dev_pw` | |
+| MinIO API     | http://localhost:9000 | `samhan` | `infrastructure/.env` | S3-compatible |
+| MinIO Console | http://localhost:9001 | `samhan` | `infrastructure/.env` | |
 
 ### Monitoring stack
 
 | Service | Host:Port | User | Password | Notes |
 | ------- | --------- | ---- | -------- | ----- |
 | Prometheus | http://localhost:9090   | -       | -                 | Scrapes Spring Boot Actuator on samhan-net |
-| Grafana    | http://localhost:3100   | `admin` | `samhan_dev_pw`   | Container port 3000 mapped to host 3100 |
+| Grafana    | http://localhost:3100   | `admin` | `infrastructure/.env`   | Container port 3000 mapped to host 3100 |
 | Nginx HTTP | http://localhost:80     | -       | -                 | Stub reverse proxy (see below) |
 | Nginx TLS  | `localhost:443`         | -       | -                 | Reserved; HTTP only in dev |
 

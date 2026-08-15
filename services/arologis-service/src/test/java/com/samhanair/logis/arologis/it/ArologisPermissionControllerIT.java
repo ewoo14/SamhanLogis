@@ -71,6 +71,7 @@ import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.PermissionGuardMetrics;
 import com.samhanair.logis.security.permission.PermissionSecurityAutoConfiguration;
+import com.samhanair.logis.security.test.GatewayAttestationMockMvcConfig;
 import com.samhanair.logis.shared.realtime.broker.RealtimeBroker;
 import com.samhanair.logis.shared.realtime.editrequest.EditRequestType;
 import com.samhanair.logis.shared.realtime.editrequest.EditTargetRole;
@@ -86,6 +87,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -583,12 +585,14 @@ class ArologisPermissionControllerIT {
     static class TestSecurityConfig {
 
         @Bean
-        SecurityFilterChain testSecurityFilterChain(HttpSecurity http) throws Exception {
+        SecurityFilterChain testSecurityFilterChain(
+                HttpSecurity http,
+                @Value("${SAMHAN_GATEWAY_ATTESTATION:}") String gatewayAttestation) throws Exception {
             http
                     .csrf(AbstractHttpConfigurer::disable)
                     .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                     .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
-                    .addFilterBefore(new HeaderAuthenticationFilter(GatewayAttestationMockMvcConfig.ATTESTATION),
+                    .addFilterBefore(new HeaderAuthenticationFilter(gatewayAttestation),
                             UsernamePasswordAuthenticationFilter.class);
             return http.build();
         }

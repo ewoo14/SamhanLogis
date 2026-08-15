@@ -31,10 +31,10 @@
     MinIO API endpoint (default http://samhan-minio:9000 — same docker network).
 
 .PARAMETER AccessKey
-    MinIO root user (default samhan). DEV-ONLY.
+    MinIO root user. 생략하면 infrastructure/.env 의 MINIO_ROOT_USER 를 사용한다.
 
 .PARAMETER SecretKey
-    MinIO root password (default samhan_dev_pw). DEV-ONLY.
+    MinIO root password. 생략하면 infrastructure/.env 의 MINIO_ROOT_PASSWORD 를 사용한다.
 
 .EXAMPLE
     .\infrastructure\scripts\setup-minio-buckets.ps1
@@ -53,12 +53,25 @@
 param(
     [string] $MinioContainer = 'samhan-minio',
     [string] $Endpoint       = 'http://samhan-minio:9000',
-    [string] $AccessKey      = 'samhan',
-    [string] $SecretKey      = 'samhan_dev_pw',
+    [string] $AccessKey      = '',
+    [string] $SecretKey      = '',
     [string] $Network        = 'samhan-net'
 )
 
 $ErrorActionPreference = 'Stop'
+
+$projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+$envHelper = Join-Path $PSScriptRoot 'ensure-local-env.ps1'
+if (-not (Test-Path -LiteralPath $envHelper)) {
+    throw "로컬 자격 helper 를 찾을 수 없습니다: $envHelper"
+}
+. (Resolve-Path -LiteralPath $envHelper)
+$null = Initialize-SamhanLocalEnv -ProjectRoot $projectRoot
+if ([string]::IsNullOrWhiteSpace($AccessKey)) { $AccessKey = $env:MINIO_ROOT_USER }
+if ([string]::IsNullOrWhiteSpace($SecretKey)) { $SecretKey = $env:MINIO_ROOT_PASSWORD }
+if ([string]::IsNullOrWhiteSpace($AccessKey) -or [string]::IsNullOrWhiteSpace($SecretKey)) {
+    throw 'MinIO 자격이 없습니다. infrastructure/.env 의 MINIO_ROOT_USER/MINIO_ROOT_PASSWORD 를 설정하세요.'
+}
 
 Write-Host ''
 Write-Host '==============================================================' -ForegroundColor Cyan
@@ -248,10 +261,10 @@ Write-Host '       SAMHAN_GROUPWARE_APPROVAL_MINIO_BUCKET=groupware-approval-att
 Write-Host '   - 공통 AttachmentService (P1-photo):'
 Write-Host '       SAMHAN_S3_ENDPOINT=http://localhost:9000'
 Write-Host '       SAMHAN_S3_ACCESS_KEY=samhan'
-Write-Host '       SAMHAN_S3_SECRET_KEY=samhan_dev_pw'
+Write-Host '       SAMHAN_S3_SECRET_KEY=<infrastructure/.env의 MINIO_ROOT_PASSWORD>'
 Write-Host '       SAMHAN_S3_BUCKET=samhan-attachments'
 Write-Host '       SAMHAN_S3_PRESIGNED_EXPIRY=300'
-Write-Host '   - MinIO Console   : http://localhost:9001  (samhan / samhan_dev_pw)'
+Write-Host '   - MinIO Console   : http://localhost:9001  (자격: infrastructure/.env)'
 Write-Host ''
 Write-Host ' Phase 11 AWS S3 cutover (Phase 11 구축 완료 후):' -ForegroundColor DarkGray
 Write-Host '   SAMHAN_S3_ENDPOINT=   (빈 값 → AWS S3 default endpoint)' -ForegroundColor DarkGray

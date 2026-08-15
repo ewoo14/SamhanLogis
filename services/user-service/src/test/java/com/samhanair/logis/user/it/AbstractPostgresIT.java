@@ -1,5 +1,6 @@
 package com.samhanair.logis.user.it;
 
+import java.util.UUID;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -19,14 +20,17 @@ import org.testcontainers.containers.PostgreSQLContainer;
  * 테스트를 fail 이 아닌 skip 으로 처리한다.
  */
 @ExtendWith(AbstractPostgresIT.DockerAvailableCondition.class)
+@org.springframework.context.annotation.Import(com.samhanair.logis.security.test.GatewayAttestationMockMvcConfig.class)
 public abstract class AbstractPostgresIT {
+
+    private static final String POSTGRES_PASSWORD = UUID.randomUUID().toString();
 
     @SuppressWarnings("resource")
     protected static final PostgreSQLContainer<?> POSTGRES =
             new PostgreSQLContainer<>("postgres:16-alpine")
                     .withDatabaseName("user_db")
-                    .withUsername("samhan")
-                    .withPassword("samhan_dev_pw");
+                    .withUsername(UUID.randomUUID().toString())
+                    .withPassword(POSTGRES_PASSWORD);
 
     static {
         try {

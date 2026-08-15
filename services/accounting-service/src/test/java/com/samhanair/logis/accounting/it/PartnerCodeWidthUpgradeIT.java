@@ -6,6 +6,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.AfterAll;
@@ -19,11 +20,12 @@ import org.testcontainers.containers.PostgreSQLContainer;
 @ExtendWith(AbstractPostgresIT.DockerAvailableCondition.class)
 class PartnerCodeWidthUpgradeIT {
 
+    private static final String POSTGRES_PASSWORD = UUID.randomUUID().toString();
     private static final PostgreSQLContainer<?> UPGRADE_POSTGRES =
             new PostgreSQLContainer<>("postgres:16-alpine")
                     .withDatabaseName("accounting_upgrade_db")
-                    .withUsername("samhan")
-                    .withPassword("samhan_dev_pw");
+            .withUsername(UUID.randomUUID().toString())
+                    .withPassword(POSTGRES_PASSWORD);
 
     private static final String CODE = "U".repeat(50);
 

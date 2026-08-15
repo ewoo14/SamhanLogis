@@ -83,6 +83,7 @@ $ProjectRoot = (Resolve-Path "$PSScriptRoot\..\..").Path
 $InfraDir    = Join-Path $ProjectRoot 'infrastructure'
 $ComposeFile = Join-Path $InfraDir   'docker-compose.yml'
 $EnvSeedFile = Join-Path $InfraDir   'env-templates\.env.dev-seed'
+$LocalEnvHelper = Join-Path $PSScriptRoot 'ensure-local-env.ps1'
 $LogsDir     = Join-Path $ProjectRoot '.local-logs'
 $portResolver = Join-Path $ProjectRoot 'scripts\lib\local-stack-port.ps1'
 . (Resolve-Path -LiteralPath $portResolver)
@@ -128,6 +129,13 @@ if (-not $SkipDocker) {
         $ErrorActionPreference = $prevEAP
     }
 }
+
+if (-not (Test-Path -LiteralPath $LocalEnvHelper)) {
+    throw "로컬 자격 helper 를 찾을 수 없습니다: $LocalEnvHelper"
+}
+. (Resolve-Path -LiteralPath $LocalEnvHelper)
+$LocalEnvFile = Initialize-SamhanLocalEnv -ProjectRoot $ProjectRoot
+Write-Host "   LocalEnvFile : $LocalEnvFile (자격 값은 출력하지 않음)" -ForegroundColor DarkGray
 
 Write-Host '[0/6] Pre-flight — local-stack service port 점유 검사' -ForegroundColor Yellow
 
@@ -217,7 +225,7 @@ if (-not $SkipDocker) {
     $prevEAP = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     try {
-        docker compose -f docker-compose.yml up -d
+        docker compose --env-file .env -f docker-compose.yml up -d
         if ($LASTEXITCODE -ne 0) {
             $ErrorActionPreference = $prevEAP
             throw 'docker compose up 실패'
@@ -318,14 +326,11 @@ if ($RunSeed) {
     Write-Host '   -RunSeed 지정 — product/inventory seed를 실행합니다.' -ForegroundColor Yellow
 }
 
-# DB 연결 자격증명 (env 파일에 없는 표준 default)
+# DB 연결 자격증명은 Initialize-SamhanLocalEnv 가 infrastructure/.env 에서 준비한다.
 if (-not $env:DB_HOST)     { $env:DB_HOST     = 'localhost' }
 if (-not $env:DB_PORT)     { $env:DB_PORT     = '5432' }
-if (-not $env:DB_USER)     { $env:DB_USER     = 'samhan' }
-if (-not $env:DB_PASSWORD) {
-    if ($env:POSTGRES_PASSWORD) { $env:DB_PASSWORD = $env:POSTGRES_PASSWORD }
-    # docker-compose.yml 기본값 fallback — 외부 env 미설정 시 dev 환경 default 사용
-    else { $env:DB_PASSWORD = 'samhan_dev_pw' }
+if (-not $env:DB_USER -or -not $env:DB_PASSWORD) {
+    throw 'infrastructure/.env 의 DB_USER/DB_PASSWORD 가 필요합니다.'
 }
 
 # W10-5 회고 — LEGACY_DB_* chained-default 호환.
@@ -554,9 +559,9 @@ Write-Host ' 모니터링:' -ForegroundColor Cyan
 Write-Host "   Eureka       → http://localhost:$eurekaPort"
 Write-Host "   API Gateway  → http://localhost:$gatewayPort"
 Write-Host '   Prometheus   → http://localhost:9090'
-Write-Host '   Grafana      → http://localhost:3100  (admin / samhan_dev_pw)'
-Write-Host '   RabbitMQ UI  → http://localhost:15672 (samhan / samhan_dev_pw)'
-Write-Host '   MinIO UI     → http://localhost:9001  (samhan / samhan_dev_pw)'
+Write-Host '   Grafana      → http://localhost:3100  (자격: infrastructure/.env)'
+Write-Host '   RabbitMQ UI  → http://localhost:15672 (자격: infrastructure/.env)'
+Write-Host '   MinIO UI     → http://localhost:9001  (자격: infrastructure/.env)'
 Write-Host ''
 Write-Host ' service log:' -ForegroundColor Cyan
 Write-Host "   $LogsDir\<service-name>.log"

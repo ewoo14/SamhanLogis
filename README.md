@@ -870,8 +870,8 @@ SamhanLogis/    # repository root (제품 표기 = Samhan Public)
 ### 인프라 + backend 빌드
 
 ```bash
-# 1) 인프라 stack
-docker compose -f infrastructure/docker-compose.yml up -d
+# 1) 인프라 + backend stack (launcher가 infrastructure/.env를 준비)
+./scripts/launch-local-stack.sh --skip-clients
 
 # 2) 전체 모듈 컴파일 (테스트 제외)
 ./gradlew assemble
@@ -928,7 +928,7 @@ set +a
 
    ```powershell
    cd infrastructure
-   docker compose up -d postgres redis rabbitmq elasticsearch minio
+   docker compose --env-file .env -f docker-compose.yml up -d postgres redis rabbitmq elasticsearch minio
    ```
 
 2. **시드 환경변수 일괄 로드**
@@ -1005,9 +1005,9 @@ set +a
 | Eureka Dashboard | http://localhost:8761 | - |
 | API Gateway | http://localhost:8080 | JWT (마스터 로그인) |
 | Prometheus | http://localhost:9090 | - |
-| Grafana | http://localhost:3100 | admin / samhan_dev_pw |
-| RabbitMQ Management | http://localhost:15672 | samhan / samhan_dev_pw |
-| MinIO Console | http://localhost:9001 | samhan / samhan_dev_pw |
+| Grafana | http://localhost:3100 | `infrastructure/.env` 의 자격 |
+| RabbitMQ Management | http://localhost:15672 | `infrastructure/.env` 의 자격 |
+| MinIO Console | http://localhost:9001 | `infrastructure/.env` 의 자격 |
 
 ### 주의사항
 
@@ -1209,7 +1209,7 @@ cd qa/detox && npm install && npm run build:ios && npm run test:ios
 - **Soft-delete 전용** — `@SQLRestriction("is_deleted = false")`, hard delete 금지
 - **권한 7단계 풀네임** — MASTER / MANAGER / DEVELOPER / SALES / ACCOUNTANT / WAREHOUSE / INVENTORY
 - **DB 컬럼 타입 가드** — `VARCHAR(N)` 만 허용, `CHAR(N)` 금지 (PostgreSQL bpchar mismatch 회피)
-- **Internal token 가드** — prod 프로파일에서 `dev-internal-token-change-me` 사용 시 부팅 거부
+- **Internal token 가드** — prod 프로파일에서 `CHANGE_ME_LOCAL_ONLY` 사용 시 부팅 거부
 - **PowerShell 파일 쓰기 금지** — PR/Issue body 는 Write tool 또는 heredoc 사용 (UTF-16 BOM 한글 깨짐 회피)
 - **PR 본문 commit-pinned 스크린샷** — `https://raw.githubusercontent.com/<owner>/<repo>/<sha>/<path>` 형식
 - **gradlew 실행 권한** — Windows 커밋 시 `git update-index --chmod=+x gradlew` 필수

@@ -2,6 +2,7 @@ package com.samhanair.logis.arologis.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockFilterChain;
@@ -11,7 +12,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 
 class HeaderAuthenticationFilterTest {
 
-    private static final String ATTESTATION = "test-gateway-attestation";
+    private static final String ATTESTATION = UUID.randomUUID().toString();
 
     @AfterEach
     void clearSecurityContext() {

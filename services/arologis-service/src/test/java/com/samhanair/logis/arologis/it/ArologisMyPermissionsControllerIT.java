@@ -15,9 +15,11 @@ import com.samhanair.logis.arologis.client.NotificationClient;
 import com.samhanair.logis.arologis.client.PartnerClient;
 import com.samhanair.logis.arologis.client.SlipClient;
 import com.samhanair.logis.arologis.client.SlipServiceClient;
+import com.samhanair.logis.security.test.GatewayAttestationMockMvcConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -49,8 +51,7 @@ import org.springframework.web.client.RestClient;
                 "samhan.auth-service.url=http://auth-service-stub",
                 "app.security.internal.token=test-internal-token",
                 "spring.main.allow-bean-definition-overriding=true",
-                "eureka.client.enabled=false",
-                "samhan.security.gateway-attestation=test-gateway-attestation"
+                "eureka.client.enabled=false"
         })
 @AutoConfigureMockMvc
 @ActiveProfiles("local")
@@ -69,6 +70,9 @@ class ArologisMyPermissionsControllerIT {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Value("${SAMHAN_GATEWAY_ATTESTATION}")
+    private String gatewayAttestation;
 
     @MockBean
     private PartnerClient partnerClient;
@@ -193,7 +197,7 @@ class ArologisMyPermissionsControllerIT {
                 .andExpect(header("X-Internal-Token", TOKEN))
                 .andExpect(header("X-User-Id", "system-internal:" + CALLER))
                 .andExpect(header("X-User-Role", CALLER))
-                .andExpect(header(HttpHeaderConstants.GATEWAY_ATTESTATION_HEADER, "test-gateway-attestation"))
+                .andExpect(header(HttpHeaderConstants.GATEWAY_ATTESTATION_HEADER, gatewayAttestation))
                 .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
     }
 

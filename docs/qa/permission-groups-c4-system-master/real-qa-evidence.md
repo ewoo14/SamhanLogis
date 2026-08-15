@@ -41,7 +41,7 @@ POST http://localhost:8080/api/auth/login
   "success": true,
   "code": "OK",
   "data": {
-    "token": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDEiLCJyb2xlIjoiTUFTVEVSIiwiaWF0IjoxNzgwNzA2NTU2LCJleHAiOjE3ODA3MTAxNTYsImRlcGFydG1lbnROYW1lIjoi64yA7ZGc7IukIiwiaXNTeXN0ZW1NYXN0ZXIiOnRydWV9.ynu3hmD0EgqgkMJjFEfTL7MLuFsK2SS7ILUFACP4njY",
+    "token": "<redacted-jwt>",
     "userId": "a0000000-0000-0000-0000-000000000001",
     "role": "MASTER"
   }

@@ -39,8 +39,8 @@ public class MinioAttachmentStorage implements AttachmentStorage {
 
     public MinioAttachmentStorage(
             @Value("${app.partner.minio.endpoint:http://localhost:9000}") String endpoint,
-            @Value("${app.partner.minio.access-key:samhan}") String accessKey,
-            @Value("${app.partner.minio.secret-key:samhan_dev_pw}") String secretKey,
+            @Value("${app.partner.minio.access-key}") String accessKey,
+            @Value("${app.partner.minio.secret-key}") String secretKey,
             @Value("${app.partner.minio.bucket:partner-attachments}") String bucket,
             @Value("${app.partner.minio.presigned-expiry-seconds:3600}") int presignedExpirySeconds) {
         this.endpoint = endpoint;

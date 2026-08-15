@@ -11,8 +11,8 @@ spring:
     # Phase 8 2차 chained-default — SAMHAN_NOTIFICATION_DB_* 우선, LEGACY_DB_* legacy fallback (Phase 10 cutover 시점 단일화).
     url: jdbc:postgresql://${SAMHAN_NOTIFICATION_DB_HOST:${LEGACY_DB_HOST:localhost}}:${SAMHAN_NOTIFICATION_DB_PORT:${LEGACY_DB_PORT:5432}}/${SAMHAN_NOTIFICATION_DB_NAME:${LEGACY_DB_NAME:notification_db}}
     # W10-5 회고 — chained-default + samhan default fallback (env 미설정 시 connection refused 회피)
-    username: ${SAMHAN_NOTIFICATION_DB_USER:${LEGACY_DB_USER:${DB_USER:samhan}}}
-    password: ${SAMHAN_NOTIFICATION_DB_PASSWORD:${LEGACY_DB_PASSWORD:${DB_PASSWORD:samhan_dev_pw}}}
+    username: ${SAMHAN_NOTIFICATION_DB_USER:${LEGACY_DB_USER:${DB_USER}}}
+    password: ${SAMHAN_NOTIFICATION_DB_PASSWORD:${LEGACY_DB_PASSWORD:${DB_PASSWORD}}}
   jpa:
     hibernate:
       ddl-auto: validate
@@ -91,7 +91,7 @@ app:
   security:
     internal:
       # Phase 8 2차 — SAMHAN_INTERNAL_TOKEN 표준, INTERNAL_AUTH_TOKEN legacy fallback (Phase 10 cutover 시점 단일화).
-      token: ${SAMHAN_INTERNAL_TOKEN:${INTERNAL_AUTH_TOKEN:dev-internal-token-change-me}}
+      token: ${SAMHAN_INTERNAL_TOKEN:${INTERNAL_AUTH_TOKEN:CHANGE_ME_LOCAL_ONLY}}
   # Stage 4 local-test seed (NotificationHistorySeeder) toggle. dev profile + 본 toggle 모두 true 인 경우만 seed.
   # 운영 / staging 데이터 오염 방지 — default false. 50건 발송 이력 + 40건 attempt log.
   notification:

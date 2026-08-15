@@ -101,11 +101,11 @@ if (-not [string]::IsNullOrWhiteSpace([string]$claims.departmentName)) {
 }
 
 $users = @(
-    @{ loginId = "master@samhan.test"; password = 'Pa$$w0rd!'; displayName = "로컬 마스터"; role = "MASTER" },
-    @{ loginId = "manager@samhan.test"; password = 'Pa$$w0rd!'; displayName = "로컬 관리자"; role = "MANAGER" },
-    @{ loginId = "accountant@samhan.test"; password = 'Pa$$w0rd!'; displayName = "로컬 회계"; role = "ACCOUNTANT" },
-    @{ loginId = "staff@samhan.test"; password = 'Pa$$w0rd!'; displayName = "로컬 현장직"; role = "STAFF" },
-    @{ loginId = "driver@samhan.test"; password = 'Pa$$w0rd!'; displayName = "로컬 기사"; role = "DRIVER" }
+    @{ loginId = "master@samhan.test"; password = $seedLoginPw; displayName = "로컬 마스터"; role = "MASTER" },
+    @{ loginId = "manager@samhan.test"; password = $seedLoginPw; displayName = "로컬 관리자"; role = "MANAGER" },
+    @{ loginId = "accountant@samhan.test"; password = $seedLoginPw; displayName = "로컬 회계"; role = "ACCOUNTANT" },
+    @{ loginId = "staff@samhan.test"; password = $seedLoginPw; displayName = "로컬 현장직"; role = "STAFF" },
+    @{ loginId = "driver@samhan.test"; password = $seedLoginPw; displayName = "로컬 기사"; role = "DRIVER" }
 )
 
 foreach ($user in $users) {
@@ -181,8 +181,8 @@ if (-not $SkipReimport) {
 
 Write-Host ""
 Write-Host "Local credential seed complete"
-Write-Host "  master@samhan.test     / Pa`$`$w0rd! / ROLE_MASTER"
-Write-Host "  manager@samhan.test    / Pa`$`$w0rd! / ROLE_MANAGER"
-Write-Host "  accountant@samhan.test / Pa`$`$w0rd! / ROLE_ACCOUNTANT"
-Write-Host "  staff@samhan.test      / Pa`$`$w0rd! / ROLE_STAFF"
-Write-Host "  driver@samhan.test     / Pa`$`$w0rd! / ROLE_DRIVER"
+Write-Host '  master@samhan.test     / $env:QA_DEV_DEFAULT_PASSWORD / ROLE_MASTER'
+Write-Host '  manager@samhan.test    / $env:QA_DEV_DEFAULT_PASSWORD / ROLE_MANAGER'
+Write-Host '  accountant@samhan.test / $env:QA_DEV_DEFAULT_PASSWORD / ROLE_ACCOUNTANT'
+Write-Host '  staff@samhan.test      / $env:QA_DEV_DEFAULT_PASSWORD / ROLE_STAFF'
+Write-Host '  driver@samhan.test     / $env:QA_DEV_DEFAULT_PASSWORD / ROLE_DRIVER'
