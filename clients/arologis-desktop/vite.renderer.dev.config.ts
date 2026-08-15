@@ -14,10 +14,14 @@ import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
 
 const AROLOGIS_API = 'http://localhost:8097'
+const versionApiBaseUrl = (process.env['VITE_VERSION_API_BASE_URL'] || 'http://localhost:8080').replace(/\/+$/, '')
 
 export default defineConfig({
   root: resolve(__dirname, 'src/renderer'),
   plugins: [react()],
+  define: {
+    'import.meta.env.VITE_VERSION_API_BASE_URL': JSON.stringify(versionApiBaseUrl),
+  },
   resolve: {
     alias: {
       '@renderer': resolve(__dirname, 'src/renderer'),
