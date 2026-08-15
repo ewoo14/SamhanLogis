@@ -34,6 +34,25 @@ const rows = [
   },
 ]
 
+const parityRows = [
+  {
+    dcCondition: null, slipDate: '2026-08-14', seqNo: 47, warehouseName: null,
+    productName: '병합 라인 1', quantity: 1, unitPriceWithVat: 100, supplyAmount: 91,
+    vatAmount: 9, total: 100, partnerName: '병합 거래처', partnerCode: 'P-MERGE',
+    productPrice: 200, discountRate: 47, grandTotal: 100, confirmation: 'CONFIRMED',
+    confirmationReason: null, accountingPostedAt: '2026-08-14T10:00:00', dcAmount: 0,
+    sourceStatus: 'CONFIRMED', modelName: null, categoryKey: null, deliveryPrice: null, expectedRate: null,
+  },
+  {
+    dcCondition: null, slipDate: '2026-08-14', seqNo: 47, warehouseName: null,
+    productName: '병합 라인 2', quantity: 2, unitPriceWithVat: 200, supplyAmount: 182,
+    vatAmount: 18, total: 200, partnerName: '병합 거래처', partnerCode: 'P-MERGE',
+    productPrice: 300, discountRate: 47, grandTotal: 200, confirmation: 'CONFIRMED',
+    confirmationReason: null, accountingPostedAt: '2026-08-14T10:00:00', dcAmount: 0,
+    sourceStatus: 'CONFIRMED', modelName: null, categoryKey: null, deliveryPrice: null, expectedRate: null,
+  },
+]
+
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(<QueryClientProvider client={client}><DailyClosingPage /></QueryClientProvider>)
@@ -91,5 +110,31 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
     expect(screen.getByText('MODEL-17')).toBeTruthy()
     expect(screen.getByText('기준 납품가')).toBeTruthy()
     expect(screen.getByText('DC액')).toBeTruthy()
+  })
+
+  it('문자열 열의 빈 창고명은 0이 아니라 빈칸으로 표시한다', async () => {
+    getDailyClosingRowsMock.mockResolvedValue(parityRows)
+    renderPage()
+
+    const productCell = await screen.findByText('병합 라인 1')
+    const row = productCell.closest('tr')
+    expect(row?.children[3].textContent).toBe('')
+  })
+
+  it('같은 일자와 번호의 여러 라인은 거래처명을 하나의 셀로 병합한다', async () => {
+    getDailyClosingRowsMock.mockResolvedValue(parityRows)
+    renderPage()
+
+    await screen.findByText('병합 라인 2')
+    expect(screen.getAllByText('병합 거래처')).toHaveLength(1)
+    expect(screen.getByText('병합 거래처').closest('td')?.getAttribute('rowspan')).toBe('2')
+  })
+
+  it('할인율 47은 47%와 dc-47 색상 클래스로 표시한다', async () => {
+    getDailyClosingRowsMock.mockResolvedValue(parityRows)
+    renderPage()
+
+    const rate = (await screen.findAllByText('47%'))[0]
+    expect(rate.closest('td')?.className).toContain('dc-47')
   })
 })

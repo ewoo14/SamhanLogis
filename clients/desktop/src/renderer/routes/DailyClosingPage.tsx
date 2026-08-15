@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import { Badge, Card, Spinner } from '@samhan/design-system'
 import { getDailyClosingRows, type DailyClosingSourceRow } from '../api/closingApi'
 import { useQuery } from '@tanstack/react-query'
@@ -11,6 +11,15 @@ export const DAILY_CLOSING_HEADERS = [
   '공급가액', '부가세', '합계', '거래처명', '거래처코드', '출고가',
   '할인율', '총계', '확인', '회계반영일자',
 ] as const
+
+const MERGE_COLS = new Set(['DC', '일자', '번호', '창고명', '거래처명', '거래처코드', '회계반영일자'])
+const DISCOUNT_COLORS: Record<string, string> = {
+  'dc-45': '#fecaca',
+  'dc-46': '#fed7aa',
+  'dc-47': '#fef08a',
+  'dc-48': '#d9f99d',
+  'dc-49': '#bfdbfe',
+}
 
 const TAB_LABEL: Record<PostedTab, string> = {
   RESULT: '결과',
@@ -47,8 +56,16 @@ export function formatLegacyNumber(value: string | number | null | undefined): s
 }
 
 function formatDateTime(value: string | null): string {
-  if (!value) return '0'
+  if (!value) return ''
   return value.replace('T', ' ').slice(0, 16)
+}
+
+function discountRatePercent(value: string | number | null | undefined): number {
+  return Math.round(Number(value) || 0)
+}
+
+function discountClass(rate: number): string {
+  return rate >= 45 && rate <= 49 ? `dc-${rate}` : ''
 }
 
 function confirmationLabel(value: DailyClosingSourceRow['confirmation']): string {
@@ -97,6 +114,20 @@ export function DailyClosingPage() {
     () => rows.filter((row) => tab === 'RESULT' ? isPosted(row) : !isPosted(row)),
     [rows, tab],
   )
+
+  const mergeInfo = useMemo(() => visibleRows.map((row, index) => {
+    const key = `${row.slipDate}_${row.seqNo}`
+    const previous = visibleRows[index - 1]
+    const previousKey = index > 0 && previous ? `${previous.slipDate}_${previous.seqNo}` : null
+    if (key === previousKey) return { isStart: false, span: 0 }
+    let span = 1
+    while (index + span < visibleRows.length) {
+      const next = visibleRows[index + span]!
+      if (`${next.slipDate}_${next.seqNo}` !== key) break
+      span += 1
+    }
+    return { isStart: true, span }
+  }), [visibleRows])
 
   const setTabAndCollapse = (next: PostedTab) => {
     setTab(next)
@@ -163,28 +194,38 @@ export function DailyClosingPage() {
                 </tr>
               </thead>
               <tbody>
-                {visibleRows.map((row) => {
+                {visibleRows.map((row, index) => {
                   const expanded = expandedSeqNo === row.seqNo
+                  const { isStart, span } = mergeInfo[index]!
+                  const mergeCell = (content: ReactNode, column: string, style: CSSProperties = cellStyle) => (
+                    MERGE_COLS.has(column) && !isStart ? null : (
+                      <td rowSpan={MERGE_COLS.has(column) ? span : undefined} style={style}>{content}</td>
+                    )
+                  )
                   return (
-                    <Fragment key={`${row.slipDate}-${row.seqNo}-group`}>
-                      <tr key={`${row.slipDate}-${row.seqNo}`}>
-                        <td style={cellStyle}>{row.dcCondition || '0'}</td>
-                        <td style={cellStyle}>{row.slipDate}</td>
-                        <td style={{ ...cellStyle, textAlign: 'right' }}>{formatLegacyNumber(row.seqNo)}</td>
-                        <td style={cellStyle}>{row.warehouseName || '0'}</td>
+                    <Fragment key={`${row.slipDate}-${row.seqNo}-${index}`}>
+                      <tr key={`${row.slipDate}-${row.seqNo}-${index}`}>
+                        {mergeCell(row.dcCondition || '', 'DC')}
+                        {mergeCell(row.slipDate, '일자')}
+                        {mergeCell(formatLegacyNumber(row.seqNo), '번호', { ...cellStyle, textAlign: 'right' })}
+                        {mergeCell(row.warehouseName || '', '창고명')}
                         <td style={cellStyle}>{row.productName}</td>
                         <td style={{ ...cellStyle, textAlign: 'right' }}>{formatLegacyNumber(row.quantity)}</td>
                         <td style={{ ...cellStyle, textAlign: 'right' }}>{formatLegacyNumber(row.unitPriceWithVat)}</td>
                         <td style={{ ...cellStyle, textAlign: 'right' }}>{formatLegacyNumber(row.supplyAmount)}</td>
                         <td style={{ ...cellStyle, textAlign: 'right' }}>{formatLegacyNumber(row.vatAmount)}</td>
                         <td style={{ ...cellStyle, textAlign: 'right' }}>{formatLegacyNumber(row.total)}</td>
-                        <td style={cellStyle}>{row.partnerName}</td>
-                        <td style={cellStyle}>{row.partnerCode}</td>
+                        {mergeCell(row.partnerName || '', '거래처명')}
+                        {mergeCell(row.partnerCode || '', '거래처코드')}
                         <td style={{ ...cellStyle, textAlign: 'right' }}>{formatLegacyNumber(row.productPrice)}</td>
-                        <td style={{ ...cellStyle, textAlign: 'right' }}>{formatLegacyNumber(row.discountRate)}</td>
+                        {(() => {
+                          const rate = discountRatePercent(row.discountRate)
+                          const className = discountClass(rate)
+                          return <td className={className} style={{ ...cellStyle, textAlign: 'right', background: DISCOUNT_COLORS[className] }}>{rate}%</td>
+                        })()}
                         <td style={{ ...cellStyle, textAlign: 'right' }}>{formatLegacyNumber(row.grandTotal)}</td>
                         <td style={{ ...cellStyle, textAlign: 'center' }}>{statusBadge(row)}</td>
-                        <td style={cellStyle}>{formatDateTime(row.accountingPostedAt)}</td>
+                        {mergeCell(formatDateTime(row.accountingPostedAt), '회계반영일자')}
                       </tr>
                       {expanded ? (
                         <tr key={`${row.slipDate}-${row.seqNo}-expanded`} data-testid={`daily-closing-expanded-${row.seqNo}`}>
