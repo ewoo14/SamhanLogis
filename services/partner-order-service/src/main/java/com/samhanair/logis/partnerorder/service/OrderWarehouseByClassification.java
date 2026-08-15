@@ -20,11 +20,25 @@ public final class OrderWarehouseByClassification {
 
     public Decision decide(List<Item> items) {
         if (items == null || items.isEmpty()) {
-            return new Decision(CHOWOL_WAREHOUSE_CODE, List.of());
+            return new Decision(CHOWOL_WAREHOUSE_CODE, List.of(), List.of());
         }
         boolean sangil = false;
         List<String> unclassifiedModels = new ArrayList<>();
+        List<LegacyWarehouseExceptions.Exception> legacyExceptions = new ArrayList<>();
         for (Item item : items) {
+            LegacyWarehouseExceptions.Exception legacyException =
+                    LegacyWarehouseExceptions.find(item == null ? null : normalize(item.modelCode()));
+            if (legacyException != null) {
+                legacyExceptions.add(legacyException);
+                if (SANGIL_WAREHOUSE_CODE.equals(legacyException.warehouseCode())) {
+                    sangil = true;
+                }
+                if (isMissingOrUnknown(item)) {
+                    unclassifiedModels.add(item == null || blank(item.modelCode())
+                            ? "<unknown>" : item.modelCode().trim());
+                }
+                continue;
+            }
             if (isMissingOrUnknown(item)) {
                 unclassifiedModels.add(item == null || blank(item.modelCode()) ? "<unknown>" : item.modelCode().trim());
                 continue;
@@ -33,7 +47,8 @@ public final class OrderWarehouseByClassification {
                 sangil = true;
             }
         }
-        return new Decision(sangil ? SANGIL_WAREHOUSE_CODE : CHOWOL_WAREHOUSE_CODE, unclassifiedModels);
+        return new Decision(sangil ? SANGIL_WAREHOUSE_CODE : CHOWOL_WAREHOUSE_CODE,
+                unclassifiedModels, legacyExceptions);
     }
 
     private boolean isSangil(Item item) {
@@ -49,7 +64,7 @@ public final class OrderWarehouseByClassification {
 
     private boolean isMissingOrUnknown(Item item) {
         if (item == null || blank(item.modelCode()) || blank(item.productCategory())
-                || !item.classificationAssigned() || blank(item.catL()) || blank(item.catM())) {
+                || !item.classificationAssigned() || blank(item.catL())) {
             return true;
         }
         if (!KNOWN_PRODUCT_CATEGORIES.contains(item.productCategory())) {
@@ -67,7 +82,16 @@ public final class OrderWarehouseByClassification {
             this(modelCode, productCategory, catL, catM, !blank(catL) || !blank(catM));
         }
     }
-    public record Decision(String warehouseCode, List<String> unclassifiedModels) {
+    public record Decision(String warehouseCode, List<String> unclassifiedModels,
+                           List<LegacyWarehouseExceptions.Exception> legacyExceptions) {
+        public Decision(String warehouseCode, List<String> unclassifiedModels) {
+            this(warehouseCode, unclassifiedModels, List.of());
+        }
+
         public int unclassifiedCount() { return unclassifiedModels.size(); }
+
+        public List<String> legacyExceptionModels() {
+            return legacyExceptions.stream().map(LegacyWarehouseExceptions.Exception::modelCode).toList();
+        }
     }
 }

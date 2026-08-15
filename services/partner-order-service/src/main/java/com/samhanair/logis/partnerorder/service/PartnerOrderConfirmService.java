@@ -161,6 +161,11 @@ public class PartnerOrderConfirmService {
         OrderWarehouseByClassification.Decision warehouseDecision =
                 decideWarehouseAtConfirm(calculation.lines());
         String warehouseCode = warehouseDecision.warehouseCode();
+        if (!warehouseDecision.legacyExceptions().isEmpty()) {
+            warehouseDecision.legacyExceptions().forEach(exception ->
+                    log.warn("order-warehouse temporary legacy exception: modelCode={}, warehouseCode={}, reason={}",
+                            exception.modelCode(), exception.warehouseCode(), exception.reason()));
+        }
 
         // 4) inventory reserve 제거 (Phase 2.6c — 주문 무영향 원칙)
         // confirm 단계에서는 재고 예약을 하지 않는다. 재고 예약은 "출고전표로 전환(convert)" 시점에만 발생.
@@ -195,7 +200,9 @@ public class PartnerOrderConfirmService {
                 actorUserId, "{\"orderNo\":\"" + orderNo + "\",\"warehouseCode\":\""
                         + warehouseCode + "\",\"unclassifiedCount\":"
                         + warehouseDecision.unclassifiedCount() + ",\"unclassifiedModels\":"
-                        + jsonArray(warehouseDecision.unclassifiedModels()) + "}"));
+                        + jsonArray(warehouseDecision.unclassifiedModels()) + ",\"legacyExceptionModels\":"
+                        + jsonArray(warehouseDecision.legacyExceptions().stream()
+                        .map(LegacyWarehouseExceptions.Exception::modelCode).toList()) + "}"));
 
         // 6) slip 발행 없음 — 슬라이스 D1 confirm 자동발행 폐지 (D-CF-02).
         // 출고전표는 본사 데스크톱의 명시적 convert 액션(PartnerOrderConvertService)으로만 발행.

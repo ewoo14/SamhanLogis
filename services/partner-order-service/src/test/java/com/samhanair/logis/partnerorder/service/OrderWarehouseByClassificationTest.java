@@ -23,10 +23,10 @@ class OrderWarehouseByClassificationTest {
         List<OrderWarehouseByClassification.Item> cases = List.of(
                 item("AC090CXAPBH1", "SINGLE_SET", "360", "CST UV"),
                 item("AC072CXAPBH1", "SINGLE_SET", "4way 냉난방", "1등급"),
-                item("AC060CS6PBH1SY", "SINGLE_SET", "4way 냉방전용", "CST UV"),
+                item("AC060CS4DBC1SY", "SINGLE_SET", "4way 냉방전용", ""),
                 item("AC072CXAPBH1", "SINGLE_SET", "1way 냉난방", "표준"),
                 item("AC145BXADHH1", "SINGLE_SET", "덕트", "프리미엄/디럭스"),
-                item("AC110BXAPBH3", "SINGLE_SET", "비스포크 스탠드", "프라임 핑크"),
+                item("AF17B6474GZRS", "SINGLE_SET", "가정용 에어컨", "24년형"),
                 item("AR06A9170HNQ", "SINGLE_SET", "냉난방 벽걸이", "기타"),
                 item("AR60F06D1A0Q", "SINGLE_SET", "가정용 에어컨", "Q9000"));
 
@@ -37,7 +37,7 @@ class OrderWarehouseByClassificationTest {
     void aSingleOrderHit_routesEveryOrderLineToSangil() {
         assertThat(decide(List.of(
                 item("COMMERCIAL-NON-HIT", "COMMERCIAL_MULTI", "실외기", "표준형"),
-                item("AC110BXAPBH3", "SINGLE_SET", "비스포크 스탠드", "프라임 핑크"))))
+                item("AF17B6474GZRS", "SINGLE_SET", "가정용 에어컨", "24년형"))))
                 .isEqualTo("2");
     }
 
@@ -63,6 +63,33 @@ class OrderWarehouseByClassificationTest {
 
         assertThat(decision.warehouseCode()).isEqualTo("00003");
         assertThat(decision.unclassifiedModels()).isEmpty();
+    }
+
+    @Test
+    void legacySangilException_overridesClassificationDefault() {
+        OrderWarehouseByClassification.Decision decision = new OrderWarehouseByClassification().decide(
+                List.of(item("AC060CXAPBH1", "SINGLE_SET", "냉난방 스탠드", "프레스티지")));
+
+        assertThat(decision.warehouseCode()).isEqualTo("2");
+        assertThat(decision.legacyExceptionModels()).containsExactly("AC060CXAPBH1");
+    }
+
+    @Test
+    void legacyChowolException_overridesClassificationHit() {
+        OrderWarehouseByClassification.Decision decision = new OrderWarehouseByClassification().decide(
+                List.of(item("AC060CS6PBH1SY", "SINGLE_SET", "360", "CST UV")));
+
+        assertThat(decision.warehouseCode()).isEqualTo("00003");
+        assertThat(decision.legacyExceptionModels()).containsExactly("AC060CS6PBH1SY");
+    }
+
+    @Test
+    void legacyExceptionSource_hasExactly27SangilAnd5ChowolModels() {
+        assertThat(LegacyWarehouseExceptions.all()).hasSize(32);
+        assertThat(LegacyWarehouseExceptions.all().stream()
+                .filter(exception -> "2".equals(exception.warehouseCode())).count()).isEqualTo(27);
+        assertThat(LegacyWarehouseExceptions.all().stream()
+                .filter(exception -> "00003".equals(exception.warehouseCode())).count()).isEqualTo(5);
     }
 
     @Test

@@ -92,9 +92,21 @@ BUILD SUCCESSFUL in 1m 3s
 
 ### 정정 정책
 
-미분류·미지 분류·product lookup 미매칭은 창고 판정 단계에서 확정을 막지 않는다. 레거시 `some` 기준에서 known hit가 아니므로 창고 판정에는 적중시키지 않고 `00003` 기본값에 둔다. 정상 분류값이 있는 비적중 품목은 미분류 목록에 넣지 않는다. 대신 실제 미분류만 `Decision.unclassifiedModels`와 `unclassifiedCount`로 만들고 confirm 실행 로그 및 history payload에 모델코드와 건수를 기록한다.
+미분류·미지 분류는 확정을 막지 않는다. 레거시 `some` 기준에서 걸리지 않은 것으로 보아 `00003` 기본값에 두고, 정상 분류값이 있는 비적중 품목은 미분류 목록에 넣지 않는다. 실제 미분류만 `Decision.unclassifiedModels`와 `unclassifiedCount`로 만들어 confirm 실행 로그 및 history payload에 모델코드와 건수를 기록한다.
 
-단, 가격 계산 단계의 상품 미매칭은 별도 계약이다. `PartnerOrderPriceCalculationService.calculate()`가 분류 판정보다 먼저 `lookupByModelCodes` 결과가 없는 라인에 `BusinessException(NOT_FOUND, "제품 카탈로그 없음: <modelCode>")`을 던진다. `git blame`과 이력상 이 방어선은 `6a219fa8a7`(2026-08-12)에 도입되었고, 상품 식별·가격표·할인·서버 DC를 근거 없이 계산하거나 가격 없는 주문을 저장하지 못하게 하는 목적이다. 따라서 이번 수정에서 이 예외를 풀지 않았다. 즉 “상품 DB 미매칭도 주문 확정 허용”은 창고 판정 단계에는 성립하지만, 현재 가격 계약까지 포함한 전체 주문 확정에는 성립하지 않는다. 가격을 못 구하는 품목을 확정할지 여부는 업무 결정이 필요하다.
+단, 가격 계산 단계의 상품 미매칭은 별도 계약이며 **확정 실패를 유지한다**. `PartnerOrderPriceCalculationService.calculate()`가 분류 판정보다 먼저 `lookupByModelCodes` 결과가 없는 라인에 `BusinessException(NOT_FOUND, "제품 카탈로그 없음: <modelCode>")`을 던진다. `git blame`과 이력상 이 방어선은 `6a219fa8a7`(2026-08-12)에 도입되었고, 상품 식별·가격표·할인·서버 DC를 근거 없이 계산하거나 가격 없는 주문을 저장하지 못하게 하는 목적이다. 개발책임자 결정에 따라 이 예외는 열지 않는다. 따라서 **미분류·미지 분류는 확정 허용하지만, 상품 마스터 미등록 모델은 가격 방어선에서 확정 실패하는 것이 확정된 동작**이다.
+
+### 32개 임시 레거시 예외
+
+분류 기준 판정을 기본으로 유지하되, 대조 보고서 원천에서 재계수한 32개만 해당 상품의 레거시 창고를 강제한다. 목록은 `LegacyWarehouseExceptions`에 모델코드·강제 창고·차이 사유를 함께 명시했으며, 원천은 `docs/dev-reports/2026-08-15-order-web-warehouse-category-mapping.md`다. 실행 시 적용된 모델코드와 사유는 confirm 로그에, 모델코드는 history payload의 `legacyExceptionModels`에 남긴다. 이 예외는 창고 판정 함수에서만 조회하며 가격 계산·가입고·전환 경로에는 연결하지 않았다.
+
+| 원천 대조 | 코드 목록 | 재계수 결과 |
+|---|---|---:|
+| 상일 → 초월 | 27개 | 27 |
+| 초월 → 상일 | 5개 | 5 |
+| 합계 | 32개 | 32 |
+
+코드 목록과 보고서 모델 열을 읽기 전용으로 비교한 결과 `report=32`, `java=32`, `differences=0`이었다. 분류가 정리되면 원천 대조표와 이 임시 목록을 함께 제거한다.
 
 ### 정정 RED 원문
 
@@ -139,3 +151,28 @@ BUILD FAILED
 BUILD SUCCESSFUL in 1m 11s
 15 actionable tasks: 3 executed, 12 up-to-date
 ```
+
+### 32개 예외 RED/GREEN 원문
+
+RED 원문:
+
+```text
+./gradlew --no-daemon :services:partner-order-service:test --tests '*OrderWarehouseByClassificationTest'
+
+error: cannot find symbol
+  symbol:   method legacyExceptionModels()
+error: cannot find symbol
+  symbol:   variable LegacyWarehouseExceptions
+BUILD FAILED
+```
+
+GREEN 원문:
+
+```text
+./gradlew --no-daemon :services:partner-order-service:test --tests '*OrderWarehouseByClassificationTest'
+
+BUILD SUCCESSFUL in 26s
+15 actionable tasks: 2 executed, 12 up-to-date
+```
+
+실제 분류값 검증 fixture는 `AC060CXAPBH1 / SINGLE_SET / 냉난방 스탠드 > 프레스티지`(분류 비적중이지만 레거시 상일 예외), `AC060CS6PBH1SY / SINGLE_SET / 360 > CST UV`(분류 상일이지만 레거시 초월 예외)이며, 예외가 아닌 실제 상품 `AF17B6474GZRS / SINGLE_SET / 가정용 에어컨 > 24년형`은 분류 기준대로 상일을 유지한다.
