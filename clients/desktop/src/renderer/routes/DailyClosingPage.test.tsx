@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 vi.mock('../hooks/usePageTitle', () => ({ usePageTitle: () => {} }))
@@ -309,5 +309,43 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
     expect(subtotals).toHaveLength(2)
     expect(getComputedStyle(subtotals[0]!).backgroundColor).toBe('rgb(235, 248, 255)')
     expect(getComputedStyle(total).backgroundColor).toBe('rgb(226, 232, 240)')
+  })
+
+  it('같은 전표의 lineId 없는 4행도 첫 행 편집·상세·저장을 서로 오염시키지 않는다', async () => {
+    const fourLineSlip = [
+      { ...editableRows[0], seqNo: 6, slipId: 'slip-6', lineId: null, productName: '첫 행', quantity: 1, unitPriceWithVat: 16000, productPrice: 16000, supplyAmount: 14545, vatAmount: 1455, total: 16000, grandTotal: 16000 },
+      { ...editableRows[0], seqNo: 6, slipId: 'slip-6', lineId: null, productName: '둘째 행', quantity: 1, unitPriceWithVat: 963040, productPrice: 963040, supplyAmount: 875491, vatAmount: 87549, total: 963040, grandTotal: 963040 },
+      { ...editableRows[0], seqNo: 6, slipId: 'slip-6', lineId: null, productName: '셋째 행', quantity: 1, unitPriceWithVat: 641480, productPrice: 641480, supplyAmount: 583164, vatAmount: 58316, total: 641480, grandTotal: 641480 },
+      { ...editableRows[0], seqNo: 6, slipId: 'slip-6', lineId: null, productName: '넷째 행', quantity: 1, unitPriceWithVat: 118580, productPrice: 118580, supplyAmount: 107800, vatAmount: 10780, total: 118580, grandTotal: 118580 },
+    ]
+    getDailyClosingRowsMock.mockResolvedValue(fourLineSlip)
+    updateDailyClosingAmountMock.mockResolvedValue(undefined)
+    renderPage()
+    fireEvent.click(await screen.findByRole('tab', { name: '선발행' }))
+
+    const firstRow = screen.getByText('첫 행').closest('tr')!
+    fireEvent.change(within(firstRow).getByLabelText('단가(VAT포함) 6'), { target: { value: '17,000' } })
+
+    expect(within(firstRow).getByDisplayValue('17,000')).toBeTruthy()
+    expect(screen.getAllByText('963,040')).toHaveLength(2)
+    expect(screen.getAllByText('641,480')).toHaveLength(2)
+    expect(screen.getAllByText('118,580')).toHaveLength(2)
+    expect(screen.getByTestId('daily-closing-total-row').textContent).toContain('1,740,100')
+    expect(screen.getByText(/저장되지 않은 금액 수정 1건/)).toBeTruthy()
+    expect(screen.getAllByRole('button', { name: '상세 펼치기 6' })).toHaveLength(4)
+
+    fireEvent.click(within(firstRow.parentElement!.querySelector('tr')!.nextElementSibling?.nextElementSibling ?? firstRow).getByRole('button', { name: '상세 펼치기 6' }))
+    expect(screen.queryAllByTestId(/^daily-closing-expanded-/)).toHaveLength(1)
+    expect(screen.getAllByTestId(/^daily-closing-expanded-/)[0]!.querySelectorAll('td')).toHaveLength(2)
+    expect(firstRow.querySelector('td')?.getAttribute('rowspan')).toBe('5')
+    expect(screen.getAllByRole('button', { name: '상세 펼치기 6' })).toHaveLength(3)
+    const bodyRows = Array.from(screen.getByTestId('daily-closing-table').querySelectorAll('tbody > tr'))
+    expect(bodyRows).toHaveLength(6) // 데이터 4 + 확장 1 + 소계 1; 별도 버튼행 없음
+    expect(Array.from(firstRow.cells).reduce((sum, cell) => sum + (cell.colSpan || 1), 0)).toBe(17)
+    expect(Array.from(bodyRows[1]!.cells).reduce((sum, cell) => sum + (cell.colSpan || 1), 0)).toBe(10)
+
+    fireEvent.click(screen.getByTestId('daily-closing-save-all'))
+    await waitFor(() => expect(updateDailyClosingAmountMock).toHaveBeenCalledTimes(1))
+    expect(updateDailyClosingAmountMock).toHaveBeenCalledWith('slip-6', expect.any(String), [expect.objectContaining({ unitPriceWithVat: 17000 })])
   })
 })

@@ -422,7 +422,28 @@ function amountEditDisabledReason(row: DailyClosingSourceRow): string {
 }
 
 function dailyClosingAmountDraftKey(row: DailyClosingSourceRow): string {
-  return row.lineId ?? `${row.slipId ?? 'unknown'}:${row.seqNo}`
+  return dailyClosingRowIdentity(row)
+}
+
+/**
+ * 화면 상태는 전표가 아니라 원본행을 가리켜야 한다.
+ *
+ * 정상적인 일마감 API 응답은 SlipLine.id를 lineId로 전달한다. 구 배포본이나
+ * 테스트 fixture처럼 lineId가 없는 응답만 행 값 fingerprint로 방어한다. seqNo는
+ * 전표 번호라서 fallback의 유일 키로 사용할 수 없다.
+ */
+function dailyClosingRowIdentity(row: DailyClosingSourceRow): string {
+  if (row.lineId) return `line:${row.lineId}`
+  return [
+    row.slipId ?? 'unknown-slip',
+    row.slipDate,
+    row.seqNo,
+    row.productName,
+    row.quantity,
+    row.unitPriceWithVat ?? '',
+    row.productPrice ?? '',
+    row.grandTotal ?? '',
+  ].map((value) => String(value).split('|').join('%7C')).join('|')
 }
 
 function LegacyAmountEditor({
@@ -524,7 +545,7 @@ function EditableLegacyDailyClosingTable({
   active: boolean
   registerSave: (save: (() => void) | null, dirtyCount: number) => void
 }) {
-  const [expanded, setExpanded] = useState<number | null>(null)
+  const [expanded, setExpanded] = useState<string | null>(null)
   const [drafts, setDrafts] = useState<Record<string, CalculatedAmountValues>>({})
   const [committedValues, setCommittedValues] = useState<Record<string, CalculatedAmountValues>>({})
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({})
@@ -600,6 +621,10 @@ function EditableLegacyDailyClosingTable({
       : !row.accountingPostedAt),
     [rows, tab],
   )
+  const expandedGroupKey = expanded === null ? null : (() => {
+    const row = visible.find((candidate) => dailyClosingRowIdentity(candidate) === expanded)
+    return row ? row.slipDate + '_' + row.seqNo : null
+  })()
   const merges = useMemo(() => visible.map((row, index) => {
     const key = row.slipDate + '_' + row.seqNo
     const previous = visible[index - 1]
@@ -609,8 +634,9 @@ function EditableLegacyDailyClosingTable({
     let span = 1
     while (index + span < visible.length
       && visible[index + span]!.slipDate + '_' + visible[index + span]!.seqNo === key) span += 1
+    if (expandedGroupKey === key) span += 1
     return { start: true, span }
-  }), [visible])
+  }), [expandedGroupKey, visible])
   const mergedCell = (
     value: ReactNode,
     column: string,
@@ -718,7 +744,8 @@ function EditableLegacyDailyClosingTable({
             <tbody>
               {visible.map((row, index) => {
                 const merge = merges[index]!
-                const expandedRow = expanded === row.seqNo
+                const rowIdentity = dailyClosingRowIdentity(row)
+                const expandedRow = expanded === rowIdentity
                 const rowKey = row.slipDate + '_' + row.seqNo
                 const nextRow = visible[index + 1]
                 const isGroupEnd = !nextRow || rowKey !== nextRow.slipDate + '_' + nextRow.seqNo
@@ -731,13 +758,23 @@ function EditableLegacyDailyClosingTable({
                   }
                   return start
                 })()
-                return <Fragment key={row.slipDate + '-' + row.seqNo + '-' + index}>
+                return <Fragment key={rowIdentity}>
                   <tr>
                     {mergedCell(row.dcCondition || '', 'DC', cell, merge)}
                     {mergedCell(row.slipDate, '일자', cell, merge)}
                     {mergedCell(formatLegacyNumber(row.seqNo), '번호', num, merge)}
                     {mergedCell(row.warehouseName || '', '창고명', cell, merge)}
-                    <td style={cell}>{row.productName}</td>
+                    <td style={cell}>
+                      <div>{row.productName}</div>
+                      <button
+                        type="button"
+                        aria-label={(expandedRow ? '상세 접기' : '상세 펼치기') + ' ' + row.seqNo}
+                        onClick={() => setExpanded(expandedRow ? null : rowIdentity)}
+                        style={{ border: 0, padding: 0, background: 'transparent', color: 'var(--ink-link)', cursor: 'pointer' }}
+                      >
+                        {expandedRow ? '상세 접기' : '상세 펼치기'}
+                      </button>
+                    </td>
                     <td style={num}>{formatLegacyNumber(row.quantity)}</td>
                     <LegacyAmountEditor
                       row={row}
@@ -758,7 +795,7 @@ function EditableLegacyDailyClosingTable({
                     )}
                   </tr>
                   {expandedRow ? <tr data-testid={'daily-closing-expanded-' + row.seqNo}>
-                    <td colSpan={17} style={{ ...cell, background: 'var(--surface-subtle)' }}>
+                    <td colSpan={6} style={{ ...cell, background: 'var(--surface-subtle)' }}>
                       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12 }}>
                         <span><strong>모델</strong> {row.modelName || '0'}</span>
                         <span><strong>카테고리</strong> {row.categoryKey || '0'}</span>
@@ -768,17 +805,8 @@ function EditableLegacyDailyClosingTable({
                         <span><strong>확인 사유</strong> {row.confirmationReason || '0'}</span>
                       </div>
                     </td>
+                    <td colSpan={4} style={{ ...cell, background: 'var(--surface-subtle)' }} />
                   </tr> : null}
-                  <tr><td colSpan={17} style={{ padding: '3px 6px', border: 0, textAlign: 'right' }}>
-                    <button
-                      type="button"
-                      aria-label={(expandedRow ? '상세 접기' : '상세 펼치기') + ' ' + row.seqNo}
-                      onClick={() => setExpanded(expandedRow ? null : row.seqNo)}
-                      style={{ border: 0, background: 'transparent', color: 'var(--ink-link)', cursor: 'pointer' }}
-                    >
-                      {expandedRow ? '상세 접기' : '상세 펼치기'}
-                    </button>
-                  </td></tr>
                   {isGroupEnd ? summaryRow(
                     'daily-closing-subtotal-row',
                     '소계',
