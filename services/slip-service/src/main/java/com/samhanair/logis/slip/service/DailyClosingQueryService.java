@@ -3,6 +3,7 @@ package com.samhanair.logis.slip.service;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipStatus;
 import com.samhanair.logis.slip.repository.SlipRepository;
+import com.samhanair.logis.slip.service.closing.SlipClosedDateGuard;
 import com.samhanair.logis.slip.web.dto.DailyClosingRowResponse;
 import java.time.LocalDate;
 import java.util.EnumSet;
@@ -22,6 +23,7 @@ public class DailyClosingQueryService {
 
     private final SlipRepository slipRepository;
     private final DailyClosingSourceResolver sourceResolver;
+    private final SlipClosedDateGuard closedDateGuard;
 
     public List<DailyClosingRowResponse> findRows(LocalDate slipDate) {
         if (slipDate == null) {
@@ -30,7 +32,14 @@ public class DailyClosingQueryService {
         return slipRepository.findDailyClosingOutboundSlips(slipDate, INCLUDED_STATUSES).stream()
                 .filter(slip -> INCLUDED_STATUSES.contains(slip.getStatus()))
                 .flatMap(slip -> slip.getLines().stream()
-                        .map(line -> DailyClosingRowResponse.from(slip, line, sourceResolver.resolve(slip, line))))
+                        .map(line -> {
+                            DailyClosingRowResponse row = DailyClosingRowResponse.from(
+                                    slip, line, sourceResolver.resolve(slip, line));
+                            boolean dateOpen = closedDateGuard == null
+                                    || closedDateGuard.isAmountEditAllowed(slip.getSlipType(), slip.getSlipDate());
+                            return row.withAmountEditability(dateOpen,
+                                    "회계 마감으로 잠긴 날짜입니다.");
+                        }))
                 .toList();
     }
 }

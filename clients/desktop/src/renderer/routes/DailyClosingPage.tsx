@@ -27,11 +27,13 @@ import { searchPartners } from '../api/partnerApi'
 import {
   getDailyClosingDetail,
   getDailyClosingRows,
+  updateDailyClosingAmount,
   type DailyClosingSourceRow,
   type DailyProductLine,
   type DailyProductRevalidationStatus,
   type DailyTaxInvoiceRow,
 } from '../api/closingApi'
+import { getApiErrorInfo } from '../api/apiError'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { today } from '../utils/dateUtils'
@@ -353,22 +355,307 @@ function legacyStatusBadge(row: DailyClosingSourceRow) {
   const variant = row.confirmation==='CONFIRMED'?'success':row.confirmation==='MISMATCH'?'danger':'neutral'
   return <span style={{display:'grid',gap:3,justifyItems:'center'}}><Badge variant={variant}>{row.confirmation==='CONFIRMED'?'확인':row.confirmation==='MISMATCH'?'불일치':'판정불가'}</Badge>{row.confirmationReason?<span style={{color:'var(--ink-secondary)',fontSize:11}}>{row.confirmationReason}</span>:null}</span>
 }
-function LegacyDailyClosingTable({slipDate}:{slipDate:string}) {
-  const [tab,setTab]=useState<'RESULT'|'PRE_ISSUED'>('RESULT'); const [expanded,setExpanded]=useState<number|null>(null)
-  const q=useQuery({queryKey:['daily-closing-source-rows',slipDate],queryFn:()=>getDailyClosingRows(slipDate)})
-  const rows=Array.isArray(q.data) ? q.data : [], visible=useMemo(()=>rows.filter(r=>tab==='RESULT'?Boolean(r.accountingPostedAt):!r.accountingPostedAt),[rows,tab])
-  const merges=useMemo(()=>visible.map((r,i)=>{const key=`${r.slipDate}_${r.seqNo}`,prev=visible[i-1];if(i>0&&prev&&key===`${prev.slipDate}_${prev.seqNo}`)return{start:false,span:0};let span=1;while(i+span<visible.length&&`${visible[i+span]!.slipDate}_${visible[i+span]!.seqNo}`===key)span++;return{start:true,span}}),[visible])
-  const cell: CSSProperties={padding:'8px 6px',border:'1px solid var(--line-default)',verticalAlign:'middle',overflowWrap:'anywhere'}, num={...cell,textAlign:'right' as const}
-  const total=(f:keyof DailyClosingSourceRow)=>formatLegacyNumber(visible.reduce((n,r)=>n+(Number(r[f])||0),0))
-  return <Card style={{marginBottom:16}}><div>
-    <div style={{display:'flex',justifyContent:'space-between',marginBottom:12}}><h3 style={{margin:0}}>출고전표 원본행</h3><span style={{color:'var(--ink-secondary)',fontSize:12}}>출고일 {slipDate}</span></div>
-    <div role="tablist" aria-label="회계반영일자 구분" style={{display:'flex',gap:6,marginBottom:12}}>{([['RESULT','결과'],['PRE_ISSUED','선발행']] as const).map(([k,l])=><button key={k} type="button" role="tab" aria-selected={tab===k} data-testid={`daily-closing-tab-${k.toLowerCase()}`} onClick={()=>{setTab(k);setExpanded(null)}} style={{height:32,padding:'0 12px',border:'1px solid var(--line-default)',borderRadius:6,cursor:'pointer',background:tab===k?'var(--surface-selected)':'var(--surface-card)',fontWeight:tab===k?700:400}}>{l} ({rows.filter(r=>k==='RESULT'?Boolean(r.accountingPostedAt):!r.accountingPostedAt).length})</button>)}</div>
-    {q.isError?<div role="alert" className="error-banner">출고전표 원본행을 불러오지 못했습니다.</div>:<div data-testid={q.isLoading ? undefined : 'daily-closing-table'} style={{overflowX:'auto'}}><table style={{width:'100%',minWidth:1680,borderCollapse:'collapse',tableLayout:'fixed',fontSize:12}}><colgroup>{DAILY_CLOSING_HEADERS.map(h=><col key={h}/>)}</colgroup><thead><tr data-testid="daily-closing-columns">{DAILY_CLOSING_HEADERS.map(h=><th key={h} style={{...cell,background:'var(--surface-subtle)',fontWeight:700}}>{h}</th>)}</tr></thead><tbody>
-    {visible.map((r,i)=>{const m=merges[i]!, ex=expanded===r.seqNo; const mc=(v:ReactNode,c:string,s:CSSProperties=cell)=>LEGACY_MERGE_COLS.has(c)&&!m.start?null:<td rowSpan={LEGACY_MERGE_COLS.has(c)?m.span:undefined} style={s}>{v}</td>;const dc=legacyDiscountClass(Math.round(Number(r.discountRate)||0));return <Fragment key={`${r.slipDate}-${r.seqNo}-${i}`}><tr>
-      {mc(r.dcCondition||'','DC')}{mc(r.slipDate,'일자')}{mc(formatLegacyNumber(r.seqNo),'번호',num)}{mc(r.warehouseName||'','창고명')}<td style={cell}>{r.productName}</td><td style={num}>{formatLegacyNumber(r.quantity)}</td><td style={num}>{formatLegacyNumber(r.unitPriceWithVat)}</td><td style={num}>{formatLegacyNumber(r.supplyAmount)}</td><td style={num}>{formatLegacyNumber(r.vatAmount)}</td><td style={num}>{formatLegacyNumber(r.total)}</td>{mc(r.partnerName||'','거래처명')}{mc(r.partnerCode||'','거래처코드')}<td style={num}>{formatLegacyNumber(r.productPrice)}</td><td className={dc} style={{...num,background:LEGACY_DISCOUNT_COLORS[dc]}}>{Math.round(Number(r.discountRate)||0)}%</td><td style={num}>{formatLegacyNumber(r.grandTotal)}</td><td style={{...cell,textAlign:'center'}}>{legacyStatusBadge(r)}</td>{mc(r.accountingPostedAt?r.accountingPostedAt.replace('T',' ').slice(0,16):'','회계반영일자')}
-    </tr>{ex?<tr data-testid={`daily-closing-expanded-${r.seqNo}`}><td colSpan={17} style={{...cell,background:'var(--surface-subtle)'}}><div style={{display:'flex',gap:16,flexWrap:'wrap',fontSize:12}}><span><strong>모델</strong> {r.modelName||'0'}</span><span><strong>카테고리</strong> {r.categoryKey||'0'}</span><span><strong>기준 납품가</strong> {formatLegacyNumber(r.deliveryPrice)}</span><span><strong>기대율</strong> {formatLegacyNumber(r.expectedRate)}%</span><span><strong>DC액</strong> {formatLegacyNumber(r.dcAmount)}</span><span><strong>확인 사유</strong> {r.confirmationReason||'0'}</span></div></td></tr>:null}<tr><td colSpan={17} style={{padding:'3px 6px',border:0,textAlign:'right'}}><button type="button" aria-label={`${ex?'상세 접기':'상세 펼치기'} ${r.seqNo}`} onClick={()=>setExpanded(ex?null:r.seqNo)} style={{border:0,background:'transparent',color:'var(--ink-link)',cursor:'pointer'}}> {ex?'상세 접기':'상세 펼치기'}</button></td></tr></Fragment>})}
-    {visible.length===0?<tr><td colSpan={17} style={{...cell,textAlign:'center',padding:24}}>해당 탭의 원본행이 없습니다.</td></tr>:null}</tbody><tfoot><tr><th colSpan={5} style={{...cell,textAlign:'right'}}>소계</th><th style={num}>{total('quantity')}</th><th style={num}>{total('unitPriceWithVat')}</th><th style={num}>{total('supplyAmount')}</th><th style={num}>{total('vatAmount')}</th><th style={num}>{total('total')}</th><th colSpan={2} style={cell}/><th style={num}>{total('productPrice')}</th><th style={num}>{total('discountRate')}</th><th style={num}>{total('grandTotal')}</th><th style={cell}/><th style={cell}/></tr></tfoot></table></div>}
-  </div></Card>
+
+type EditableAmountField = 'unit' | 'rate' | 'price'
+
+interface EditableAmountValues {
+  unit: number
+  price: number
+  rate: number
+}
+
+interface CalculatedAmountValues extends EditableAmountValues {
+  supply: number
+  vat: number
+  total: number
+}
+
+function numericInputValue(value: string): number {
+  const parsed = Number(value.replace(/,/g, '').replace(/[^0-9.-]/g, ''))
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function initialEditableAmounts(row: DailyClosingSourceRow): EditableAmountValues {
+  const rate = Number(row.discountRate ?? 0)
+  return {
+    unit: Number(row.unitPriceWithVat ?? 0),
+    price: Number(row.productPrice ?? 0),
+    rate: rate <= 1 ? rate * 100 : rate,
+  }
+}
+
+/** 레거시 recalcRow의 onchange 세 방향을 화면 값으로 옮긴다. */
+export function recalculateLegacyAmounts(
+  current: EditableAmountValues,
+  changedField: EditableAmountField,
+  rawValue: string,
+): CalculatedAmountValues {
+  const next = { ...current }
+  if (changedField === 'unit') {
+    next.unit = numericInputValue(rawValue)
+    next.rate = next.price ? (1 - next.unit / next.price) * 100 : 0
+  } else if (changedField === 'rate') {
+    next.rate = numericInputValue(rawValue)
+    next.unit = Math.round(next.price * (1 - next.rate / 100))
+  } else {
+    next.price = numericInputValue(rawValue)
+    next.rate = next.price ? (1 - next.unit / next.price) * 100 : 0
+  }
+
+  const supply = Math.round(next.unit / 1.1)
+  return {
+    ...next,
+    supply,
+    vat: next.unit - supply,
+    total: next.unit,
+  }
+}
+
+function amountEditDisabled(row: DailyClosingSourceRow): boolean {
+  return row.amountEditable === false || Boolean(row.accountingPostedAt)
+}
+
+function amountEditDisabledReason(row: DailyClosingSourceRow): string {
+  return row.amountEditBlockReason
+    ?? (row.accountingPostedAt
+      ? '회계전표가 이미 반영되어 금액을 수정할 수 없습니다.'
+      : '잠긴 마감일의 금액은 수정할 수 없습니다.')
+}
+
+function LegacyAmountEditor({ row }: { row: DailyClosingSourceRow }) {
+  const [values, setValues] = useState<CalculatedAmountValues | null>(null)
+  const [error, setError] = useState('')
+  const [saved, setSaved] = useState(false)
+  const disabled = amountEditDisabled(row)
+  const base = initialEditableAmounts(row)
+  const current = values ?? {
+    ...base,
+    supply: Number(row.supplyAmount ?? 0),
+    vat: Number(row.vatAmount ?? 0),
+    total: Number(row.total ?? 0),
+  }
+  const mutation = useMutation({
+    mutationFn: () => updateDailyClosingAmount(
+      row.slipId ?? '',
+      row.updatedAt ?? '',
+      [{
+        lineId: row.lineId ?? '',
+        unitPriceWithVat: current.unit,
+        releasePrice: current.price,
+        discountRate: current.price ? 1 - current.unit / current.price : 0,
+      }],
+    ),
+    onSuccess: () => {
+      setValues(null)
+      setSaved(true)
+      setError('')
+    },
+    onError: (err) => {
+      const info = getApiErrorInfo(err)
+      setError(info.status === 409
+        ? '다른 사람이 먼저 고쳤습니다. 최신 값을 다시 조회해 주세요.'
+        : '금액을 저장하지 못했습니다.')
+    },
+  })
+
+  const commit = (field: EditableAmountField, rawValue: string) => {
+    setValues(recalculateLegacyAmounts(current, field, rawValue))
+    setSaved(false)
+    setError('')
+  }
+  const cell: CSSProperties = {
+    padding: '8px 6px',
+    border: '1px solid var(--line-default)',
+    verticalAlign: 'middle',
+    overflowWrap: 'anywhere',
+  }
+  const num: CSSProperties = { ...cell, textAlign: 'right' }
+  const inputStyle = { ...num, width: '100%', boxSizing: 'border-box' as const }
+  const input = (field: EditableAmountField, value: number, label: string) => (
+    <input
+      aria-label={label + ' ' + row.seqNo}
+      data-testid={'daily-closing-' + field + '-' + row.seqNo}
+      disabled={disabled}
+      value={formatLegacyNumber(value)}
+      onChange={(event) => commit(field, event.target.value)}
+      title={disabled ? amountEditDisabledReason(row) : undefined}
+      style={inputStyle}
+    />
+  )
+
+  return <>
+    <td style={num}>
+      {input('unit', current.unit, '단가(VAT포함)')}
+      {disabled ? <span title={amountEditDisabledReason(row)}>수정 불가</span> : (
+        <>
+          <button
+            type="button"
+            data-testid={'daily-closing-save-' + row.seqNo}
+            disabled={!values || !row.slipId || !row.lineId || !row.updatedAt || mutation.isPending}
+            onClick={() => mutation.mutate()}
+          >저장</button>
+          {saved ? <span role="status">저장됨</span> : null}
+          {error ? <span role="alert">{error}</span> : null}
+        </>
+      )}
+    </td>
+    <td style={num}>{values ? formatLegacyNumber(current.supply) : formatLegacyNumber(row.supplyAmount)}</td>
+    <td style={num}>{values ? formatLegacyNumber(current.vat) : formatLegacyNumber(row.vatAmount)}</td>
+    <td style={num}>{values ? formatLegacyNumber(current.total * row.quantity) : formatLegacyNumber(row.total)}</td>
+    <td style={num}>{input('price', current.price, '출고가')}</td>
+    <td className={legacyDiscountClass(Math.round(current.rate))} style={{ ...num, background: LEGACY_DISCOUNT_COLORS[legacyDiscountClass(Math.round(current.rate))] }}>
+      {input('rate', current.rate, '할인율')}%
+    </td>
+    <td style={num}>{values ? formatLegacyNumber(current.total * row.quantity) : formatLegacyNumber(row.grandTotal)}</td>
+  </>
+}
+
+function EditableLegacyDailyClosingTable({ slipDate }: { slipDate: string }) {
+  const [tab, setTab] = useState<'RESULT' | 'PRE_ISSUED'>('RESULT')
+  const [expanded, setExpanded] = useState<number | null>(null)
+  const query = useQuery({
+    queryKey: ['daily-closing-source-rows', slipDate],
+    queryFn: () => getDailyClosingRows(slipDate),
+  })
+  const rows = Array.isArray(query.data) ? query.data : []
+  const visible = useMemo(
+    () => rows.filter((row) => tab === 'RESULT'
+      ? Boolean(row.accountingPostedAt)
+      : !row.accountingPostedAt),
+    [rows, tab],
+  )
+  const merges = useMemo(() => visible.map((row, index) => {
+    const key = row.slipDate + '_' + row.seqNo
+    const previous = visible[index - 1]
+    if (index > 0 && previous && key === previous.slipDate + '_' + previous.seqNo) {
+      return { start: false, span: 0 }
+    }
+    let span = 1
+    while (index + span < visible.length
+      && visible[index + span]!.slipDate + '_' + visible[index + span]!.seqNo === key) span += 1
+    return { start: true, span }
+  }), [visible])
+  const total = (field: keyof DailyClosingSourceRow) => formatLegacyNumber(
+    visible.reduce((sum, row) => sum + (Number(row[field]) || 0), 0),
+  )
+  const mergedCell = (
+    value: ReactNode,
+    column: string,
+    style: CSSProperties,
+    merge: { start: boolean; span: number },
+  ) => LEGACY_MERGE_COLS.has(column) && !merge.start
+    ? null
+    : <td rowSpan={LEGACY_MERGE_COLS.has(column) ? merge.span : undefined} style={style}>{value}</td>
+  const cell: CSSProperties = {
+    padding: '8px 6px',
+    border: '1px solid var(--line-default)',
+    verticalAlign: 'middle',
+    overflowWrap: 'anywhere',
+  }
+  const num: CSSProperties = { ...cell, textAlign: 'right' }
+
+  return <Card style={{ marginBottom: 16 }}>
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+        <h3 style={{ margin: 0 }}>출고전표 원본행</h3>
+        <span style={{ color: 'var(--ink-secondary)', fontSize: 12 }}>출고일 {slipDate}</span>
+      </div>
+      <div role="tablist" aria-label="회계반영일자 구분" style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+        {([['RESULT', '결과'], ['PRE_ISSUED', '선발행']] as const).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={tab === key}
+            data-testid={'daily-closing-tab-' + key.toLowerCase()}
+            onClick={() => { setTab(key); setExpanded(null) }}
+            style={{ height: 32, padding: '0 12px', border: '1px solid var(--line-default)', borderRadius: 6, cursor: 'pointer', background: tab === key ? 'var(--surface-selected)' : 'var(--surface-card)', fontWeight: tab === key ? 700 : 400 }}
+          >
+            {label} ({rows.filter((row) => key === 'RESULT'
+              ? Boolean(row.accountingPostedAt)
+              : !row.accountingPostedAt).length})
+          </button>
+        ))}
+      </div>
+      {query.isError ? <div role="alert" className="error-banner">출고전표 원본행을 불러오지 못했습니다.</div> : (
+        <div data-testid={query.isLoading ? undefined : 'daily-closing-table'} style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', minWidth: 1680, borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: 12 }}>
+            <colgroup>{DAILY_CLOSING_HEADERS.map((header) => <col key={header} />)}</colgroup>
+            <thead><tr data-testid="daily-closing-columns">
+              {DAILY_CLOSING_HEADERS.map((header) => (
+                <th key={header} style={{ ...cell, background: 'var(--surface-subtle)', fontWeight: 700 }}>{header}</th>
+              ))}
+            </tr></thead>
+            <tbody>
+              {visible.map((row, index) => {
+                const merge = merges[index]!
+                const expandedRow = expanded === row.seqNo
+                return <Fragment key={row.slipDate + '-' + row.seqNo + '-' + index}>
+                  <tr>
+                    {mergedCell(row.dcCondition || '', 'DC', cell, merge)}
+                    {mergedCell(row.slipDate, '일자', cell, merge)}
+                    {mergedCell(formatLegacyNumber(row.seqNo), '번호', num, merge)}
+                    {mergedCell(row.warehouseName || '', '창고명', cell, merge)}
+                    <td style={cell}>{row.productName}</td>
+                    <td style={num}>{formatLegacyNumber(row.quantity)}</td>
+                    <LegacyAmountEditor row={row} />
+                    {mergedCell(row.partnerName || '', '거래처명', cell, merge)}
+                    {mergedCell(row.partnerCode || '', '거래처코드', cell, merge)}
+                    <td style={cell}>{legacyStatusBadge(row)}</td>
+                    {mergedCell(
+                      row.accountingPostedAt ? row.accountingPostedAt.replace('T', ' ').slice(0, 16) : '',
+                      '회계반영일자',
+                      cell,
+                      merge,
+                    )}
+                  </tr>
+                  {expandedRow ? <tr data-testid={'daily-closing-expanded-' + row.seqNo}>
+                    <td colSpan={17} style={{ ...cell, background: 'var(--surface-subtle)' }}>
+                      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12 }}>
+                        <span><strong>모델</strong> {row.modelName || '0'}</span>
+                        <span><strong>카테고리</strong> {row.categoryKey || '0'}</span>
+                        <span><strong>기준 납품가</strong> {formatLegacyNumber(row.deliveryPrice)}</span>
+                        <span><strong>기대율</strong> {formatLegacyNumber(row.expectedRate)}%</span>
+                        <span><strong>DC액</strong> {formatLegacyNumber(row.dcAmount)}</span>
+                        <span><strong>확인 사유</strong> {row.confirmationReason || '0'}</span>
+                      </div>
+                    </td>
+                  </tr> : null}
+                  <tr><td colSpan={17} style={{ padding: '3px 6px', border: 0, textAlign: 'right' }}>
+                    <button
+                      type="button"
+                      aria-label={(expandedRow ? '상세 접기' : '상세 펼치기') + ' ' + row.seqNo}
+                      onClick={() => setExpanded(expandedRow ? null : row.seqNo)}
+                      style={{ border: 0, background: 'transparent', color: 'var(--ink-link)', cursor: 'pointer' }}
+                    >
+                      {expandedRow ? '상세 접기' : '상세 펼치기'}
+                    </button>
+                  </td></tr>
+                </Fragment>
+              })}
+              {visible.length === 0 ? <tr><td colSpan={17} style={{ ...cell, textAlign: 'center', padding: 24 }}>
+                해당 탭의 원본행이 없습니다.
+              </td></tr> : null}
+            </tbody>
+            <tfoot><tr>
+              <th colSpan={5} style={{ ...cell, textAlign: 'right' }}>소계</th>
+              <th style={num}>{total('quantity')}</th>
+              <th style={num}>{total('unitPriceWithVat')}</th>
+              <th style={num}>{total('supplyAmount')}</th>
+              <th style={num}>{total('vatAmount')}</th>
+              <th style={num}>{total('total')}</th>
+              <th colSpan={2} style={cell} />
+              <th style={num}>{total('productPrice')}</th>
+              <th style={num}>{total('discountRate')}</th>
+              <th style={num}>{total('grandTotal')}</th>
+              <th style={cell} />
+              <th style={cell} />
+            </tr></tfoot>
+          </table>
+        </div>
+      )}
+    </div>
+  </Card>
 }
 
 export function DailyClosingPage() {
@@ -863,7 +1150,7 @@ export function DailyClosingPage() {
         </div>
       </Card>
 
-      <LegacyDailyClosingTable slipDate={filterDate} />
+      <EditableLegacyDailyClosingTable slipDate={filterDate} />
 
       <Card style={{ marginBottom: 16 }}>
         <h3 style={{ margin: '0 0 12px' }}>일마감 실행</h3>

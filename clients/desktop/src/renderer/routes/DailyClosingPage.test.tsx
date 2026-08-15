@@ -53,6 +53,28 @@ const parityRows = [
   },
 ]
 
+const editableRows = [
+  {
+    dcCondition: '홈45%', slipDate: '2026-08-14', seqNo: 81, warehouseName: '본사창고',
+    productName: '편집 품목', quantity: 2, unitPriceWithVat: 8000, supplyAmount: 7273,
+    vatAmount: 727, total: 16000, partnerName: '거래처', partnerCode: 'P-EDIT',
+    productPrice: 10000, discountRate: 20, grandTotal: 16000, confirmation: 'CONFIRMED',
+    confirmationReason: null, accountingPostedAt: null, dcAmount: 0, sourceStatus: 'CONFIRMED',
+    modelName: 'MODEL-81', categoryKey: 'home', deliveryPrice: 10000, expectedRate: 45,
+    slipId: 'slip-81', lineId: 'line-81', updatedAt: '2026-08-14T10:00:00', amountEditable: true,
+  },
+  {
+    dcCondition: '홈45%', slipDate: '2026-08-14', seqNo: 82, warehouseName: '본사창고',
+    productName: '회계 반영 품목', quantity: 1, unitPriceWithVat: 8000, supplyAmount: 7273,
+    vatAmount: 727, total: 8000, partnerName: '거래처', partnerCode: 'P-EDIT',
+    productPrice: 10000, discountRate: 20, grandTotal: 8000, confirmation: 'CONFIRMED',
+    confirmationReason: null, accountingPostedAt: '2026-08-14T11:00:00', dcAmount: 0,
+    sourceStatus: 'CONFIRMED', modelName: null, categoryKey: null, deliveryPrice: null,
+    expectedRate: null, slipId: 'slip-82', lineId: 'line-82', updatedAt: '2026-08-14T10:00:00',
+    amountEditable: false, amountEditBlockReason: '회계전표가 이미 반영되었습니다.',
+  },
+]
+
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(<QueryClientProvider client={client}><DailyClosingPage /></QueryClientProvider>)
@@ -134,7 +156,53 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
     getDailyClosingRowsMock.mockResolvedValue(parityRows)
     renderPage()
 
-    const rate = (await screen.findAllByText('47%'))[0]
+    const rate = (await screen.findAllByTestId('daily-closing-rate-47'))[0]!
+    expect((rate as HTMLInputElement).value).toBe('47')
     expect(rate.closest('td')?.className).toContain('dc-47')
+  })
+
+  it('단가 변경 시 할인율과 공급가액·부가세·합계·총계가 화면에서 바뀐다', async () => {
+    getDailyClosingRowsMock.mockResolvedValue(editableRows)
+    renderPage()
+    fireEvent.click(await screen.findByRole('tab', { name: /^선발행/ }))
+
+    fireEvent.change(screen.getByTestId('daily-closing-unit-81'), { target: { value: '8,000' } })
+
+    expect((screen.getByTestId('daily-closing-rate-81') as HTMLInputElement).value).toBe('20')
+    const row = screen.getByTestId('daily-closing-unit-81').closest('tr')
+    expect(row?.textContent).toContain('7,273')
+    expect(row?.textContent).toContain('727')
+    expect(row?.textContent).toContain('16,000')
+  })
+
+  it('할인율 변경 시 출고가 기준으로 단가가 화면에서 바뀐다', async () => {
+    getDailyClosingRowsMock.mockResolvedValue(editableRows)
+    renderPage()
+    fireEvent.click(await screen.findByRole('tab', { name: /^선발행/ }))
+
+    fireEvent.change(screen.getByTestId('daily-closing-rate-81'), { target: { value: '47' } })
+
+    expect((screen.getByTestId('daily-closing-unit-81') as HTMLInputElement).value).toBe('5,300')
+  })
+
+  it('출고가 변경 시 단가는 유지하고 할인율을 다시 계산한다', async () => {
+    getDailyClosingRowsMock.mockResolvedValue(editableRows)
+    renderPage()
+    fireEvent.click(await screen.findByRole('tab', { name: /^선발행/ }))
+
+    fireEvent.change(screen.getByTestId('daily-closing-price-81'), { target: { value: '20,000' } })
+
+    expect((screen.getByTestId('daily-closing-unit-81') as HTMLInputElement).value).toBe('8,000')
+    expect((screen.getByTestId('daily-closing-rate-81') as HTMLInputElement).value).toBe('60')
+  })
+
+  it('회계전표가 있는 행은 금액 입력이 비활성이다', async () => {
+    getDailyClosingRowsMock.mockResolvedValue(editableRows)
+    renderPage()
+    await screen.findByText('회계 반영 품목')
+
+    expect((screen.getByTestId('daily-closing-unit-82') as HTMLInputElement).disabled).toBe(true)
+    expect((screen.getByTestId('daily-closing-rate-82') as HTMLInputElement).disabled).toBe(true)
+    expect(screen.getByText('수정 불가')).toBeTruthy()
   })
 })

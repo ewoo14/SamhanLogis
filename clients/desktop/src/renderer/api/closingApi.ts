@@ -44,6 +44,13 @@ export interface DailyClosingSourceRow {
   accountingPostedAt: string | null
   dcAmount: string | number | null
   sourceStatus: string
+  /** 저장 payload 전용 식별자 — 화면에는 렌더링하지 않는다. */
+  slipId?: string | null
+  lineId?: string | null
+  /** 낙관적 잠금 토큰 — 화면에는 렌더링하지 않는다. */
+  updatedAt?: string | null
+  amountEditable?: boolean
+  amountEditBlockReason?: string | null
   modelName?: string | null
   categoryKey?: string | null
   deliveryPrice?: string | null
@@ -57,6 +64,25 @@ export async function getDailyClosingRows(slipDate: string): Promise<DailyClosin
     { params: { slipDate } },
   )
   return res.data.data
+}
+
+export interface DailyClosingAmountLine {
+  lineId: string
+  unitPriceWithVat: number
+  releasePrice: number
+  discountRate: number
+}
+
+/** 일마감 금액 전용 수정 — 출고가·할인율은 계산 근거이고 단가만 서버에 저장된다. */
+export async function updateDailyClosingAmount(
+  slipId: string,
+  updatedAt: string,
+  lines: DailyClosingAmountLine[],
+): Promise<void> {
+  await apiClient.put<ApiEnvelope<unknown>>(
+    `/slips/${encodeURIComponent(slipId)}/daily-closing-amount`,
+    { updatedAt, lines },
+  )
 }
 
 /** 마감 기간 유형 — BE `PeriodType`. */

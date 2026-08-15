@@ -7,6 +7,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.math.RoundingMode;
+import java.util.UUID;
 
 /** 일마감 S1 원본행. 레거시 17열과 확장 DC/확인 사유를 분리해 보존한다. */
 public record DailyClosingRowResponse(
@@ -29,7 +30,29 @@ public record DailyClosingRowResponse(
         String confirmationReason,
         LocalDateTime accountingPostedAt,
         BigDecimal dcAmount,
-        SlipStatus sourceStatus) {
+        SlipStatus sourceStatus,
+        UUID slipId,
+        UUID lineId,
+        LocalDateTime updatedAt,
+        boolean amountEditable,
+        String amountEditBlockReason) {
+
+    /** S1 기존 호출자 호환 생성자 — S7 내부 편집 메타데이터는 읽기 전용 기본값으로 둔다. */
+    public DailyClosingRowResponse(
+            String dcCondition, LocalDate slipDate, int seqNo, String warehouseName,
+            String productName, int quantity, BigDecimal unitPriceWithVat,
+            BigDecimal supplyAmount, BigDecimal vatAmount, BigDecimal total,
+            String partnerName, String partnerCode, BigDecimal productPrice,
+            BigDecimal discountRate, BigDecimal grandTotal, Confirmation confirmation,
+            String confirmationReason, LocalDateTime accountingPostedAt,
+            BigDecimal dcAmount, SlipStatus sourceStatus) {
+        this(dcCondition, slipDate, seqNo, warehouseName, productName, quantity,
+                unitPriceWithVat, supplyAmount, vatAmount, total, partnerName, partnerCode,
+                productPrice, discountRate, grandTotal, confirmation, confirmationReason,
+                accountingPostedAt, dcAmount, sourceStatus, null, null,
+                null,
+                accountingPostedAt == null, accountingPostedAt == null ? null : "회계전표가 이미 반영되었습니다.");
+    }
 
     public enum Confirmation { CONFIRMED, MISMATCH, UNDETERMINED }
 
@@ -84,7 +107,22 @@ public record DailyClosingRowResponse(
                 confirmationReason,
                 source.accountingPostedAt(),
                 dcAmount,
-                slip.getStatus());
+                slip.getStatus(),
+                slip.getId(),
+                line.getId(),
+                slip.getModifiedAt() == null ? slip.getCreatedAt() : slip.getModifiedAt(),
+                source.accountingPostedAt() == null,
+                source.accountingPostedAt() == null ? null : "회계전표가 이미 반영되었습니다.");
+    }
+
+    /** 마감일 잠금 결과를 조회 응답에 반영한다. */
+    public DailyClosingRowResponse withAmountEditability(boolean editable, String reason) {
+        return new DailyClosingRowResponse(dcCondition, slipDate, seqNo, warehouseName, productName,
+                quantity, unitPriceWithVat, supplyAmount, vatAmount, total, partnerName, partnerCode,
+                productPrice, discountRate, grandTotal, confirmation, confirmationReason,
+                accountingPostedAt, dcAmount, sourceStatus, slipId, lineId, updatedAt,
+                editable && amountEditable, editable && amountEditable ? null
+                        : (editable ? amountEditBlockReason : reason));
     }
 
     private static BigDecimal zero(BigDecimal value) {

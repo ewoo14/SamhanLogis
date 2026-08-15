@@ -49,6 +49,11 @@ public class SlipClosedDateGuard {
         }
     }
 
+    /** 조회 화면이 금액 입력을 사전에 비활성화할 수 있도록 마감 여부만 노출한다. */
+    public boolean isAmountEditAllowed(SlipType slipType, LocalDate slipDate) {
+        return !isClosed(slipType, slipDate);
+    }
+
     /** 날짜 마감과 예외 권한을 함께 판정한다. 대체 출고일 탐색에서도 같은 정책을 재사용한다. */
     public boolean isCreatable(SlipType slipType, LocalDate slipDate, String requesterId) {
         return isCreatable(slipType, slipDate, requesterId, null);

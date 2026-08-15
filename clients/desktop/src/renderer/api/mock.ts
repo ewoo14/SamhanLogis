@@ -9864,6 +9864,27 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     lockedBy: 'system',
   }
 
+  const mockDailyClosingSourceRows = [
+    {
+      dcCondition: '홈45%', slipDate: '2026-08-14', seqNo: 17, warehouseName: '본사창고',
+      productName: 'mock 출고 품목', quantity: 1, unitPriceWithVat: '5300',
+      supplyAmount: '4818', vatAmount: '482', total: '5300', partnerName: 'mock 거래처',
+      partnerCode: 'P-MOCK-001', productPrice: '10000', discountRate: '47', grandTotal: '5300',
+      confirmation: 'CONFIRMED', confirmationReason: null, accountingPostedAt: null,
+      dcAmount: '0', sourceStatus: 'CONFIRMED', modelName: 'MOCK-MODEL', categoryKey: 'home',
+      deliveryPrice: '10000', expectedRate: '45', slipId: 'mock-slip-17', lineId: 'mock-line-17',
+      updatedAt: '2026-08-14T10:00:00', amountEditable: true, amountEditBlockReason: null,
+    },
+  ]
+
+  // GET /slips/query/daily-closing — S1/S7 일마감 원본행 및 금액 편집 mock 계약.
+  if (method === 'GET' && url.includes('/slips/query/daily-closing')) {
+    return envelope(mockDailyClosingSourceRows)
+  }
+  if (method === 'PUT' && /\/slips\/[^/]+\/daily-closing-amount$/.test(url)) {
+    return envelope(null)
+  }
+
   // GET/POST/PATCH /accounting/daily-closings — DailyClosingPage mock runtime contract.
   if (method === 'GET' && url.includes('/accounting/daily-closings')) {
     return envelope({
