@@ -8,6 +8,7 @@
 import * as React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { clearAuth } from '../../stores/authStore';
+import { setOtaActivitySource } from '../../version/otaUpdates';
 import { colors, radii, spacing, typography } from '../../theme/tokens';
 import DriverDashboardScreen from './DriverDashboardScreen';
 import DriverLocationTrackingScreen from './DriverLocationTrackingScreen';
@@ -35,6 +36,13 @@ export default function DriverTabNavigator({
   const [slipDetailTarget, setSlipDetailTarget] = React.useState<SlipDetailTarget | null>(null);
   const [signatureTarget, setSignatureTarget] = React.useState<SignatureTarget | null>(null);
   const [photoTarget, setPhotoTarget] = React.useState<PhotoTarget | null>(null);
+
+  // 기사 앱의 위험 구간은 GPS 추적, 사진 선택/업로드, 양쪽 서명 입력/전송이다.
+  // 상세 조회와 대시보드는 재개 가능한 읽기 화면이므로 reload를 막지 않는다.
+  React.useEffect(() => {
+    setOtaActivitySource('driver-tab', tab === 'tracking' || tab === 'photo' || tab === 'signature');
+    return () => setOtaActivitySource('driver-tab', false);
+  }, [tab]);
 
   const openSlipDetail = (target: SlipDetailTarget) => {
     setSlipDetailTarget(target);

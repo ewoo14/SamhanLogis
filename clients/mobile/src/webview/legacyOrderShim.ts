@@ -74,6 +74,25 @@ export function getInjectedOrderShim(config: LegacyOrderShimConfig): string {
     } catch (_e) { /* swallow */ }
   }
 
+  // -------- OTA 작업 보호 — 미저장 입력 또는 진행 중 요청이면 RN에 active를 알림 --------
+  var otaDirty = false;
+  var otaPendingRequests = 0;
+  function reportOtaActivity() {
+    postToRN('ota-activity', { active: otaDirty || otaPendingRequests > 0 });
+  }
+  document.addEventListener('input', function() {
+    otaDirty = true;
+    reportOtaActivity();
+  }, true);
+  document.addEventListener('change', function() {
+    otaDirty = true;
+    reportOtaActivity();
+  }, true);
+  document.addEventListener('submit', function() {
+    otaDirty = false;
+    reportOtaActivity();
+  }, true);
+
   // -------- Bridge — RN → WebView 명령 라우팅 (확장 여지) --------
   window.__SAMHAN_BRIDGE__ = window.__SAMHAN_BRIDGE__ || {
     setAuth: function(next) {
@@ -110,6 +129,18 @@ export function getInjectedOrderShim(config: LegacyOrderShimConfig): string {
         }
       } catch (_e) { /* swallow — fetch 원본으로 진행 */ }
       var p = origFetch.call(window, input, init);
+      var countsAsWork = isRpc || isSamhanApi;
+      if (countsAsWork) {
+        otaPendingRequests += 1;
+        reportOtaActivity();
+        p.then(function() {
+          otaPendingRequests = Math.max(0, otaPendingRequests - 1);
+          reportOtaActivity();
+        }).catch(function() {
+          otaPendingRequests = Math.max(0, otaPendingRequests - 1);
+          reportOtaActivity();
+        });
+      }
       // RPC 응답 가시화 (dev 디버깅) — 매핑 누락 시 RN 에 알림.
       if (typeof p.then === 'function') {
         p.then(function(res) {
@@ -154,6 +185,7 @@ export function getInjectedOrderShim(config: LegacyOrderShimConfig): string {
     hasToken: !!window.__SAMHAN_AUTH__.token,
     target: 'order-app-v4-partner-webview-only'
   });
+  reportOtaActivity();
 })();
 true; // RN WebView injected JS 마지막 표현식 truthy 권장
 `;

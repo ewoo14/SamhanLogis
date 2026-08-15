@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { StaticRouter } from 'react-router-dom/server'
 
 import { GROUPWARE_DEFAULT } from './approvalDefaultTemplate'
@@ -11,6 +11,13 @@ import { DocumentRenderer } from './DocumentRenderer'
 import { approvalRenderFixtures } from './__fixtures__/approvalRenderFixtures'
 
 const chromiumRejectedVp8lVersionOne = 'data:image/webp;base64,UklGRhIAAABXRUJQVlA4TAYAAAAvA8AAIAA='
+function mockImageDecode(decode: typeof HTMLImageElement.prototype.decode) {
+  Object.defineProperty(HTMLImageElement.prototype, 'decode', { configurable: true, value: decode })
+}
+
+beforeEach(() => {
+  mockImageDecode(vi.fn().mockResolvedValue(undefined))
+})
 
 function templateWithHeaderImage(elementKey: string, extra: Record<string, unknown> = {}) {
   return {
@@ -80,7 +87,7 @@ describe('DocumentRenderer C3 image decode notice', () => {
     ['525x90.7px', { x: 0, y: 0, w: 100, h: 27 }],
   ])('좌표 배치 IMAGE %s — decode() 실패는 박스 크기와 무관하게 외부 요약에서 읽힌다', async (_size, geometry) => {
     const decode = vi.fn().mockRejectedValue(new DOMException('디코드 실패', 'EncodingError'))
-    window.HTMLImageElement.prototype.decode = decode
+    mockImageDecode(decode)
 
     const fixture = approvalRenderFixtures[0]!
     // useTemplateDraft.ts:165-172 의 IMAGE 기본 geometry와 동일 — 실사용 형태 재현.
@@ -110,7 +117,7 @@ describe('DocumentRenderer C3 image decode notice', () => {
 
   it('GRID 형태의 깨진 이미지 4개를 한 요약에서 모두 식별하고 교체 지시를 제공한다', async () => {
     const decode = vi.fn().mockRejectedValue(new DOMException('디코드 실패', 'EncodingError'))
-    window.HTMLImageElement.prototype.decode = decode
+    mockImageDecode(decode)
     const fixture = approvalRenderFixtures[0]!
     const template = {
       ...GROUPWARE_DEFAULT,
@@ -154,7 +161,7 @@ describe('DocumentRenderer C3 image decode notice', () => {
 
   it('decode()가 성공하면 경고를 표시하지 않는다(정상 이미지 회귀 방지)', async () => {
     const decode = vi.fn().mockResolvedValue(undefined)
-    window.HTMLImageElement.prototype.decode = decode
+    mockImageDecode(decode)
 
     const fixture = approvalRenderFixtures[0]!
     const template = templateWithHeaderImage('positioned-decodable-image', {
@@ -187,7 +194,7 @@ describe('DocumentRenderer C3 image decode notice', () => {
       if (key) seenKeys.push(key)
       return pending.get(key ?? '')?.promise ?? Promise.resolve()
     })
-    window.HTMLImageElement.prototype.decode = decode
+    mockImageDecode(decode)
 
     const fixture = approvalRenderFixtures[0]!
     const templateFor = (order: string[]) => ({

@@ -40,6 +40,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView, type WebViewMessageEvent, type WebViewNavigation } from 'react-native-webview';
 import { buildOrderShim } from '../webview/legacyOrderShim';
 import { getOrderAppUrl } from '../webview/legacyOrderSource';
+import { setOtaActivity } from '../version/otaUpdates';
 
 /**
  * legacy order 의 isMobileNow() trigger 보조 — userAgent 에 'samhan-mobile' 마커 추가.
@@ -69,6 +70,8 @@ export default function MobileOrderWebViewScreen(): JSX.Element {
   const injectedJavaScript = buildOrderShim();
   const allowedOrigin = getOrigin(url);
 
+  useEffect(() => () => setOtaActivity(false), []);
+
   // -------- Android hardware 뒤로가기 — WebView history 우선 --------
   useEffect(() => {
     if (Platform.OS !== 'android') return undefined;
@@ -94,6 +97,9 @@ export default function MobileOrderWebViewScreen(): JSX.Element {
       if (msg.type === 'rpc-error' || msg.type === 'rpc-missing') {
         // eslint-disable-next-line no-console
         console.warn(`[Order WebView v4] ${msg.type}`, msg.payload);
+      }
+      if (msg.type === 'ota-activity') {
+        setOtaActivity(Boolean(msg.payload?.active));
       }
       // legacy 의 google.script.host.close() 호출 시 — v4 단일 screen 이므로 무시 (또는 reload).
     } catch (_e) {
