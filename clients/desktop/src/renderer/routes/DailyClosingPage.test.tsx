@@ -306,6 +306,36 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
     expect((screen.getByTestId('daily-closing-unit-81') as HTMLInputElement).value).toBe('8,100')
   })
 
+  it('같은 전표의 두 행을 고치면 전체 라인을 한 번의 전표 단위 요청으로 보낸다', async () => {
+    const secondLine = { ...editableRows[0], productName: '같은 전표 둘째 라인', lineId: 'line-81-2', unitPriceWithVat: 5000, productPrice: 6000, total: 5000, grandTotal: 5000 }
+    getDailyClosingRowsMock.mockResolvedValue([editableRows[0], secondLine])
+    updateDailyClosingAmountMock.mockResolvedValue(undefined)
+    renderPage()
+    fireEvent.click(await screen.findByRole('tab', { name: /^선발행/ }))
+
+    fireEvent.change(screen.getAllByTestId('daily-closing-unit-81')[0]!, { target: { value: '8,100' } })
+    fireEvent.change(screen.getAllByLabelText('단가(VAT포함) 81')[1]!, { target: { value: '5,100' } })
+    fireEvent.click(screen.getByTestId('daily-closing-save-all'))
+
+    await waitFor(() => expect(updateDailyClosingAmountMock).toHaveBeenCalledTimes(1))
+    expect(updateDailyClosingAmountMock).toHaveBeenCalledWith('slip-81', '2026-08-14T10:00:00', [
+      expect.objectContaining({ lineId: 'line-81', unitPriceWithVat: 8100 }),
+      expect.objectContaining({ lineId: 'line-81-2', unitPriceWithVat: 5100 }),
+    ])
+  })
+
+  it('저장 메타데이터가 없는 편집행은 저장 버튼이 비활성이고 이유를 표시한다', async () => {
+    getDailyClosingRowsMock.mockResolvedValue([{ ...editableRows[0], slipId: null, lineId: null, updatedAt: null }])
+    renderPage()
+    fireEvent.click(await screen.findByRole('tab', { name: /^선발행/ }))
+
+    fireEvent.change(screen.getByTestId('daily-closing-unit-81'), { target: { value: '8,100' } })
+
+    await waitFor(() => expect((screen.getByTestId('daily-closing-save-all') as HTMLButtonElement).disabled).toBe(true))
+    expect(screen.getByText(/저장할 식별자|최신 조회/)).toBeTruthy()
+    expect(updateDailyClosingAmountMock).not.toHaveBeenCalled()
+  })
+
   it('편집 입력 높이는 같고 할인율 접미사는 입력 옆 inline-flex로 배치된다', async () => {
     getDailyClosingRowsMock.mockResolvedValue(editableRows)
     renderPage()
@@ -337,7 +367,7 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
     expect(getComputedStyle(total).backgroundColor).toBe('rgb(226, 232, 240)')
   })
 
-  it('같은 전표의 lineId 없는 4행도 첫 행 편집·상세·저장을 서로 오염시키지 않는다', async () => {
+  it('같은 전표의 lineId 없는 4행도 첫 행 편집·상세 상태가 서로 오염되지 않지만 저장은 막는다', async () => {
     const fourLineSlip = [
       { ...editableRows[0], seqNo: 6, slipId: 'slip-6', lineId: null, productName: '첫 행', quantity: 1, unitPriceWithVat: 16000, productPrice: 16000, supplyAmount: 14545, vatAmount: 1455, total: 16000, grandTotal: 16000 },
       { ...editableRows[0], seqNo: 6, slipId: 'slip-6', lineId: null, productName: '둘째 행', quantity: 1, unitPriceWithVat: 963040, productPrice: 963040, supplyAmount: 875491, vatAmount: 87549, total: 963040, grandTotal: 963040 },
@@ -370,8 +400,8 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
     expect(Array.from(firstRow.cells).reduce((sum, cell) => sum + (cell.colSpan || 1), 0)).toBe(17)
     expect(Array.from(bodyRows[1]!.cells).reduce((sum, cell) => sum + (cell.colSpan || 1), 0)).toBe(10)
 
-    fireEvent.click(screen.getByTestId('daily-closing-save-all'))
-    await waitFor(() => expect(updateDailyClosingAmountMock).toHaveBeenCalledTimes(1))
-    expect(updateDailyClosingAmountMock).toHaveBeenCalledWith('slip-6', expect.any(String), [expect.objectContaining({ unitPriceWithVat: 17000 })])
+    expect((screen.getByTestId('daily-closing-save-all') as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByText(/저장할 식별자|최신 조회/)).toBeTruthy()
+    expect(updateDailyClosingAmountMock).not.toHaveBeenCalled()
   })
 })

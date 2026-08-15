@@ -432,9 +432,9 @@ function dailyClosingAmountDraftKey(row: DailyClosingSourceRow): string {
  * 테스트 fixture처럼 lineId가 없는 응답만 행 값 fingerprint로 방어한다. seqNo는
  * 전표 번호라서 fallback의 유일 키로 사용할 수 없다.
  */
-function dailyClosingRowIdentity(row: DailyClosingSourceRow): string {
+function dailyClosingRowIdentity(row: DailyClosingSourceRow, occurrence = 0): string {
   if (row.lineId) return `line:${row.lineId}`
-  return [
+  const fingerprint = [
     row.slipId ?? 'unknown-slip',
     row.slipDate,
     row.seqNo,
@@ -444,6 +444,7 @@ function dailyClosingRowIdentity(row: DailyClosingSourceRow): string {
     row.productPrice ?? '',
     row.grandTotal ?? '',
   ].map((value) => String(value).split('|').join('%7C')).join('|')
+  return occurrence === 0 ? fingerprint : `${fingerprint}|duplicate:${occurrence}`
 }
 
 function LegacyAmountEditor({
@@ -556,34 +557,66 @@ function EditableLegacyDailyClosingTable({
     queryFn: () => getDailyClosingRows(slipDate),
   })
   const rows = Array.isArray(query.data) ? query.data : []
-  const dirtyRows = rows.filter((row) => drafts[dailyClosingAmountDraftKey(row)] !== undefined)
+  const rowKeys = useMemo(() => {
+    const occurrences = new Map<string, number>()
+    return new Map(rows.map((row) => {
+      const base = dailyClosingRowIdentity(row)
+      const occurrence = occurrences.get(base) ?? 0
+      occurrences.set(base, occurrence + 1)
+      return [row, dailyClosingRowIdentity(row, occurrence)] as const
+    }))
+  }, [rows])
+  const rowKey = (row: DailyClosingSourceRow) => rowKeys.get(row) ?? dailyClosingAmountDraftKey(row)
+  const dirtyRows = rows.filter((row) => drafts[rowKey(row)] !== undefined)
+  const dirtySlipIds = new Set(dirtyRows.map((row) => row.slipId).filter((id): id is string => Boolean(id)))
+  const saveRows = rows.filter((row) => row.slipId && dirtySlipIds.has(row.slipId))
+  const saveMetadataIssue = dirtyRows.find((row) => !row.slipId || !row.lineId || !row.updatedAt)
+    ?? saveRows.find((row) => !row.slipId || !row.lineId || !row.updatedAt)
+  const saveBlockReason = saveMetadataIssue
+    ? `번호 ${saveMetadataIssue.seqNo}: 저장할 식별자(slipId·lineId·updatedAt)가 없어 최신 조회가 필요합니다.`
+    : null
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const results = await Promise.allSettled(dirtyRows.map((row) => {
-        const values = drafts[dailyClosingAmountDraftKey(row)]!
-        return updateDailyClosingAmount(row.slipId ?? '', row.updatedAt ?? '', [{
-          lineId: row.lineId ?? '',
-          unitPriceWithVat: values.unit,
-          releasePrice: values.price,
-          discountRate: values.price ? 1 - values.unit / values.price : 0,
-        }])
+      const groups = Array.from(new Set(saveRows.map((row) => row.slipId)))
+        .map((slipId) => saveRows.filter((row) => row.slipId === slipId))
+      const results = await Promise.allSettled(groups.map((group) => {
+        const first = group[0]!
+        return updateDailyClosingAmount(first.slipId!, first.updatedAt!, group.map((row) => {
+          const edited = drafts[rowKey(row)]
+          const values = edited ?? initialEditableAmounts(row)
+          return {
+            lineId: row.lineId!,
+            unitPriceWithVat: values.unit,
+            releasePrice: values.price,
+            discountRate: values.price ? 1 - values.unit / values.price : 0,
+          }
+        }))
       }))
-      return dirtyRows.map((row, index) => ({ row, result: results[index]! }))
+      return groups.map((group, index) => ({ rows: group, result: results[index]! }))
     },
     onSuccess: (results) => {
       const errors: Record<string, string> = {}
       const savedKeys = new Set<string>()
       const savedValues: Record<string, CalculatedAmountValues> = {}
-      results.forEach(({ row, result }) => {
-        const key = dailyClosingAmountDraftKey(row)
+      results.forEach(({ rows: group, result }) => {
         if (result.status === 'fulfilled') {
-          savedKeys.add(key)
-          savedValues[key] = drafts[key]!
+          group.forEach((row) => {
+            const rowKeyValue = rowKey(row)
+            if (drafts[rowKeyValue] !== undefined) {
+              savedKeys.add(rowKeyValue)
+              savedValues[rowKeyValue] = drafts[rowKeyValue]!
+            }
+          })
         } else {
           const status = (result.reason as { response?: { status?: number } })?.response?.status
-          errors[key] = status === 409
-            ? `번호 ${row.seqNo}: 다른 사람이 먼저 고쳤습니다. 최신 값을 다시 조회해 주세요.`
-            : `번호 ${row.seqNo}: 금액을 저장하지 못했습니다.`
+          group.forEach((row) => {
+            const rowKeyValue = rowKey(row)
+            if (drafts[rowKeyValue] !== undefined) {
+              errors[rowKeyValue] = status === 409
+                ? `번호 ${row.seqNo}: 다른 사람이 먼저 고쳤습니다. 최신 값을 다시 조회해 주세요.`
+                : `번호 ${row.seqNo}: 금액을 저장하지 못했습니다.`
+            }
+          })
         }
       })
       setRowErrors(errors)
@@ -593,10 +626,13 @@ function EditableLegacyDailyClosingTable({
       ))
     },
   })
-  saveRef.current = () => saveMutation.mutate()
+  saveRef.current = () => {
+    if (saveBlockReason) return
+    saveMutation.mutate()
+  }
   useEffect(() => {
-    registerSave(dirtyRows.length > 0 ? () => saveRef.current() : null, dirtyRows.length)
-  }, [dirtyRows.length, registerSave])
+    registerSave(dirtyRows.length > 0 && !saveBlockReason ? () => saveRef.current() : null, dirtyRows.length)
+  }, [dirtyRows.length, registerSave, saveBlockReason])
   useEffect(() => {
     if (previousSlipDate.current !== slipDate) {
       previousSlipDate.current = slipDate
@@ -606,7 +642,7 @@ function EditableLegacyDailyClosingTable({
     }
   }, [slipDate])
   const changeDraft = (row: DailyClosingSourceRow, values: CalculatedAmountValues) => {
-    const key = dailyClosingAmountDraftKey(row)
+    const key = rowKey(row)
     setDrafts((current) => ({ ...current, [key]: values }))
     setRowErrors((current) => {
       if (!current[key]) return current
@@ -622,7 +658,7 @@ function EditableLegacyDailyClosingTable({
     [rows, tab],
   )
   const expandedGroupKey = expanded === null ? null : (() => {
-    const row = visible.find((candidate) => dailyClosingRowIdentity(candidate) === expanded)
+    const row = visible.find((candidate) => rowKey(candidate) === expanded)
     return row ? row.slipDate + '_' + row.seqNo : null
   })()
   const merges = useMemo(() => visible.map((row, index) => {
@@ -657,7 +693,7 @@ function EditableLegacyDailyClosingTable({
   const totalCell: CSSProperties = { ...cell, fontWeight: 700, backgroundColor: '#e2e8f0' }
   const totalNum: CSSProperties = { ...num, fontWeight: 700, backgroundColor: '#e2e8f0' }
   const effectiveAmount = (row: DailyClosingSourceRow) => {
-    const key = dailyClosingAmountDraftKey(row)
+    const key = rowKey(row)
     const edited = drafts[key] ?? committedValues[key]
     return edited
       ? { quantity: row.quantity, unit: edited.unit, supply: edited.supply, vat: edited.vat, total: edited.total * row.quantity, price: edited.price, rate: edited.rate, grand: edited.total * row.quantity }
@@ -744,16 +780,16 @@ function EditableLegacyDailyClosingTable({
             <tbody>
               {visible.map((row, index) => {
                 const merge = merges[index]!
-                const rowIdentity = dailyClosingRowIdentity(row)
+                const rowIdentity = rowKey(row)
                 const expandedRow = expanded === rowIdentity
-                const rowKey = row.slipDate + '_' + row.seqNo
+                const groupKey = row.slipDate + '_' + row.seqNo
                 const nextRow = visible[index + 1]
-                const isGroupEnd = !nextRow || rowKey !== nextRow.slipDate + '_' + nextRow.seqNo
+                const isGroupEnd = !nextRow || groupKey !== nextRow.slipDate + '_' + nextRow.seqNo
                 const groupStart = (() => {
                   let start = index
                   while (start > 0) {
                     const previous = visible[start - 1]!
-                    if (previous.slipDate + '_' + previous.seqNo !== rowKey) break
+                    if (previous.slipDate + '_' + previous.seqNo !== groupKey) break
                     start -= 1
                   }
                   return start
@@ -778,10 +814,10 @@ function EditableLegacyDailyClosingTable({
                     <td style={num}>{formatLegacyNumber(row.quantity)}</td>
                     <LegacyAmountEditor
                       row={row}
-                      values={drafts[dailyClosingAmountDraftKey(row)]
-                        ?? committedValues[dailyClosingAmountDraftKey(row)]
+                      values={drafts[rowKey(row)]
+                        ?? committedValues[rowKey(row)]
                         ?? null}
-                      error={rowErrors[dailyClosingAmountDraftKey(row)]}
+                      error={rowErrors[rowKey(row)]}
                       onChange={(values) => changeDraft(row, values)}
                     />
                     {mergedCell(row.partnerName || '', '거래처명', cell, merge)}
@@ -1368,6 +1404,9 @@ export function DailyClosingPage() {
           내역저장{unsavedAmountCount > 0 ? ` (${unsavedAmountCount})` : ''}
         </Button>
         {unsavedAmountCount > 0 ? <span role="status">저장되지 않은 금액 수정 {unsavedAmountCount}건</span> : null}
+        {unsavedAmountCount > 0 && !saveAllAction ? (
+          <span role="alert">저장할 식별자가 없어 저장할 수 없습니다. 최신 조회 후 다시 편집하세요.</span>
+        ) : null}
         <span style={{ color: 'var(--ink-secondary)', fontSize: 12 }}>조회일 {filterDate}</span>
       <div data-testid="daily-closing-exec-controls" style={{ display: 'none' }} aria-hidden="true">
         <input

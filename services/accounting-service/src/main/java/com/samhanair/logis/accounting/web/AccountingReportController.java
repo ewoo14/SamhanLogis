@@ -85,6 +85,8 @@ public class AccountingReportController {
 
     /** SP-D2 — 재무 보고서 페이지 코드 (매출집계/원장/일마감 detail). */
     private static final String REPORTS_PAGE_CODE = "accounting.reports";
+    /** 일마감 화면이 소비하는 원본행·마감이력 조회의 정본 페이지 코드. */
+    private static final String DAILY_CLOSING_PAGE_CODE = "accounting.daily-closing";
     /** SP-D2 — 거래명세서 일괄 + 홈택스 export 페이지 코드. */
     private static final String STATEMENT_BATCH_PAGE_CODE = "accounting.statement-batch";
     private static final String ROLE_HEADER = "X-User-Role";
@@ -271,7 +273,7 @@ public class AccountingReportController {
     @Operation(summary = "일별 마감 detail (BE-A12)",
             description = "일별 매출/세금계산서/할인 detail — read-only (마감 OPEN/CLOSED 무관)")
     @GetMapping("/accounting/closings/daily")
-    @RequirePermission(page = REPORTS_PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
+    @RequirePermission(page = DAILY_CLOSING_PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<DailyClosingDetailResponse> dailyDetail(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam(required = false) DailyClosingKind kind,

@@ -213,9 +213,9 @@ class DailyClosingRevalidationIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("daily detail — accounting.reports VIEW 미보유 role 은 403")
-    void dailyDetailRequiresAccountingReportsViewPermission() throws Exception {
-        denyRequirePermission("accounting.reports", PermissionAction.VIEW);
+    @DisplayName("daily detail — accounting.daily-closing VIEW 미보유 role 은 403")
+    void dailyDetailRequiresDailyClosingViewPermission() throws Exception {
+        denyRequirePermission("accounting.daily-closing", PermissionAction.VIEW);
 
         mockMvc.perform(get("/accounting/closings/daily")
                         .param("date", DATE.toString())

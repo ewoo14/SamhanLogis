@@ -20,6 +20,7 @@ import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.web.dto.SlipResponse;
 import com.samhanair.logis.slip.web.dto.DailyClosingRowResponse;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -161,11 +162,15 @@ class SlipQueryServiceTest {
         ReflectionTestUtils.setField(slip, "status", SlipStatus.CONFIRMED);
         SlipLine line = mock(SlipLine.class);
         when(line.getProductName()).thenReturn("품목 A");
+        UUID lineId = UUID.fromString("00000000-0000-0000-0000-000000000901");
+        when(line.getId()).thenReturn(lineId);
         when(line.getQuantity()).thenReturn(2);
         when(line.getUnitPriceWithVat()).thenReturn(new java.math.BigDecimal("1100"));
         when(line.getSupplyAmount()).thenReturn(new java.math.BigDecimal("2000"));
         when(line.getVatAmount()).thenReturn(new java.math.BigDecimal("200"));
         ReflectionTestUtils.setField(slip, "lines", List.of(line));
+        LocalDateTime modifiedAt = LocalDateTime.of(2026, 8, 14, 10, 0);
+        ReflectionTestUtils.setField(slip, "modifiedAt", modifiedAt);
         when(slipRepository.findDailyClosingOutboundSlips(any(), anyCollection()))
                 .thenReturn(List.of(slip));
         when(dailyClosingSourceResolver.resolve(any(), any()))
@@ -179,6 +184,9 @@ class SlipQueryServiceTest {
         assertThat(row.unitPriceWithVat()).isEqualByComparingTo("1100");
         assertThat(row.total()).isEqualByComparingTo("2200");
         assertThat(row.grandTotal()).isEqualByComparingTo("2200");
+        assertThat(row.slipId()).isEqualTo(slip.getId());
+        assertThat(row.lineId()).isEqualTo(lineId);
+        assertThat(row.updatedAt()).isEqualTo(modifiedAt);
         assertThat(row.confirmation()).isEqualTo(DailyClosingRowResponse.Confirmation.UNDETERMINED);
         assertThat(row.confirmationReason()).contains("원천");
     }
