@@ -344,6 +344,7 @@ test.describe('AC-4 일마감 (daily-closings)', () => {
     await installAuthMock(page)
     await blockLiveGatewayLeaks(page)
     await gotoPage(page, '/accounting/daily-closings', 'daily-closing-exec-partner')
+    await page.getByTestId('daily-closing-exec-button').click()
 
     // [#825 CM4] 실행 조건 인라인 행 정렬 — 거래처 입력이 폭 제약(220px) 래퍼로
     // 날짜 입력과 같은 행에 남아야 한다 (공용 wrapper width:100% 단독 행 감김 회귀 시
@@ -389,6 +390,7 @@ test.describe('AC-4 일마감 (daily-closings)', () => {
     await installAuthMock(page)
     await blockLiveGatewayLeaks(page)
     await gotoPage(page, '/accounting/daily-closings', 'daily-closing-exec-partner')
+    await page.getByTestId('daily-closing-exec-button').click()
 
     const partnerInput = page.getByTestId('daily-closing-exec-partner')
     const memo = page.getByTestId('daily-closing-exec-description')

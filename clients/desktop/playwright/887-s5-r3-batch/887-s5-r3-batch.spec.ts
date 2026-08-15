@@ -211,6 +211,7 @@ test.describe('#887 슬5 R3 잔여 3건 mock 회귀', () => {
 
   test('일마감 전체 범위 칩은 Enter와 Space로 켜고 끄는 왕복 조작이 된다', async ({ page }) => {
     await gotoMock(page, '/accounting/daily-closings?mockRole=MANAGER', 'daily-closing-page')
+    await page.getByTestId('daily-closing-exec-button').click()
     const pressable = page.getByTestId('daily-closing-all-chip').locator('[role="button"]')
 
     await pressable.press('Enter')
@@ -250,6 +251,7 @@ test.describe('#887 슬5 R3 잔여 3건 mock 회귀', () => {
 
   test('일마감 안내는 전체와 거래처 경로를 함께 명시한다', async ({ page }) => {
     await gotoMock(page, '/accounting/daily-closings?mockRole=MANAGER', 'daily-closing-page')
+    await page.getByTestId('daily-closing-exec-button').click()
     await expect(page.getByTestId('daily-closing-scope-hint')).toHaveText(/전체로 처리하려면 '전체' 칩을 선택하세요\. 특정 거래처만 처리하려면 거래처를 선택하세요\./)
   })
 

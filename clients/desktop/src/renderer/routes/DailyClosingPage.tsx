@@ -1332,11 +1332,23 @@ export function DailyClosingPage() {
           variant="primary"
           data-testid="daily-closing-exec-button"
           onClick={() => setShowExecutionPanel(true)}
-          disabled={false}
-          aria-describedby={execScopeMode === null ? SCOPE_HINT_ID : undefined}
+          disabled={!canExecute}
+          aria-describedby={!canExecute
+            ? 'daily-closing-exec-permission-hint'
+            : execScopeMode === null ? SCOPE_HINT_ID : undefined}
+          title={!canExecute ? '마감 실행 권한이 없습니다.' : undefined}
         >
           {closeMutation.isPending ? '처리 중' : '마감 실행'}
         </Button>
+        {!canExecute ? (
+          <span
+            id="daily-closing-exec-permission-hint"
+            role="status"
+            style={{ color: 'var(--color-danger-700)', fontSize: 12 }}
+          >
+            마감 실행 권한이 없습니다. 권한 보유자에게 요청하세요.
+          </span>
+        ) : null}
         <Button
           type="button"
           variant="ghost"

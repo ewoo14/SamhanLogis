@@ -167,7 +167,7 @@ test.describe('권한그룹 C5 후속 정리', () => {
 
   test('mock runtime: view-only daily closing permission keeps daily close button disabled', async ({ page }) => {
     const viewOnly = encodeURIComponent(mockPerms([
-      { pageCode: 'accounting.daily-closing', view: true, edit: false },
+      { pageCode: 'accounting.daily-closing.run', view: true, edit: false },
     ]))
 
     await page.goto(`${BASE_URL}/#/accounting/daily-closing?mockRole=SALES&mockPerms=${viewOnly}`, {

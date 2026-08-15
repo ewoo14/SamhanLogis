@@ -112,6 +112,7 @@ test.describe('897 열 계층화 mock 회귀 울타리', () => {
   test('일일 마감은 핵심 열만 폭 안에 표시되고 상세 경로에서 세부 값을 읽는다', async ({ page }) => {
     await page.setViewportSize({ width: 1600, height: 1000 })
     await page.goto('/#/accounting/daily-closing?mockRole=MASTER', { waitUntil: 'domcontentloaded' })
+    await page.getByTestId('daily-closing-tab-history').click()
 
     const table = page.getByTestId('daily-closing-list-table').locator('table')
     await expect(table).toBeVisible()
@@ -155,6 +156,7 @@ test.describe('897 열 계층화 mock 회귀 울타리', () => {
     for (const width of [1024, 1280, 1440, 1920]) {
       await page.setViewportSize({ width, height: 1000 })
       await page.goto('/#/accounting/daily-closing?mockRole=MASTER', { waitUntil: 'domcontentloaded' })
+      await page.getByTestId('daily-closing-tab-history').click()
 
       const table = page.getByTestId('daily-closing-list-table').locator('table')
       await expect(table).toBeVisible()
@@ -201,6 +203,7 @@ test.describe('897 열 계층화 mock 회귀 울타리', () => {
     await bankAction.click({ trial: true })
 
     await page.goto('/#/accounting/daily-closing?mockRole=MASTER', { waitUntil: 'domcontentloaded' })
+    await page.getByTestId('daily-closing-tab-history').click()
     const dailyAction = page.getByTestId('daily-closing-reverse-button-2026-06-07-ALL-SALES-TAX_INVOICE')
     await expect(dailyAction).toBeVisible()
     await expect(dailyAction).toBeEnabled()

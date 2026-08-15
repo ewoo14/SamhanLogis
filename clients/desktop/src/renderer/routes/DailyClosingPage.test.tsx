@@ -6,6 +6,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 vi.mock('../hooks/usePageTitle', () => ({ usePageTitle: () => {} }))
 
+const canAccessMock = vi.hoisted(() => vi.fn(() => true))
+vi.mock('../hooks/usePermissions', () => ({
+  usePermissions: () => ({ canAccess: canAccessMock }),
+}))
+
 const getDailyClosingRowsMock = vi.fn()
 const updateDailyClosingAmountMock = vi.fn()
 vi.mock('../api/closingApi', async (importOriginal) => {
@@ -87,6 +92,8 @@ function renderPage() {
 
 afterEach(() => {
   cleanup()
+  canAccessMock.mockReset()
+  canAccessMock.mockReturnValue(true)
   getDailyClosingRowsMock.mockReset()
   updateDailyClosingAmountMock.mockReset()
 })
@@ -225,6 +232,25 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
     expect(actionRow.querySelector('[data-testid="daily-closing-exec-button"]')).toBeTruthy()
     expect(actionRow.querySelector('[data-testid="daily-closing-filter-reset"]')).toBeTruthy()
     expect(screen.getAllByRole('table')).toHaveLength(1)
+  })
+
+  it('마감 실행 권한이 없으면 진입 버튼도 잠기고 권한 있는 사용자는 열린다', async () => {
+    getDailyClosingRowsMock.mockResolvedValue(rows)
+    canAccessMock.mockImplementation((pageCode: string, action: string) =>
+      pageCode === 'accounting.daily-closing.run' && action === 'create',
+    )
+    renderPage()
+
+    const executeButton = await screen.findByTestId('daily-closing-exec-button')
+    expect((executeButton as HTMLButtonElement).disabled).toBe(false)
+    expect(canAccessMock).toHaveBeenCalledWith('accounting.daily-closing.run', 'create')
+
+    canAccessMock.mockReturnValue(false)
+    cleanup()
+    renderPage()
+    const deniedButton = await screen.findByTestId('daily-closing-exec-button')
+    expect((deniedButton as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByText(/마감 실행 권한이 없습니다/)).toBeTruthy()
   })
 
   it('현재 탭의 표 하나만 보이고 원본행 표 헤더는 고정된다', async () => {
