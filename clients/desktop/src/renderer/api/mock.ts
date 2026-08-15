@@ -14604,6 +14604,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       { category: '그룹웨어', label: '링크발송', route: '/sales/link-dispatch', pageCode: 'slip.delivery-batch', order: 4 },
       { category: '그룹웨어', label: '알리고 주소록', route: '/admin/aligo-address-book', pageCode: 'aligo.address-book', order: 5 },
       { category: '그룹웨어', label: '메신저', route: '/messenger', pageCode: 'messenger.send', order: 6 },
+      { category: '그룹웨어', label: '단톡방 매핑', route: '/admin/chat-rooms', pageCode: 'messenger.admin', order: 7 },
       { category: '인사', label: '인사 관리', route: '/admin/users', pageCode: 'admin.employees', order: 1 },
       { category: '인사', label: '운송사 목록', route: '/admin/carriers', pageCode: 'hr.carriers', order: 2 },
       { category: '인사', label: '결재라인 설정', route: '/admin/approval-line-config', pageCode: 'admin.approval-line-config', order: 3 },

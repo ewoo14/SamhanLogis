@@ -39,13 +39,13 @@ describe('mock menu catalog parity', () => {
     const serverEntries = readServerCatalog()
     const mockEntries = readMockCatalog()
 
-    expect(serverEntries).toHaveLength(101)
+    expect(serverEntries).toHaveLength(102)
     expect(mockEntries).toEqual(serverEntries)
     expect(mockEntries.some((entry) => entry.pageCode === 'accounting.bank-card-admin')).toBe(true)
   })
 
-  it('does not resurrect the removed chat entry', () => {
-    expect(readMockCatalog().some((entry) => entry.pageCode === 'messenger.admin')).toBe(false)
-    expect(readMockCatalog().some((entry) => entry.route === '/admin/chat-rooms')).toBe(false)
+  it('keeps the chat-room mapping admin entry separate from the removed in-app chat entry', () => {
+    expect(readMockCatalog()).toContainEqual({ route: '/admin/chat-rooms', pageCode: 'messenger.admin', order: 7 })
+    expect(readMockCatalog().some((entry) => entry.route === '/chat')).toBe(false)
   })
 })

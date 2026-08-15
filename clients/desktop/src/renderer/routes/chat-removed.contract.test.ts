@@ -14,8 +14,4 @@ describe('본체 채팅 잔재 제거 계약', () => {
     expect(layoutSource).not.toMatch(/to=["']\/chat["']/)
   })
 
-  it('본체 관리자 채팅방 매핑 라우트와 사이드바 링크가 없다', () => {
-    expect(routesSource).not.toMatch(/path:\s*["']\/admin\/chat-rooms["']/)
-    expect(layoutSource).not.toMatch(/to=["']\/admin\/chat-rooms["']/)
-  })
 })

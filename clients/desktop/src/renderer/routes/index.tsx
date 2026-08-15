@@ -159,6 +159,8 @@ import { BlockedPartnersPage as AdminBlockedPartnersPage } from './admin/Blocked
 // [PR-F1 Designer mock] 알리고 주소록 자동 동기화 — MASTER 전용 (AdminLayout 가드).
 // legacy GAS 9번 이식, BE FE-1 슬라이스 endpoint 연결 예정.
 import { AligoAddressBookPage as AdminAligoAddressBookPage } from './admin/AligoAddressBookPage'
+// 단톡방 매핑 관리자 — 본체 채팅과 분리된 messenger.admin 관리 화면.
+import { ChatRoomsPage as AdminChatRoomsPage } from './admin/ChatRoomsPage'
 // [PR-F1 FE-2] arologis 운송사 실배차 비교 — DISPATCH/MANAGER/MASTER.
 import { ArologisDispatchReconcilePage } from './ArologisDispatchReconcilePage'
 // [Phase 10 P2-6 / slice 9] 재고 실사 3 페이지 (WAREHOUSE/MASTER)
@@ -1557,6 +1559,14 @@ const routes = [
         element: (
           <PermissionGuard pageCode="aligo.address-book" action="view">
             <AdminAligoAddressBookPage />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: '/admin/chat-rooms',
+        element: (
+          <PermissionGuard pageCode="messenger.admin" action="view">
+            <AdminChatRoomsPage />
           </PermissionGuard>
         ),
       },

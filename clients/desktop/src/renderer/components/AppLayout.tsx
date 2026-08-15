@@ -407,6 +407,7 @@ export function AppLayout() {
     '/admin/app-releases': 'sidebar-dev-app-releases',
     '/admin/app-notices': 'sidebar-dev-popup-notice',
     '/admin/activity-logs': 'sidebar-dev-activity-log',
+    '/admin/chat-rooms': 'sidebar-admin-chat-rooms',
     '/inventory/compensation-failures': 'sidebar-warehouse-compensation-failures',
     '/accounting/tax-invoices/batch': 'sidebar-accounting-tax-invoice-batch-issue',
     '/sales/estimate-config': 'sidebar-sales-estimate-config',
@@ -731,6 +732,7 @@ export function AppLayout() {
   // [PR-E1 FE-5] 전표 정리 entry — SALES / MANAGER / MASTER
   const showSlipCleanup = dynamicCanAccess('slip.cleanup', 'view')
   const showNextDaySlip = dynamicCanAccess('slip.print.next-day', 'view')
+  const showChatRoomAdmin = dynamicCanAccess('messenger.admin', 'view')
   const showMessengerSend = dynamicCanAccess('messenger.send', 'view')
   const showGroupwareApprovals = dynamicCanAccess('groupware.approvals', 'view')
   const showGroupwareApprovalTemplates = dynamicCanAccess('groupware.approval-templates', 'view')
@@ -756,7 +758,7 @@ export function AppLayout() {
     showPurchaseSlipList || showInventoryStockTransfer
     || showInboundInspection || showAudit || showDpsCompare || showDpsByProduct
   const showGroupware =
-    showDeliveryBatch || showAligoAddressBook
+    showDeliveryBatch || showAligoAddressBook || showChatRoomAdmin
     || showGroupwareApprovals || showGroupwareApprovalTemplates || showGroupwareDocumentTemplates
     || showMessengerSend
   // [Round A P3] showRegionMgmt(arologis.region) 포함 — 배차지역 관리 단독 권한자가
@@ -1434,6 +1436,7 @@ export function AppLayout() {
               '/groupware/document-templates',
               '/sales/link-dispatch',
               '/admin/aligo-address-book',
+              '/admin/chat-rooms',
               '/messenger',
             ]}
           >
@@ -1483,6 +1486,13 @@ export function AppLayout() {
               data-testid="sidebar-messenger"
             >
               메신저
+            </SidebarLink>
+            <SidebarLink
+              to="/admin/chat-rooms"
+              show={showChatRoomAdmin}
+              data-testid="sidebar-admin-chat-rooms"
+            >
+              단톡방 매핑
             </SidebarLink>
           </SidebarCategory>
 

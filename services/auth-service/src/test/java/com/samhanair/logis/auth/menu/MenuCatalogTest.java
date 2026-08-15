@@ -10,17 +10,19 @@ import org.junit.jupiter.api.Test;
 class MenuCatalogTest {
 
     @Test
-    @DisplayName("서버 catalog는 본체 메뉴 92개와 아로로지스 5개 공식 메뉴를 가진다")
+    @DisplayName("서버 catalog는 본체 메뉴 93개와 아로로지스 5개 공식 메뉴를 가진다")
     void containsOfficialMenusOnly() {
-        assertThat(MenuCatalog.entries()).hasSize(106);
+        assertThat(MenuCatalog.entries()).hasSize(107);
         assertThat(MenuCatalog.entries().stream().filter(entry -> entry.app().equals("samhan-public")))
-                .hasSize(101);
+                .hasSize(102);
         assertThat(MenuCatalog.entries().stream().filter(entry -> entry.app().equals("arologis")))
                 .hasSize(5);
         assertThat(MenuCatalog.entries().stream().map(MenuCatalogEntry::route).collect(Collectors.toSet()))
                 .doesNotContain("/arologis/manual");
         assertThat(MenuCatalog.entries().stream().map(MenuCatalogEntry::route).collect(Collectors.toSet()))
                 .doesNotContain("/chat");
+        assertThat(MenuCatalog.entries().stream().map(MenuCatalogEntry::route).collect(Collectors.toSet()))
+                .contains("/admin/chat-rooms");
         assertThat(MenuCatalog.entries().stream().map(MenuCatalogEntry::route).collect(Collectors.toSet()))
                 .contains("/admin/app-notices", "/admin/activity-logs");
     }

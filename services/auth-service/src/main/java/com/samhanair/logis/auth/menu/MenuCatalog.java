@@ -77,6 +77,7 @@ public final class MenuCatalog {
             entry("samhan-public", "그룹웨어", "링크발송", "/sales/link-dispatch", "slip.delivery-batch", 4),
             entry("samhan-public", "그룹웨어", "알리고 주소록", "/admin/aligo-address-book", "aligo.address-book", 5),
             entry("samhan-public", "그룹웨어", "메신저", "/messenger", "messenger.send", 6),
+            entry("samhan-public", "그룹웨어", "단톡방 매핑", "/admin/chat-rooms", "messenger.admin", 7),
             entry("samhan-public", "인사", "인사 관리", "/admin/users", "admin.employees", 1),
             entry("samhan-public", "인사", "운송사 목록", "/admin/carriers", "hr.carriers", 2),
             entry("samhan-public", "인사", "결재라인 설정", "/admin/approval-line-config", "admin.approval-line-config", 3),
