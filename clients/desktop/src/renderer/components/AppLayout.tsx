@@ -715,7 +715,6 @@ export function AppLayout() {
     || showDispatchSmsPage
     || showExternalCarriers
     || showArologisAdminPage
-  const showChatRoomAdmin = dynamicCanAccess('messenger.admin', 'view')
 
   const showAudit = showInventoryAuditPage
   const showDpsCompare = showInventoryDps
@@ -828,7 +827,6 @@ export function AppLayout() {
           )}
 
           {false ? <>
-          {false ? <SidebarLink to="/admin/chat-rooms" show={showChatRoomAdmin} data-testid="sidebar-chat-rooms">단톡방</SidebarLink> : null}
           {/* [Phase 6 v4 → P2-1] 판매 그룹 — 견적서 SamhanLogis 도메인 (legacy webview 폐기) + 4종 sub.
               [SP-D4] estimates.list / sales.partner-order.list 동적 RBAC 연동. */}
           <SidebarCategory
