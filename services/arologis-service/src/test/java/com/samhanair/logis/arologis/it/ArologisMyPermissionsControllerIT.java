@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.samhanair.logis.arologis.ArologisServiceApplication;
+import com.samhanair.logis.common.http.HttpHeaderConstants;
 import com.samhanair.logis.arologis.client.NotificationClient;
 import com.samhanair.logis.arologis.client.PartnerClient;
 import com.samhanair.logis.arologis.client.SlipClient;
@@ -192,6 +193,7 @@ class ArologisMyPermissionsControllerIT {
                 .andExpect(header("X-Internal-Token", TOKEN))
                 .andExpect(header("X-User-Id", "system-internal:" + CALLER))
                 .andExpect(header("X-User-Role", CALLER))
+                .andExpect(header(HttpHeaderConstants.GATEWAY_ATTESTATION_HEADER, "test-gateway-attestation"))
                 .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
     }
 

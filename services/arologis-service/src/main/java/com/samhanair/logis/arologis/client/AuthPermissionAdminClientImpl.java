@@ -4,11 +4,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.common.http.HttpHeaderConstants;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -44,13 +46,25 @@ public class AuthPermissionAdminClientImpl implements AuthPermissionAdminClient 
     private final ObjectMapper objectMapper;
     private final String internalToken;
     private final String callerServiceName;
+    private final String gatewayAttestation;
 
+    public AuthPermissionAdminClientImpl(
+            RestClient.Builder builder,
+            ObjectMapper objectMapper,
+            String authServiceBaseUrl,
+            String internalToken,
+            String callerServiceName) {
+        this(builder, objectMapper, authServiceBaseUrl, internalToken, callerServiceName, "");
+    }
+
+    @Autowired
     public AuthPermissionAdminClientImpl(
             RestClient.Builder builder,
             ObjectMapper objectMapper,
             @Value("${samhan.auth-service.url:http://localhost:8081}") String authServiceBaseUrl,
             @Value("${app.security.internal.token:}") String internalToken,
-            @Value("${spring.application.name:arologis-service}") String callerServiceName) {
+            @Value("${spring.application.name:arologis-service}") String callerServiceName,
+            @Value("${samhan.security.gateway-attestation:}") String gatewayAttestation) {
         String baseUrl = (authServiceBaseUrl == null || authServiceBaseUrl.isBlank())
                 ? "http://localhost:8081"
                 : authServiceBaseUrl;
@@ -59,6 +73,7 @@ public class AuthPermissionAdminClientImpl implements AuthPermissionAdminClient 
         this.internalToken = internalToken == null ? "" : internalToken;
         this.callerServiceName = (callerServiceName == null || callerServiceName.isBlank())
                 ? "arologis-service" : callerServiceName;
+        this.gatewayAttestation = gatewayAttestation == null ? "" : gatewayAttestation;
     }
 
     @Override
@@ -69,6 +84,7 @@ public class AuthPermissionAdminClientImpl implements AuthPermissionAdminClient 
                     .header(INTERNAL_TOKEN_HEADER, internalToken)
                     .header(USER_ID_HEADER, "system-internal:" + callerServiceName)
                     .header(ROLE_HEADER, callerServiceName)
+                    .headers(this::addGatewayAttestation)
                     .retrieve()
                     .body(JsonNode.class);
             return parseMatrix(root);
@@ -98,6 +114,7 @@ public class AuthPermissionAdminClientImpl implements AuthPermissionAdminClient 
                     .header(INTERNAL_TOKEN_HEADER, internalToken)
                     .header(USER_ID_HEADER, resolveActorHeader(actorUserId))
                     .header(ROLE_HEADER, callerServiceName)
+                    .headers(this::addGatewayAttestation)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body)
                     .retrieve()
@@ -134,6 +151,12 @@ public class AuthPermissionAdminClientImpl implements AuthPermissionAdminClient 
             return actorUserId;
         }
         return "system-internal:" + callerServiceName;
+    }
+
+    private void addGatewayAttestation(org.springframework.http.HttpHeaders headers) {
+        if (!gatewayAttestation.isBlank()) {
+            headers.set(HttpHeaderConstants.GATEWAY_ATTESTATION_HEADER, gatewayAttestation);
+        }
     }
 
     /**

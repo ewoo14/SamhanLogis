@@ -96,4 +96,29 @@ class DefaultDynamicPermissionClientTest {
         assertThat(allowed).isFalse();
         server.verify();
     }
+
+    @Test
+    void arologis_direct_permission_call_gets_200_with_non_empty_permission_response() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        DefaultDynamicPermissionClient client = new DefaultDynamicPermissionClient(
+                builder,
+                "http://auth-service",
+                "test-internal-token",
+                "arologis-service",
+                "test-gateway-attestation");
+
+        server.expect(requestTo("http://auth-service/auth/internal/permissions/check"
+                        + "?roleCode=AROLOGIS_MASTER&pageCode=arologis.dispatch.manual&type=VIEW"))
+                .andExpect(header("X-Internal-Token", "test-internal-token"))
+                .andExpect(header("X-User-Role", "AROLOGIS_MASTER"))
+                .andExpect(header("X-Samhan-Gateway-Attestation", "test-gateway-attestation"))
+                .andRespond(withSuccess("{\"success\":true,\"data\":{\"allowed\":true}}",
+                        MediaType.APPLICATION_JSON));
+
+        boolean allowed = client.canView("AROLOGIS_MASTER", "arologis.dispatch.manual");
+
+        assertThat(allowed).isTrue();
+        server.verify();
+    }
 }
