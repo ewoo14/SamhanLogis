@@ -1,15 +1,20 @@
 // @vitest-environment jsdom
 import React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 vi.mock('../hooks/usePageTitle', () => ({ usePageTitle: () => {} }))
 
 const getDailyClosingRowsMock = vi.fn()
+const updateDailyClosingAmountMock = vi.fn()
 vi.mock('../api/closingApi', async (importOriginal) => {
   const actual = await importOriginal()
-  return { ...actual, getDailyClosingRows: (...args: unknown[]) => getDailyClosingRowsMock(...args) }
+  return {
+    ...actual,
+    getDailyClosingRows: (...args: unknown[]) => getDailyClosingRowsMock(...args),
+    updateDailyClosingAmount: (...args: unknown[]) => updateDailyClosingAmountMock(...args),
+  }
 })
 
 import { DAILY_CLOSING_HEADERS, DailyClosingPage } from './DailyClosingPage'
@@ -83,6 +88,7 @@ function renderPage() {
 afterEach(() => {
   cleanup()
   getDailyClosingRowsMock.mockReset()
+  updateDailyClosingAmountMock.mockReset()
 })
 
 describe('DailyClosingPage S3 레거시 단일표', () => {
@@ -238,5 +244,54 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
     fireEvent.click(screen.getByRole('tab', { name: '상세' }))
     expect(screen.queryByTestId('daily-closing-list-table')).toBeNull()
     expect(screen.queryByTestId('daily-closing-table')).toBeNull()
+  })
+
+  it('기본 상태에서는 실행 패널이 닫혀 있고 액션 버튼으로만 열린다', async () => {
+    getDailyClosingRowsMock.mockResolvedValue(rows)
+    renderPage()
+
+    await screen.findByTestId('daily-closing-table')
+    expect(screen.queryByText('일마감 실행')).toBeNull()
+    fireEvent.click(screen.getByTestId('daily-closing-exec-button'))
+    expect(screen.getByText('일마감 실행')).toBeTruthy()
+    expect(screen.getByTestId('daily-closing-table')).toBeTruthy()
+  })
+
+  it('여러 행을 고친 뒤 상단 저장 한 번으로 모두 요청하고 일부 409 행을 표시한다', async () => {
+    const secondRow = { ...editableRows[0], seqNo: 83, slipId: 'slip-83', lineId: 'line-83' }
+    getDailyClosingRowsMock.mockResolvedValue([editableRows[0], secondRow])
+    updateDailyClosingAmountMock.mockImplementation(async (slipId: string) => {
+      if (slipId === 'slip-83') {
+        const error = new Error('conflict') as Error & { response?: { status: number } }
+        error.response = { status: 409 }
+        throw error
+      }
+    })
+    renderPage()
+    fireEvent.click(await screen.findByRole('tab', { name: '선발행' }))
+
+    fireEvent.change(screen.getByTestId('daily-closing-unit-81'), { target: { value: '8,100' } })
+    fireEvent.change(screen.getByTestId('daily-closing-unit-83'), { target: { value: '8,200' } })
+    await waitFor(() => expect((screen.getByTestId('daily-closing-save-all') as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(screen.getByTestId('daily-closing-save-all'))
+
+    await waitFor(() => expect(updateDailyClosingAmountMock).toHaveBeenCalledTimes(2))
+    expect(await screen.findByText(/83.*다른 사람이 먼저 고쳤습니다/)).toBeTruthy()
+    expect((screen.getByTestId('daily-closing-unit-81') as HTMLInputElement).value).toBe('8,100')
+  })
+
+  it('편집 입력 높이는 같고 할인율 접미사는 입력 옆 inline-flex로 배치된다', async () => {
+    getDailyClosingRowsMock.mockResolvedValue(editableRows)
+    renderPage()
+    fireEvent.click(await screen.findByRole('tab', { name: /^선발행/ }))
+
+    const unit = screen.getByTestId('daily-closing-unit-81') as HTMLInputElement
+    const price = screen.getByTestId('daily-closing-price-81') as HTMLInputElement
+    const rate = screen.getByTestId('daily-closing-rate-81') as HTMLInputElement
+
+    expect(unit.style.height).toBe(price.style.height)
+    expect(rate.style.height).toBe(unit.style.height)
+    expect(rate.parentElement?.style.display).toBe('inline-flex')
+    expect(rate.nextElementSibling?.textContent).toBe('%')
   })
 })

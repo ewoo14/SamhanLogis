@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Badge,
@@ -33,7 +33,6 @@ import {
   type DailyProductRevalidationStatus,
   type DailyTaxInvoiceRow,
 } from '../api/closingApi'
-import { getApiErrorInfo } from '../api/apiError'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { today } from '../utils/dateUtils'
@@ -422,10 +421,21 @@ function amountEditDisabledReason(row: DailyClosingSourceRow): string {
       : '잠긴 마감일의 금액은 수정할 수 없습니다.')
 }
 
-function LegacyAmountEditor({ row }: { row: DailyClosingSourceRow }) {
-  const [values, setValues] = useState<CalculatedAmountValues | null>(null)
-  const [error, setError] = useState('')
-  const [saved, setSaved] = useState(false)
+function dailyClosingAmountDraftKey(row: DailyClosingSourceRow): string {
+  return row.lineId ?? `${row.slipId ?? 'unknown'}:${row.seqNo}`
+}
+
+function LegacyAmountEditor({
+  row,
+  values,
+  error,
+  onChange,
+}: {
+  row: DailyClosingSourceRow
+  values: CalculatedAmountValues | null
+  error?: string
+  onChange: (values: CalculatedAmountValues) => void
+}) {
   const disabled = amountEditDisabled(row)
   const base = initialEditableAmounts(row)
   const current = values ?? {
@@ -434,34 +444,8 @@ function LegacyAmountEditor({ row }: { row: DailyClosingSourceRow }) {
     vat: Number(row.vatAmount ?? 0),
     total: Number(row.total ?? 0),
   }
-  const mutation = useMutation({
-    mutationFn: () => updateDailyClosingAmount(
-      row.slipId ?? '',
-      row.updatedAt ?? '',
-      [{
-        lineId: row.lineId ?? '',
-        unitPriceWithVat: current.unit,
-        releasePrice: current.price,
-        discountRate: current.price ? 1 - current.unit / current.price : 0,
-      }],
-    ),
-    onSuccess: () => {
-      setValues(null)
-      setSaved(true)
-      setError('')
-    },
-    onError: (err) => {
-      const info = getApiErrorInfo(err)
-      setError(info.status === 409
-        ? '다른 사람이 먼저 고쳤습니다. 최신 값을 다시 조회해 주세요.'
-        : '금액을 저장하지 못했습니다.')
-    },
-  })
-
   const commit = (field: EditableAmountField, rawValue: string) => {
-    setValues(recalculateLegacyAmounts(current, field, rawValue))
-    setSaved(false)
-    setError('')
+    onChange(recalculateLegacyAmounts(current, field, rawValue))
   }
   const cell: CSSProperties = {
     padding: '8px 6px',
@@ -470,7 +454,31 @@ function LegacyAmountEditor({ row }: { row: DailyClosingSourceRow }) {
     overflowWrap: 'anywhere',
   }
   const num: CSSProperties = { ...cell, textAlign: 'right' }
-  const inputStyle = { ...num, width: '100%', boxSizing: 'border-box' as const }
+  const amountInputStyle: CSSProperties = {
+    width: '100%',
+    minWidth: 0,
+    height: 28,
+    padding: 4,
+    border: '1px solid #3182ce',
+    borderRadius: 4,
+    textAlign: 'right',
+    fontSize: 12,
+    lineHeight: 'normal',
+    boxSizing: 'border-box',
+  }
+  const rateInputStyle: CSSProperties = {
+    width: 'auto',
+    flex: '1 1 auto',
+    minWidth: 0,
+    height: 28,
+    padding: 2,
+    border: '1px solid transparent',
+    background: 'transparent',
+    fontWeight: 700,
+    fontSize: 13,
+    textAlign: 'right',
+    boxSizing: 'border-box',
+  }
   const input = (field: EditableAmountField, value: number, label: string) => (
     <input
       aria-label={label + ' ' + row.seqNo}
@@ -479,32 +487,27 @@ function LegacyAmountEditor({ row }: { row: DailyClosingSourceRow }) {
       value={formatLegacyNumber(value)}
       onChange={(event) => commit(field, event.target.value)}
       title={disabled ? amountEditDisabledReason(row) : undefined}
-      style={inputStyle}
+      className={field === 'rate' ? 'edit-rate' : 'edit-input'}
+      style={field === 'rate' ? rateInputStyle : amountInputStyle}
     />
   )
 
   return <>
     <td style={num}>
       {input('unit', current.unit, '단가(VAT포함)')}
-      {disabled ? <span title={amountEditDisabledReason(row)}>수정 불가</span> : (
-        <>
-          <button
-            type="button"
-            data-testid={'daily-closing-save-' + row.seqNo}
-            disabled={!values || !row.slipId || !row.lineId || !row.updatedAt || mutation.isPending}
-            onClick={() => mutation.mutate()}
-          >저장</button>
-          {saved ? <span role="status">저장됨</span> : null}
-          {error ? <span role="alert">{error}</span> : null}
-        </>
-      )}
+      {disabled ? <span title={amountEditDisabledReason(row)} style={{ marginLeft: 4, fontSize: 11 }}>수정 불가</span> : null}
+      {!disabled && values ? <span role="status" style={{ marginLeft: 4, fontSize: 11 }}>수정됨</span> : null}
+      {error ? <span role="alert" style={{ display: 'block', fontSize: 11 }}>{error}</span> : null}
     </td>
     <td style={num}>{values ? formatLegacyNumber(current.supply) : formatLegacyNumber(row.supplyAmount)}</td>
     <td style={num}>{values ? formatLegacyNumber(current.vat) : formatLegacyNumber(row.vatAmount)}</td>
     <td style={num}>{values ? formatLegacyNumber(current.total * row.quantity) : formatLegacyNumber(row.total)}</td>
     <td style={num}>{input('price', current.price, '출고가')}</td>
     <td className={legacyDiscountClass(Math.round(current.rate))} style={{ ...num, background: LEGACY_DISCOUNT_COLORS[legacyDiscountClass(Math.round(current.rate))] }}>
-      {input('rate', current.rate, '할인율')}%
+      <div style={{ display: 'inline-flex', width: '100%', alignItems: 'center', justifyContent: 'center' }}>
+        {input('rate', current.rate, '할인율')}
+        <span style={{ marginLeft: 2 }}>%</span>
+      </div>
     </td>
     <td style={num}>{values ? formatLegacyNumber(current.total * row.quantity) : formatLegacyNumber(row.grandTotal)}</td>
   </>
@@ -513,16 +516,84 @@ function LegacyAmountEditor({ row }: { row: DailyClosingSourceRow }) {
 function EditableLegacyDailyClosingTable({
   slipDate,
   tab,
+  active,
+  registerSave,
 }: {
   slipDate: string
   tab: 'RESULT' | 'PRE_ISSUED'
+  active: boolean
+  registerSave: (save: (() => void) | null, dirtyCount: number) => void
 }) {
   const [expanded, setExpanded] = useState<number | null>(null)
+  const [drafts, setDrafts] = useState<Record<string, CalculatedAmountValues>>({})
+  const [committedValues, setCommittedValues] = useState<Record<string, CalculatedAmountValues>>({})
+  const [rowErrors, setRowErrors] = useState<Record<string, string>>({})
+  const saveRef = useRef<() => void>(() => undefined)
+  const previousSlipDate = useRef(slipDate)
   const query = useQuery({
     queryKey: ['daily-closing-source-rows', slipDate],
     queryFn: () => getDailyClosingRows(slipDate),
   })
   const rows = Array.isArray(query.data) ? query.data : []
+  const dirtyRows = rows.filter((row) => drafts[dailyClosingAmountDraftKey(row)] !== undefined)
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const results = await Promise.allSettled(dirtyRows.map((row) => {
+        const values = drafts[dailyClosingAmountDraftKey(row)]!
+        return updateDailyClosingAmount(row.slipId ?? '', row.updatedAt ?? '', [{
+          lineId: row.lineId ?? '',
+          unitPriceWithVat: values.unit,
+          releasePrice: values.price,
+          discountRate: values.price ? 1 - values.unit / values.price : 0,
+        }])
+      }))
+      return dirtyRows.map((row, index) => ({ row, result: results[index]! }))
+    },
+    onSuccess: (results) => {
+      const errors: Record<string, string> = {}
+      const savedKeys = new Set<string>()
+      const savedValues: Record<string, CalculatedAmountValues> = {}
+      results.forEach(({ row, result }) => {
+        const key = dailyClosingAmountDraftKey(row)
+        if (result.status === 'fulfilled') {
+          savedKeys.add(key)
+          savedValues[key] = drafts[key]!
+        } else {
+          const status = (result.reason as { response?: { status?: number } })?.response?.status
+          errors[key] = status === 409
+            ? `번호 ${row.seqNo}: 다른 사람이 먼저 고쳤습니다. 최신 값을 다시 조회해 주세요.`
+            : `번호 ${row.seqNo}: 금액을 저장하지 못했습니다.`
+        }
+      })
+      setRowErrors(errors)
+      setCommittedValues((current) => ({ ...current, ...savedValues }))
+      setDrafts((current) => Object.fromEntries(
+        Object.entries(current).filter(([key]) => !savedKeys.has(key)),
+      ))
+    },
+  })
+  saveRef.current = () => saveMutation.mutate()
+  useEffect(() => {
+    registerSave(dirtyRows.length > 0 ? () => saveRef.current() : null, dirtyRows.length)
+  }, [dirtyRows.length, registerSave])
+  useEffect(() => {
+    if (previousSlipDate.current !== slipDate) {
+      previousSlipDate.current = slipDate
+      setDrafts({})
+      setCommittedValues({})
+      setRowErrors({})
+    }
+  }, [slipDate])
+  const changeDraft = (row: DailyClosingSourceRow, values: CalculatedAmountValues) => {
+    const key = dailyClosingAmountDraftKey(row)
+    setDrafts((current) => ({ ...current, [key]: values }))
+    setRowErrors((current) => {
+      if (!current[key]) return current
+      const next = { ...current }
+      delete next[key]
+      return next
+    })
+  }
   const visible = useMemo(
     () => rows.filter((row) => tab === 'RESULT'
       ? Boolean(row.accountingPostedAt)
@@ -559,7 +630,8 @@ function EditableLegacyDailyClosingTable({
   }
   const num: CSSProperties = { ...cell, textAlign: 'right' }
 
-  return <Card style={{ marginBottom: 16 }}>
+  return <div style={{ display: active ? undefined : 'none' }}>
+    <Card style={{ marginBottom: 16 }}>
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
         <h3 style={{ margin: 0 }}>출고전표 원본행</h3>
@@ -567,7 +639,7 @@ function EditableLegacyDailyClosingTable({
       </div>
       {query.isError ? <div role="alert" className="error-banner">출고전표 원본행을 불러오지 못했습니다.</div> : (
         <div
-          data-testid={query.isLoading ? undefined : 'daily-closing-table'}
+          data-testid={query.isLoading || !active ? undefined : 'daily-closing-table'}
           className="daily-closing-table-wrapper"
           style={{ maxHeight: 'calc(100vh - 250px)', overflowY: 'auto', overflowX: 'auto' }}
         >
@@ -602,7 +674,14 @@ function EditableLegacyDailyClosingTable({
                     {mergedCell(row.warehouseName || '', '창고명', cell, merge)}
                     <td style={cell}>{row.productName}</td>
                     <td style={num}>{formatLegacyNumber(row.quantity)}</td>
-                    <LegacyAmountEditor row={row} />
+                    <LegacyAmountEditor
+                      row={row}
+                      values={drafts[dailyClosingAmountDraftKey(row)]
+                        ?? committedValues[dailyClosingAmountDraftKey(row)]
+                        ?? null}
+                      error={rowErrors[dailyClosingAmountDraftKey(row)]}
+                      onChange={(values) => changeDraft(row, values)}
+                    />
                     {mergedCell(row.partnerName || '', '거래처명', cell, merge)}
                     {mergedCell(row.partnerCode || '', '거래처코드', cell, merge)}
                     <td style={cell}>{legacyStatusBadge(row)}</td>
@@ -659,7 +738,8 @@ function EditableLegacyDailyClosingTable({
         </div>
       )}
     </div>
-  </Card>
+    </Card>
+  </div>
 }
 
 export function DailyClosingPage() {
@@ -675,6 +755,9 @@ export function DailyClosingPage() {
   // 출고 원본행 표와 마감 이력은 같은 업무 기준일을 보여준다.
   const [filterDate, setFilterDate] = useState('2026-08-14')
   const [viewTab, setViewTab] = useState<'RESULT' | 'PRE_ISSUED' | 'HISTORY' | 'DETAIL'>('RESULT')
+  const [showExecutionPanel, setShowExecutionPanel] = useState(false)
+  const [saveAllAction, setSaveAllAction] = useState<(() => void) | null>(null)
+  const [unsavedAmountCount, setUnsavedAmountCount] = useState(0)
   const [partnerCode, setPartnerCode] = useState('')
   const [closingKind, setClosingKind] = useState<ClosingKindFilter>('SALES')
   const [sourceKind, setSourceKind] = useState<DailyClosingSourceKind>('TAX_INVOICE')
@@ -1081,6 +1164,7 @@ export function DailyClosingPage() {
   const showProductRevalidation = closingKind !== 'ALL'
 
   const resetFilters = () => {
+    if (unsavedAmountCount > 0 && !window.confirm('저장하지 않은 금액 수정이 있습니다. 필터를 초기화하시겠습니까?')) return
     setFilterDate('2026-08-14')
     setPartnerCode('')
     setClosingKind('SALES')
@@ -1090,6 +1174,12 @@ export function DailyClosingPage() {
   }
 
   const visibleSourceTab = viewTab === 'PRE_ISSUED' ? 'PRE_ISSUED' : 'RESULT'
+  const guardUnsavedAmount = () => unsavedAmountCount === 0
+    || window.confirm('저장하지 않은 금액 수정이 있습니다. 이동하시겠습니까?')
+  const registerAmountSave = useCallback((save: (() => void) | null, dirtyCount: number) => {
+    setSaveAllAction(() => save)
+    setUnsavedAmountCount(dirtyCount)
+  }, [])
 
   return (
     <div data-testid="daily-closing-page">
@@ -1113,7 +1203,7 @@ export function DailyClosingPage() {
             role="tab"
             aria-selected={viewTab === key}
             data-testid={'daily-closing-tab-' + key.toLowerCase()}
-            onClick={() => setViewTab(key)}
+            onClick={() => { if (guardUnsavedAmount()) setViewTab(key) }}
             style={{
               height: 36,
               padding: '0 14px',
@@ -1138,7 +1228,11 @@ export function DailyClosingPage() {
           <input
             type="date"
             value={filterDate}
-            onChange={(e) => { setFilterDate(e.target.value); clearSelectedDetail() }}
+            onChange={(e) => {
+              if (!guardUnsavedAmount()) return
+              setFilterDate(e.target.value)
+              clearSelectedDetail()
+            }}
             data-testid="daily-closing-filter-date"
             style={inputStyle}
           />
@@ -1150,8 +1244,8 @@ export function DailyClosingPage() {
           type="button"
           variant="primary"
           data-testid="daily-closing-exec-button"
-          onClick={handleExecuteClosing}
-          disabled={!canExecute || closeMutation.isPending || !execDate || execScopeMode === null}
+          onClick={() => setShowExecutionPanel(true)}
+          disabled={false}
           aria-describedby={execScopeMode === null ? SCOPE_HINT_ID : undefined}
         >
           {closeMutation.isPending ? '처리 중' : '마감 실행'}
@@ -1165,6 +1259,16 @@ export function DailyClosingPage() {
         >
           역마감
         </Button>
+        <Button
+          type="button"
+          variant="primary"
+          data-testid="daily-closing-save-all"
+          disabled={!saveAllAction || unsavedAmountCount === 0}
+          onClick={() => saveAllAction?.()}
+        >
+          내역저장{unsavedAmountCount > 0 ? ` (${unsavedAmountCount})` : ''}
+        </Button>
+        {unsavedAmountCount > 0 ? <span role="status">저장되지 않은 금액 수정 {unsavedAmountCount}건</span> : null}
         <span style={{ color: 'var(--ink-secondary)', fontSize: 12 }}>조회일 {filterDate}</span>
       <div data-testid="daily-closing-exec-controls" style={{ display: 'none' }} aria-hidden="true">
         <input
@@ -1247,8 +1351,11 @@ export function DailyClosingPage() {
         </div>
         </div>
 
-      <Card style={{ marginBottom: 16 }}>
-        <h3 style={{ margin: '0 0 12px' }}>일마감 실행</h3>
+      {showExecutionPanel ? <Card style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 style={{ margin: '0 0 12px' }}>일마감 실행</h3>
+          <Button type="button" variant="ghost" size="sm" onClick={() => setShowExecutionPanel(false)}>닫기</Button>
+        </div>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
           <input
             type="date"
@@ -1384,7 +1491,7 @@ export function DailyClosingPage() {
           />
           <Button
             variant="primary"
-            data-testid="daily-closing-exec-button"
+            data-testid="daily-closing-exec-submit"
             onClick={handleExecuteClosing}
             disabled={!canExecute || closeMutation.isPending || !execDate || execScopeMode === null}
             aria-describedby={execScopeMode === null ? SCOPE_HINT_ID : undefined}
@@ -1428,12 +1535,15 @@ export function DailyClosingPage() {
             일마감 실행에 실패했습니다.
           </div>
         ) : null}
-      </Card>
+      </Card> : null}
       </div>
 
-      {viewTab === 'RESULT' || viewTab === 'PRE_ISSUED' ? (
-        <EditableLegacyDailyClosingTable slipDate={filterDate} tab={visibleSourceTab} />
-      ) : null}
+      <EditableLegacyDailyClosingTable
+        slipDate={filterDate}
+        tab={visibleSourceTab}
+        active={viewTab === 'RESULT' || viewTab === 'PRE_ISSUED'}
+        registerSave={registerAmountSave}
+      />
 
       {viewTab === 'HISTORY' ? <Card style={{ marginBottom: 16 }}>
         <h3 style={{ margin: '0 0 12px' }}>마감 이력</h3>
