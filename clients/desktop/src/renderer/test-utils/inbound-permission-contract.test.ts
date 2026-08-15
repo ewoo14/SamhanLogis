@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { getMockResponse } from '../api/mock'
 
 const ACTIONS = ['view', 'create', 'update', 'delete', 'restore', 'download', 'print'] as const
 type Action = typeof ACTIONS[number]
@@ -29,18 +30,18 @@ function expectedBitsForRole(role: string): string {
   return templateExpectedBits[role]
 }
 
-async function readInboundBits(role: string): Promise<string> {
-  vi.resetModules()
-  vi.stubGlobal('window', { location: { search: `?mockRole=${role}`, hash: '' } })
-  const { getMockResponse } = await import('../api/mock')
-  const response = getMockResponse({ method: 'GET', url: '/auth/admin/permissions/my' }) as PermissionResponse
+type MockResponseReader = typeof getMockResponse
+
+function readInboundBits(getMockResponse: MockResponseReader, role: string): string {
+  const response = getMockResponse({
+    method: 'GET',
+    url: `/auth/admin/permissions/my?mockRole=${encodeURIComponent(role)}`,
+  }) as PermissionResponse
   const granted = new Set(response.data['inbound.inspection'] ?? [])
   return ACTIONS.map((action) => granted.has(action.toUpperCase()) ? '1' : '0').join('')
 }
 
-async function readMockRoles(): Promise<string[]> {
-  vi.resetModules()
-  const { getMockResponse } = await import('../api/mock')
+function readMockRoles(getMockResponse: MockResponseReader): string[] {
   const response = getMockResponse({ method: 'GET', url: '/auth/admin/permissions' }) as {
     data: Record<string, unknown>
   }
@@ -53,19 +54,19 @@ afterEach(() => {
 })
 
 describe('inbound.inspection permission contract', () => {
-  it('compares every mock-emitted role against the auth_db 7-bit model exactly', async () => {
-    const mockRoles = await readMockRoles()
+  it('compares every mock-emitted role against the auth_db 7-bit model exactly', () => {
+    const mockRoles = readMockRoles(getMockResponse)
     expect(mockRoles).toEqual(Object.keys({ MASTER: masterRuntimeBits, ...templateExpectedBits }).sort())
 
     for (const role of mockRoles) {
-      await expect(readInboundBits(role), `${role} inbound.inspection`).resolves.toBe(expectedBitsForRole(role))
+      expect(readInboundBits(getMockResponse, role), `${role} inbound.inspection`).toBe(expectedBitsForRole(role))
     }
 
     // MASTER 런타임 전권 규칙 단정: 모든 page code가 7개 action을 가져야 한다.
-    vi.resetModules()
-    vi.stubGlobal('window', { location: { search: '?mockRole=MASTER', hash: '' } })
-    const { getMockResponse } = await import('../api/mock')
-    const response = getMockResponse({ method: 'GET', url: '/auth/admin/permissions/my' }) as PermissionResponse
+    const response = getMockResponse({
+      method: 'GET',
+      url: '/auth/admin/permissions/my?mockRole=MASTER',
+    }) as PermissionResponse
     const expectedActions = ACTIONS.map((action) => action.toUpperCase())
 
     for (const [pageCode, actions] of Object.entries(response.data)) {

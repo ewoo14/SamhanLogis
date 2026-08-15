@@ -362,6 +362,7 @@ class SlipSalesUpdateIT extends AbstractPostgresIT {
     void testR9MigratedKeylessMultiInstancePositiveEdit() throws Exception {
         Slip fixture = persistR9KeylessTargetFixture();
         applyR9MigrationFixturePath();
+        makeR9HeadCreatedAtTie();
 
         MvcResult detail = mockMvc.perform(get(SLIPS_PATH + "/" + fixture.getId())
                         .header(USER_ID_HEADER, TEST_USER_ID.toString())
@@ -412,8 +413,19 @@ class SlipSalesUpdateIT extends AbstractPostgresIT {
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT quantity FROM slip_lines WHERE slip_id = ? AND set_head = true "
                         + "AND is_deleted = false AND parent_set_model = 'AC060CS6PBH1SY' "
-                        + "ORDER BY created_at LIMIT 1",
+                        + "ORDER BY created_at, id LIMIT 1",
                 Integer.class, fixture.getId())).isEqualTo(2);
+    }
+
+    /** R9 회귀 가드: 두 인스턴스 head의 created_at 동률에서도 첫 head가 정의돼야 한다. */
+    private void makeR9HeadCreatedAtTie() {
+        jdbcTemplate.update(
+                "UPDATE slip_lines AS target SET created_at = source.created_at "
+                        + "FROM (SELECT MIN(created_at) AS created_at FROM slip_lines "
+                        + "WHERE parent_set_model = 'AC060CS6PBH1SY' AND is_deleted = false "
+                        + "AND set_head = true) AS source "
+                        + "WHERE target.parent_set_model = 'AC060CS6PBH1SY' "
+                        + "AND target.is_deleted = false AND target.set_head = true");
     }
 
     @Test

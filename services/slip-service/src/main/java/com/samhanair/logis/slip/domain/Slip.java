@@ -16,6 +16,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.security.SecureRandom;
@@ -652,6 +653,7 @@ public class Slip extends BaseEntity {
 
     @OneToMany(mappedBy = "slip", cascade = CascadeType.ALL, orphanRemoval = false,
             fetch = FetchType.LAZY)
+    @OrderBy("createdAt ASC, id ASC")
     private List<SlipLine> lines = new ArrayList<>();
 
     private Slip(SlipType slipType, String slipNo, LocalDate slipDate, int seqNo,

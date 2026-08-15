@@ -1,8 +1,11 @@
 ---
 name: feedback-shared-service-redeploy-breaks-other-track-qa
 description: 병렬 트랙이 같은 서비스를 건드리면 재배포가 다른 트랙의 라이브QA 를 조용히 깨뜨린다 — 가짜 결함이 나온다
-metadata:
+metadata: 
+  node_type: memory
   type: feedback
+  originSessionId: c912e540-6b1a-48d7-a602-a64c7fa3e6ca
+  modified: 2026-08-15T19:25:42.721Z
 ---
 
 2026-08-15~16 실측. **PM 이 같은 밤에 네 번 겪었다.**
@@ -39,6 +42,15 @@ fix 라운드가 데이터로 성립하지 않는 것을 만들 뻔했다.
   ```
   🔑 `jar tf` 의 빈 출력을 "클래스 없음" 으로 읽은 오진단이 실제로 있었다
 - 근본 해소는 **겹치는 트랙을 먼저 머지**하는 것이다. main 에 들어가면 모두가 물어 간다
+- 🆕 **머지했다고 끝이 아니다.** 2026-08-16 실측 — 네 건을 머지한 뒤 main 소스는 깨끗했는데
+  **컨테이너 8개가 옛 브랜치 빌드**라 없는 URL 이 실제로 500 을 줬다.
+  ```text
+  main 소스   14 서비스 빌드 성공 · 마이그레이션 456/456 · 교차 충돌 0
+  배포본      auth·dashboard·inventory·notification·partner·product·slip 500
+  ```
+  ⟹ **머지 뒤에는 통합 건강 점검을 돌리고 미반영 서비스를 main 으로 재배포하라.**
+  PR 별 CI 는 각자 base 에서 통과한 것이라 합쳐진 상태를 아무도 안 본다.
+  확인은 marker 문자열로: `unzip -p app.jar <Class>.class | strings | grep -c <메서드명>`
 
 관련: [[feedback_stale_deployment_looks_like_defect]] · [[feedback_parallel_backend_tracks_share_docker_stack]] ·
 [[feedback_permission_denied_may_be_401_from_auth]]

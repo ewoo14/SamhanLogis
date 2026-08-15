@@ -14673,7 +14673,10 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   // GET /auth/admin/permissions/my — 현재 사용자 권한 목록
   // BE 응답: Map<pageCode, PermissionAction[]>.
   if (method === 'GET' && (url.includes('/auth/admin/permissions/my') || url.includes('/admin/permissions/my'))) {
-    const mockRole = MOCK_AUTH.role
+    // 요청 단위 role override 를 읽어 권한 계약 테스트가 모듈을 역할별로 재평가하지 않게 한다.
+    // 기존 전역 mockRole(query)와 기본 MOCK_AUTH 동작은 그대로 유지한다.
+    const mockRole = new URL(url.startsWith('http') ? url : `http://mock${url}`).searchParams.get('mockRole')
+      ?? MOCK_AUTH.role
     // 실 BE 응답은 대문자 PermissionAction enum (예: "VIEW") → actionsFromRaw 의
     // toLowerCase() 정규화 경로를 mock 으로도 회귀 포착하기 위해 대문자로 반환한다.
     const allActions = ['VIEW', 'CREATE', 'UPDATE', 'DELETE', 'RESTORE', 'DOWNLOAD', 'PRINT']
