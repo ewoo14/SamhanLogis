@@ -205,4 +205,38 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
     expect((screen.getByTestId('daily-closing-rate-82') as HTMLInputElement).disabled).toBe(true)
     expect(screen.getByText('수정 불가')).toBeTruthy()
   })
+
+  it('레거시처럼 네 개의 상단 탭과 표 위 액션 줄을 사용한다', async () => {
+    getDailyClosingRowsMock.mockResolvedValue(rows)
+    renderPage()
+
+    expect(await screen.findByTestId('daily-closing-nav')).toBeTruthy()
+    expect(screen.getByRole('tab', { name: '결과' })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: '선발행' })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: '마감이력' })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: '상세' })).toBeTruthy()
+    const actionRow = screen.getByTestId('daily-closing-action-row')
+    expect(actionRow.querySelector('[data-testid="daily-closing-exec-button"]')).toBeTruthy()
+    expect(actionRow.querySelector('[data-testid="daily-closing-filter-reset"]')).toBeTruthy()
+    expect(screen.getAllByRole('table')).toHaveLength(1)
+  })
+
+  it('현재 탭의 표 하나만 보이고 원본행 표 헤더는 고정된다', async () => {
+    getDailyClosingRowsMock.mockResolvedValue(rows)
+    renderPage()
+    await screen.findByTestId('daily-closing-table')
+
+    const wrapper = screen.getByTestId('daily-closing-table')
+    expect((wrapper as HTMLElement).style.maxHeight).toBe('calc(100vh - 250px)')
+    expect((screen.getByTestId('daily-closing-columns').firstElementChild as HTMLElement).style.position).toBe('sticky')
+
+    fireEvent.click(screen.getByRole('tab', { name: '마감이력' }))
+    expect(screen.queryByTestId('daily-closing-table')).toBeNull()
+    expect(await screen.findByText('마감 이력을 불러오지 못했습니다.')).toBeTruthy()
+    expect(screen.queryAllByRole('table')).toHaveLength(0)
+
+    fireEvent.click(screen.getByRole('tab', { name: '상세' }))
+    expect(screen.queryByTestId('daily-closing-list-table')).toBeNull()
+    expect(screen.queryByTestId('daily-closing-table')).toBeNull()
+  })
 })

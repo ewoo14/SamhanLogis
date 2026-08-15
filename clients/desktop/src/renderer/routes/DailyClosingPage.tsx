@@ -510,8 +510,13 @@ function LegacyAmountEditor({ row }: { row: DailyClosingSourceRow }) {
   </>
 }
 
-function EditableLegacyDailyClosingTable({ slipDate }: { slipDate: string }) {
-  const [tab, setTab] = useState<'RESULT' | 'PRE_ISSUED'>('RESULT')
+function EditableLegacyDailyClosingTable({
+  slipDate,
+  tab,
+}: {
+  slipDate: string
+  tab: 'RESULT' | 'PRE_ISSUED'
+}) {
   const [expanded, setExpanded] = useState<number | null>(null)
   const query = useQuery({
     queryKey: ['daily-closing-source-rows', slipDate],
@@ -560,30 +565,29 @@ function EditableLegacyDailyClosingTable({ slipDate }: { slipDate: string }) {
         <h3 style={{ margin: 0 }}>출고전표 원본행</h3>
         <span style={{ color: 'var(--ink-secondary)', fontSize: 12 }}>출고일 {slipDate}</span>
       </div>
-      <div role="tablist" aria-label="회계반영일자 구분" style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
-        {([['RESULT', '결과'], ['PRE_ISSUED', '선발행']] as const).map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            role="tab"
-            aria-selected={tab === key}
-            data-testid={'daily-closing-tab-' + key.toLowerCase()}
-            onClick={() => { setTab(key); setExpanded(null) }}
-            style={{ height: 32, padding: '0 12px', border: '1px solid var(--line-default)', borderRadius: 6, cursor: 'pointer', background: tab === key ? 'var(--surface-selected)' : 'var(--surface-card)', fontWeight: tab === key ? 700 : 400 }}
-          >
-            {label} ({rows.filter((row) => key === 'RESULT'
-              ? Boolean(row.accountingPostedAt)
-              : !row.accountingPostedAt).length})
-          </button>
-        ))}
-      </div>
       {query.isError ? <div role="alert" className="error-banner">출고전표 원본행을 불러오지 못했습니다.</div> : (
-        <div data-testid={query.isLoading ? undefined : 'daily-closing-table'} style={{ overflowX: 'auto' }}>
+        <div
+          data-testid={query.isLoading ? undefined : 'daily-closing-table'}
+          className="daily-closing-table-wrapper"
+          style={{ maxHeight: 'calc(100vh - 250px)', overflowY: 'auto', overflowX: 'auto' }}
+        >
           <table style={{ width: '100%', minWidth: 1680, borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: 12 }}>
             <colgroup>{DAILY_CLOSING_HEADERS.map((header) => <col key={header} />)}</colgroup>
             <thead><tr data-testid="daily-closing-columns">
               {DAILY_CLOSING_HEADERS.map((header) => (
-                <th key={header} style={{ ...cell, background: 'var(--surface-subtle)', fontWeight: 700 }}>{header}</th>
+                <th
+                  key={header}
+                  style={{
+                    ...cell,
+                    position: 'sticky',
+                    top: -1,
+                    zIndex: 2,
+                    background: 'var(--surface-subtle)',
+                    fontWeight: 700,
+                  }}
+                >
+                  {header}
+                </th>
               ))}
             </tr></thead>
             <tbody>
@@ -670,6 +674,7 @@ export function DailyClosingPage() {
 
   // 출고 원본행 표와 마감 이력은 같은 업무 기준일을 보여준다.
   const [filterDate, setFilterDate] = useState('2026-08-14')
+  const [viewTab, setViewTab] = useState<'RESULT' | 'PRE_ISSUED' | 'HISTORY' | 'DETAIL'>('RESULT')
   const [partnerCode, setPartnerCode] = useState('')
   const [closingKind, setClosingKind] = useState<ClosingKindFilter>('SALES')
   const [sourceKind, setSourceKind] = useState<DailyClosingSourceKind>('TAX_INVOICE')
@@ -1075,10 +1080,102 @@ export function DailyClosingPage() {
   const execSourceButtons = availableSources(execKind)
   const showProductRevalidation = closingKind !== 'ALL'
 
+  const resetFilters = () => {
+    setFilterDate('2026-08-14')
+    setPartnerCode('')
+    setClosingKind('SALES')
+    setSourceKind('TAX_INVOICE')
+    clearSelectedDetail()
+    setViewTab('RESULT')
+  }
+
+  const visibleSourceTab = viewTab === 'PRE_ISSUED' ? 'PRE_ISSUED' : 'RESULT'
+
   return (
     <div data-testid="daily-closing-page">
-      <Card style={{ marginBottom: 16 }}>
-        <h3 style={{ margin: '0 0 12px' }}>일마감 조회</h3>
+      <header data-testid="daily-closing-header" style={{ marginBottom: 12 }}>
+        <h2 style={{ margin: 0 }}>삼한공조시스템 일마감 프로그램</h2>
+      </header>
+      <nav
+        aria-label="일마감 메뉴"
+        data-testid="daily-closing-nav"
+        style={{ display: 'flex', gap: 4, overflowX: 'auto', borderBottom: '1px solid var(--line-default)', marginBottom: 8 }}
+      >
+        {([
+          ['RESULT', '결과'],
+          ['PRE_ISSUED', '선발행'],
+          ['HISTORY', '마감이력'],
+          ['DETAIL', '상세'],
+        ] as const).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={viewTab === key}
+            data-testid={'daily-closing-tab-' + key.toLowerCase()}
+            onClick={() => setViewTab(key)}
+            style={{
+              height: 36,
+              padding: '0 14px',
+              border: 0,
+              borderBottom: viewTab === key ? '3px solid var(--ink-link)' : '3px solid transparent',
+              background: 'transparent',
+              cursor: 'pointer',
+              fontWeight: viewTab === key ? 700 : 400,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+      <div
+        data-testid="daily-closing-action-row"
+        style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12, padding: '8px 0' }}
+      >
+        <label>
+          대상일&nbsp;
+          <input
+            type="date"
+            value={filterDate}
+            onChange={(e) => { setFilterDate(e.target.value); clearSelectedDetail() }}
+            data-testid="daily-closing-filter-date"
+            style={inputStyle}
+          />
+        </label>
+        <Button type="button" variant="ghost" data-testid="daily-closing-filter-reset" onClick={resetFilters}>
+          필터초기화
+        </Button>
+        <Button
+          type="button"
+          variant="primary"
+          data-testid="daily-closing-exec-button"
+          onClick={handleExecuteClosing}
+          disabled={!canExecute || closeMutation.isPending || !execDate || execScopeMode === null}
+          aria-describedby={execScopeMode === null ? SCOPE_HINT_ID : undefined}
+        >
+          {closeMutation.isPending ? '처리 중' : '마감 실행'}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          data-testid="daily-closing-reverse-action"
+          disabled={!canReverse || !selectedDetailRow || reverseMutation.isPending}
+          onClick={() => { if (selectedDetailRow) setReverseConfirmRow(selectedDetailRow) }}
+        >
+          역마감
+        </Button>
+        <span style={{ color: 'var(--ink-secondary)', fontSize: 12 }}>조회일 {filterDate}</span>
+      <div data-testid="daily-closing-exec-controls" style={{ display: 'none' }} aria-hidden="true">
+        <input
+          type="date"
+          value={execDate}
+          onChange={(e) => setExecDate(e.target.value)}
+          data-testid="daily-closing-exec-date"
+          tabIndex={-1}
+        />
+      </div>
+      <div style={{ display: 'none' }}>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
           <label>
             대상일&nbsp;
@@ -1089,7 +1186,7 @@ export function DailyClosingPage() {
               // 보겠다"는 명시적 의도 — 이전 상세 선택(스냅샷 포함)을 지운다(S4 원래
               // 보장: stale 요약이 남지 않는다).
               onChange={(e) => { setFilterDate(e.target.value); clearSelectedDetail() }}
-              data-testid="daily-closing-filter-date"
+              data-testid="daily-closing-legacy-filter-date"
               style={inputStyle}
             />
           </label>
@@ -1148,9 +1245,7 @@ export function DailyClosingPage() {
             </div>
           ) : null}
         </div>
-      </Card>
-
-      <EditableLegacyDailyClosingTable slipDate={filterDate} />
+        </div>
 
       <Card style={{ marginBottom: 16 }}>
         <h3 style={{ margin: '0 0 12px' }}>일마감 실행</h3>
@@ -1328,14 +1423,19 @@ export function DailyClosingPage() {
             일마감 실행 권한이 없습니다 — 일마감 실행 권한 보유자만 가능합니다.
           </p>
         ) : null}
-        {closeMutation.isError ? (
+      {closeMutation.isError ? (
           <div className="error-banner" role="alert" style={{ marginTop: 8 }}>
             일마감 실행에 실패했습니다.
           </div>
         ) : null}
       </Card>
+      </div>
 
-      <Card style={{ marginBottom: 16 }}>
+      {viewTab === 'RESULT' || viewTab === 'PRE_ISSUED' ? (
+        <EditableLegacyDailyClosingTable slipDate={filterDate} tab={visibleSourceTab} />
+      ) : null}
+
+      {viewTab === 'HISTORY' ? <Card style={{ marginBottom: 16 }}>
         <h3 style={{ margin: '0 0 12px' }}>마감 이력</h3>
         {listQuery.isLoading ? (
           <div style={{ display: 'grid', placeItems: 'center', minHeight: 140 }}>
@@ -1381,9 +1481,9 @@ export function DailyClosingPage() {
             </button>
           </div>
         ) : null}
-      </Card>
+      </Card> : null}
 
-      <Card>
+      {viewTab === 'DETAIL' ? <Card>
         <div
           id="daily-closing-detail"
           ref={detailCardRef}
@@ -1491,7 +1591,7 @@ export function DailyClosingPage() {
           </>
         )}
         </div>
-      </Card>
+      </Card> : null}
 
       <Modal
         open={reverseConfirmRow !== null}
