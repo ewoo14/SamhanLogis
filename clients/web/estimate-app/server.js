@@ -10,11 +10,12 @@
 
 'use strict';
 
-require('dotenv').config();
-
 const path = require('path');
+// 네이버 자격증명은 추적되지 않는 infrastructure/.env.local 또는 배포 환경변수에서만 읽는다.
+require('dotenv').config({ path: path.resolve(__dirname, '../../../infrastructure/.env.local') });
 const express = require('express');
 const helmet = require('helmet');
+const code = require('./lib/code');
 
 const app = express();
 
@@ -71,6 +72,55 @@ app.use((req, res, next) => {
 // JSON body
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// 주문서 정적 앱의 네이버 주소검색 프록시. 키는 이 Express 프로세스에만 존재하며,
+// 브라우저에는 enabled 상태와 주소 결과만 반환한다.
+const orderAppOrigin = process.env.ORDER_APP_ORIGIN || 'https://order.samhan-air.com';
+function allowOrderAppOrigin(req, res) {
+  const origin = req.headers.origin;
+  if (origin && (origin === orderAppOrigin || origin === 'http://localhost:5180')) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+  }
+}
+
+function allowAddressSearchCors(req, res) {
+  allowOrderAppOrigin(req, res);
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+}
+
+app.options('/address-search', (req, res) => {
+  allowAddressSearchCors(req, res);
+  res.sendStatus(204);
+});
+
+app.get('/address-search/status', (req, res) => {
+  allowAddressSearchCors(req, res);
+  res.json({
+    ok: true,
+    enabled: Boolean(
+      (process.env.NAVER_SEARCH_CLIENT_ID && process.env.NAVER_SEARCH_CLIENT_SECRET)
+      || (process.env.NAVER_MAP_KEY_ID && process.env.NAVER_MAP_KEY)
+      || process.env.JUSO_ROAD_API_KEY,
+    ),
+  });
+});
+
+app.post('/address-search', async (req, res, next) => {
+  allowAddressSearchCors(req, res);
+  try {
+    const query = String(req.body && req.body.query || '').trim();
+    if (!query) return res.status(400).json({ ok: false, error: '검색어가 비었습니다.', items: [] });
+    const result = await code.searchNaverAddress(query);
+    if (!result.ok && result.error === '주소검색 자격(env) 미설정입니다.') {
+      return res.status(503).json(result);
+    }
+    return res.json(result);
+  } catch (err) {
+    return next(err);
+  }
+});
 
 // 정적 자산
 app.use(express.static(path.join(__dirname, 'public'), {

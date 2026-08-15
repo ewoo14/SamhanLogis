@@ -51,6 +51,7 @@ const configs = {
     command: ['npm', 'run', 'dev'],
     env: {
       VITE_API_BASE_URL: `${commonApi}/api/v1`,
+      VITE_ESTIMATE_APP_URL: 'http://localhost:5183',
     },
   },
   'web-design-system': {

@@ -1133,7 +1133,10 @@ button.tut-highlight { filter: brightness(1.6); }
                   style="flex:1;min-width:0;height:36px;border:1px solid var(--c-line);border-radius:8px;padding:0 10px;background:#f3f4f6;color:#6b7280"/>
             <input id="addrDetail" placeholder="상세주소 입력"
                   style="flex:1;min-width:200px;height:36px;border:1px solid var(--c-line);border-radius:8px;padding:0 10px"/>
-            <button class="btn btn-ghost" id="btnAddrShip">주소검색</button>
+            <div style="display:flex;gap:4px;flex:0 0 auto">
+              <button class="btn btn-ghost" id="btnAddrShipKakao">카카오 주소검색</button>
+              <button class="btn btn-ghost" id="btnAddrShipNaver" style="display:none">네이버 주소검색</button>
+            </div>
           </div>
 
           <!-- 현장주소 -->
@@ -1146,7 +1149,10 @@ button.tut-highlight { filter: brightness(1.6); }
                   style="flex:1;min-width:0;height:36px;border:1px solid var(--c-line);border-radius:8px;padding:0 10px;background:#f3f4f6;color:#6b7280"/>
             <input id="addrAuditDetail" placeholder="상세주소 입력"
                   style="flex:1;min-width:200px;height:36px;border:1px solid var(--c-line);border-radius:8px;padding:0 10px"/>
-            <button class="btn btn-ghost" id="btnAddrAudit">주소검색</button>
+            <div style="display:flex;gap:4px;flex:0 0 auto">
+              <button class="btn btn-ghost" id="btnAddrAuditKakao">카카오 주소검색</button>
+              <button class="btn btn-ghost" id="btnAddrAuditNaver" style="display:none">네이버 주소검색</button>
+            </div>
           </div>
 
           <!-- 배송주소와 동일 -->
@@ -1204,6 +1210,23 @@ button.tut-highlight { filter: brightness(1.6); }
   </div>
 
   <!-- 최종 전송 확인 -->
+  <dialog id="naverAddrDialog" class="fadeDrop">
+    <div class="modal" style="max-width:720px">
+      <div class="modal-head">
+        <div class="modal-title">네이버 주소검색</div>
+        <button class="btn btn-ghost" id="btnCloseNaverAddr" type="button">닫기</button>
+      </div>
+      <div class="modal-body">
+        <div style="display:flex;gap:6px">
+          <input id="naverAddrQuery" type="search" placeholder="주소·상호를 입력하세요" style="flex:1;height:36px;border:1px solid var(--c-line);border-radius:8px;padding:0 10px" />
+          <button class="btn btn-primary" id="btnSearchNaverAddr" type="button">검색</button>
+        </div>
+        <div id="naverAddrMessage" class="form-hint" style="margin-top:8px" role="status"></div>
+        <div id="naverAddrResults" style="display:grid;gap:6px;margin-top:10px"></div>
+      </div>
+    </div>
+  </dialog>
+
   <dialog id="dlgFinal" class="fadeDrop">
     <div class="modal slideIn">
       <div class="modal-head"><div class="modal-title">전송 확인</div></div>
@@ -6293,6 +6316,79 @@ function mountAddrSheet(){
 }
 
 let POSTCODE_TARGET = 'ship';
+let NAVER_ADDR_TARGET = 'ship';
+
+function closeNaverAddressSearch(){
+  const dialog = el('#naverAddrDialog');
+  if (dialog?.open) dialog.close();
+}
+
+function applyNaverAddress(item){
+  const addr = String(item?.roadAddress || item?.address || '').replace(/\s+/g, ' ').trim();
+  if (!addr) return;
+  el(NAVER_ADDR_TARGET === 'audit' ? '#addrAuditBase' : '#addrBase').value = addr;
+  closeNaverAddressSearch();
+  checkOrderReady();
+}
+
+function renderNaverAddressResults(result){
+  const results = el('#naverAddrResults');
+  const message = el('#naverAddrMessage');
+  if (!results || !message) return;
+  results.replaceChildren();
+  if (!result?.ok || !Array.isArray(result.items) || !result.items.length) {
+    message.textContent = result?.error || '검색 결과가 없습니다.';
+    return;
+  }
+  message.textContent = '주소를 선택하세요.';
+  result.items.forEach(item => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'btn btn-ghost';
+    button.style.textAlign = 'left';
+    button.textContent = String(item.roadAddress || item.address || item.title || '');
+    button.addEventListener('click', () => applyNaverAddress(item));
+    results.appendChild(button);
+  });
+}
+
+function openNaverAddressSearch(target){
+  NAVER_ADDR_TARGET = target;
+  const dialog = el('#naverAddrDialog');
+  const query = el('#naverAddrQuery');
+  const results = el('#naverAddrResults');
+  const message = el('#naverAddrMessage');
+  if (!dialog || !query || !results || !message) return;
+  query.value = '';
+  results.replaceChildren();
+  message.textContent = '주소·상호를 입력하고 검색하세요.';
+  dialog.showModal();
+  query.focus();
+}
+
+function searchNaverAddress(){
+  const query = String(el('#naverAddrQuery')?.value || '').trim();
+  const message = el('#naverAddrMessage');
+  if (!query) {
+    if (message) message.textContent = '검색어를 입력하세요.';
+    return;
+  }
+  if (message) message.textContent = '검색 중입니다.';
+  google.script.run
+    .withSuccessHandler(renderNaverAddressResults)
+    .withFailureHandler(error => {
+      if (message) message.textContent = '네이버 주소검색에 실패했습니다. ' + String(error || '');
+    })
+    .searchNaverAddress(query);
+}
+
+document.addEventListener('samhan:address-search-capability', event => {
+  const enabled = Boolean(event.detail?.enabled);
+  ['btnAddrShipNaver', 'btnAddrAuditNaver'].forEach(id => {
+    const button = el('#' + id);
+    if (button) button.style.display = enabled ? 'inline-flex' : 'none';
+  });
+});
 
 // 주소 검색 진입
 function openPostcode(){
@@ -6687,14 +6783,27 @@ function initEvents(){
     el('#pageOrderInfo').classList.add('hidden');      // 주문정보 페이지 닫기
     openPreview();                                     // 다시 미리보기로 (정식 재빌드 — group-top+합계 stale 방지)
   });
-  el('#btnAddrShip')?.addEventListener('click', () => {
+  el('#btnAddrShipKakao')?.addEventListener('click', () => {
     POSTCODE_TARGET = 'ship';
     openPostcode();
   });
-  el('#btnAddrAudit')?.addEventListener('click', () => {
+  el('#btnAddrAuditKakao')?.addEventListener('click', () => {
     if (el('#sameAddr')?.checked) return;
     POSTCODE_TARGET = 'audit';
     openPostcode();
+  });
+  el('#btnAddrShipNaver')?.addEventListener('click', () => openNaverAddressSearch('ship'));
+  el('#btnAddrAuditNaver')?.addEventListener('click', () => {
+    if (el('#sameAddr')?.checked) return;
+    openNaverAddressSearch('audit');
+  });
+  el('#btnCloseNaverAddr')?.addEventListener('click', closeNaverAddressSearch);
+  el('#btnSearchNaverAddr')?.addEventListener('click', searchNaverAddress);
+  el('#naverAddrQuery')?.addEventListener('keydown', event => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      searchNaverAddress();
+    }
   });
   ['memo','addrBase','addrDetail','addrAuditBase','addrAuditDetail','tel'].forEach(id =>
     el('#'+id)?.addEventListener('input', checkOrderReady)
