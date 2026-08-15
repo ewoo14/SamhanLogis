@@ -93,10 +93,9 @@ test.describe('Samhan Public 구매관리 입고 검수 CTA', () => {
 
   test('관리형 업무 메뉴는 조회 전용처럼 보이지 않는 라벨을 쓴다', () => {
     const layout = read(layoutPath)
-    const salesSubNav = read(path.join(desktopRoot, 'src/renderer/components/sales/SalesSubNav.tsx'))
 
-    // [Round C P1 #7] 4개 관리형 메뉴는 top-level <NavLink> 리터럴 → SidebarLink(내부 NavLink) 전환됨.
-    //   견적서 관리(아래 103행)와 동일하게 라벨~</SidebarLink> 블록 패턴으로 갱신한다.
+    // [#1223] 판매 sub-nav는 사이드바와 중복되어 제거되었고, 관리형 메뉴는 AppLayout의
+    // SidebarLink로만 노출된다.
     expect(layout).toMatch(/창고관리[\s\S]*?<\/SidebarLink>/)
     expect(layout).toMatch(/판매관리[\s\S]*?<\/SidebarLink>/)
     expect(layout).toMatch(/구매관리[\s\S]*?<\/SidebarLink>/)
@@ -107,11 +106,6 @@ test.describe('Samhan Public 구매관리 입고 검수 CTA', () => {
     expect(layout).toContain('주문서 승인')
     expect(layout.match(/to="\/sales\/order-approvals"/g)).toHaveLength(1)
     expect(layout).toContain('거래처 DC 설정')
-    expect(salesSubNav).toContain("label: '견적서 관리'")
-    expect(salesSubNav).toContain("label: '주문서 관리'")
-    expect(salesSubNav).toContain("label: '주문서 승인'")
-    expect(salesSubNav.match(/\{ to: '\/sales\/order-approvals', label:/g)).toHaveLength(1)
-    expect(salesSubNav).toContain("label: '거래처 DC 설정'")
   })
 
   test('재고이동 이동번호도 T/TR prefix 없이 YYYY/MM/DD-N 형식을 쓴다', () => {

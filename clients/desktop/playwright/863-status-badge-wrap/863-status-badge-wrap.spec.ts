@@ -20,13 +20,13 @@
  * ([[feedback_canonical_workflow]] 2026-07-21 결정 3 — "정적 게이트/미실행 real-qa 는 라이브QA
  * 대체물이 아니다"). 동일 통제 비교를 mock.ts 기존 fixture 로 재현해 CI mock hard gate 에 편입한다.
  *
- * mock.ts 의 `GET /api/v1/partner-orders?status=CONFIRMED` 는 이미 다음 두 행을 반환한다
+ * mock.ts 의 `GET /api/v1/partner-orders?status=CONVERTED` 는 이미 다음 두 행을 반환한다
  * (별도 mock 수정 불필요 — 기존 fixture 가 이 통제 비교에 필요한 조합을 정확히 갖추고 있음):
  *   - `2026/05/03-1`(CONFIRMED_ROW): slipPublishStatus='PUBLISHED' → SLIP_PUBLISH_STATUS_DISPLAY
  *     에 PUBLISHED 항목이 없어 발행 배지 미렌더 → 상태 배지 단독.
  *   - `2026/05/31-6`(SLIP_PENDING_RETRY_ROW): slipPublishStatus='PENDING_RETRY' → 발행 배지
  *     ('전표 발행 재시도 중') 렌더 → 상태 배지 동거.
- * 두 행 모두 status=CONFIRMED 라 상태 라벨('완료')이 동일 — 통제 비교 성립.
+ * 두 행 모두 완료 축의 상태라 상태 라벨('완료')이 동일 — 통제 비교 성립.
  *
  * <h2>단언 원칙 — presence-only 금지</h2>
  * "배지가 존재한다"가 아니라 실측 높이/줄수를 단언한다([[feedback_live_qa_penetrates_it_masking]]
@@ -74,7 +74,7 @@ async function gotoListAndWait(page: Page): Promise<void> {
   await expect(page.getByTestId('header-page-title')).toContainText('주문서 관리', {
     timeout: 15_000,
   })
-  await page.getByTestId('partner-order-list-status-filter').selectOption('CONFIRMED')
+  await page.getByTestId('partner-order-list-status-filter').selectOption('CONVERTED')
 }
 
 interface BadgeMetrics {
@@ -149,7 +149,7 @@ for (const viewport of [
     // 통제 비교 전제 — 두 행의 상태 라벨이 같아야 "발행 배지 동거" 하나만의 차이로 귀속할 수 있다.
     expect(
       withPublishBadge.statusBadge.text,
-      '두 행의 상태 라벨이 같아야 통제 비교가 성립한다(둘 다 CONFIRMED="완료"여야 함).',
+      '두 행의 상태 라벨이 같아야 통제 비교가 성립한다(둘 다 완료 축="완료"여야 함).',
     ).toBe(withoutPublishBadge.statusBadge.text)
 
     // 핵심 단언 — 실측 높이 비교(존재 단언 아님). 발행 배지와 동거해도 상태 배지 높이는 단독 행과

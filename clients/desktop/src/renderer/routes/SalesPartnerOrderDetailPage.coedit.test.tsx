@@ -254,6 +254,30 @@ afterEach(() => {
 })
 
 describe('SalesPartnerOrderDetailPage 출고전표 전환 오류 안내', () => {
+  it('상세 본문은 읽기 전용 공용 주문서 상세를 렌더하고 기존 필드와 라인 열을 유지한다', async () => {
+    mocks.getPartnerOrder.mockResolvedValue(makeOrder({
+      partnerCode: 'PT-DETAIL',
+      linkedSlipNo: '2026/05/31-1',
+      deliveryAddress: '서울시 강남구',
+      siteAddress: '현장 A',
+      contactPhone: '010-1234-5678',
+      dueDate: '2099-07-10',
+      memo: '상세 요청사항',
+    }))
+
+    renderPage()
+
+    const detail = await screen.findByTestId('partner-order-detail-read-only')
+    const text = detail.textContent ?? ''
+    for (const value of ['PT-DETAIL', '2026/05/31-1', '서울시 강남구', '현장 A', '010-1234-5678', '2099-07-10', '상세 요청사항']) {
+      expect(text).toContain(value)
+    }
+    for (const heading of ['선택', '품목명', '모델명', '수량', '납품가', '소계', '전환됨', '잔여', '묶음 처리', '구성품 펼침']) {
+      expect(text).toContain(heading)
+    }
+    expect(detail.querySelector('input[type="checkbox"]')?.hasAttribute('disabled')).toBe(false)
+  })
+
   it('RED-LUNA-2/3: 주문 목록 복귀는 검색어를 유지하고 브라우저 뒤로 상세로 재진입하지 않는다', async () => {
     mocks.getPartnerOrder.mockResolvedValue(makeOrder())
     render(

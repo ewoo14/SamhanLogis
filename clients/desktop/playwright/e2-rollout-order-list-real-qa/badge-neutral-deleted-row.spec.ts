@@ -44,7 +44,7 @@ test('삭제된 완료(CONFIRMED) 주문 배지 = 중립색(의미색 초록 아
 
   await page.goto(`${BASE_URL}/#/sales/partner-orders`)
   // 상태 필터: 완료(CONFIRMED) + 주문번호 검색 → 삭제행만 매칭
-  await page.getByTestId('partner-order-list-status-filter').selectOption('CONFIRMED')
+  await page.getByTestId('partner-order-list-status-filter').selectOption('CONVERTED')
   await page.getByTestId('partner-order-list-keyword-filter').fill(ORDER_NO)
   const row = page.getByTestId(`partner-order-row-${ORDER_NO}:deleted`)
   await expect(row, '삭제행 렌더').toBeVisible({ timeout: 20_000 })

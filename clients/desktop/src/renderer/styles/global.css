@@ -297,15 +297,23 @@ button {
   color: var(--color-brand-700);
 }
 
-.app-sidebar nav a {
+.app-sidebar nav a,
+.app-sidebar nav button.app-sidebar-link {
   display: block;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
   color: var(--color-neutral-700);
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
 .app-sidebar nav a.active,
-.app-sidebar nav a:hover {
+.app-sidebar nav a:hover,
+.app-sidebar nav button.app-sidebar-link:hover {
   background: var(--color-brand-50);
   color: var(--color-brand-700);
   text-decoration: none;

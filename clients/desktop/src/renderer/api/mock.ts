@@ -8464,7 +8464,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       content = [DRAFT_ROW, SAME_PARTNER_DRAFT_ROW, LEGACY_MERGE_ROW, DELETED_DRAFT_ROW, PREFIX_PARTNER_P1_ROW, PREFIX_PARTNER_P10_ROW]
     } else if (statusParam === 'ON_HOLD') {
       content = [ON_HOLD_ROW, SAME_PARTNER_ON_HOLD_ROW]
-    } else if (statusParam === 'CONFIRMED') {
+    } else if (statusParam === 'CONFIRMED' || statusParam === 'CONVERTED') {
       content = [CONFIRMED_ROW, SLIP_PENDING_RETRY_ROW, SLIP_FAILED_PERMANENT_ROW]
     } else {
       // 전체 또는 기타 — 모든 행 반환 (혼합 시나리오 포함)
@@ -12754,7 +12754,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   if (method === 'POST' && partnerOrderHoldMatch) {
     const params = mockLocationParams()
     if (params.get('mockHold409')) {
-      return mockError(409, 'PARTNER_ORDER_HOLD_INVALID_STATUS', '진행중 주문만 보류할 수 있습니다. 현재 상태: 완료')
+      return mockError(409, 'PARTNER_ORDER_HOLD_INVALID_STATUS', '접수 주문만 보류할 수 있습니다. 현재 상태: 완료')
     }
     const orderId = partnerOrderHoldMatch[1]!
     const heldHeader: PartnerOrderDetailHeader = {
@@ -12796,7 +12796,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   if (method === 'POST' && partnerOrderReleaseMatch) {
     const params = mockLocationParams()
     if (params.get('mockRelease409')) {
-      return mockError(409, 'PARTNER_ORDER_RELEASE_INVALID_STATUS', '보류 주문만 해제할 수 있습니다. 현재 상태: 진행중')
+      return mockError(409, 'PARTNER_ORDER_RELEASE_INVALID_STATUS', '보류 주문만 해제할 수 있습니다. 현재 상태: 접수')
     }
     const orderId = partnerOrderReleaseMatch[1]!
     const releasedHeader: PartnerOrderDetailHeader = {

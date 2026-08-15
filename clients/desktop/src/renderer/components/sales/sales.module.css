@@ -50,6 +50,24 @@
   align-items: center;
 }
 
+.listFilterGrid {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 8px 12px !important;
+  align-items: end;
+  width: 100%;
+}
+
+.listFilterGrid > * {
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .listFilterGrid {
+    grid-template-columns: repeat(2, minmax(140px, 1fr));
+  }
+}
+
 /* 설정 화면의 검색·저장·이력 등 기존 소형 액션 버튼 크기 계약을 보존한다. */
 .btnMini {
   appearance: none;
@@ -137,6 +155,30 @@
 
 .estTable td.numericCol {
   text-align: right;
+}
+
+/* 업무 식별자는 생략하지 않고, 좁은 화면에서는 가로 스크롤로 확인한다. */
+.orderLineTable {
+  width: max-content;
+  min-width: 1320px;
+  table-layout: auto;
+}
+
+.estTable.orderLineTable th,
+.estTable.orderLineTable td {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
+.estTable.orderLineTable th:nth-child(2),
+.estTable.orderLineTable td:nth-child(2) {
+  min-width: 260px;
+}
+
+.estTable.orderLineTable th:nth-child(3),
+.estTable.orderLineTable td:nth-child(3) {
+  min-width: 220px;
 }
 
 .derivedRow td {

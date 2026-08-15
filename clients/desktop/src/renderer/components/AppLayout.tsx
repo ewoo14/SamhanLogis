@@ -45,6 +45,7 @@ import { NotificationBellDropdown } from './NotificationBellDropdown'
 import { recordMenuAccess } from '../api/activityLog'
 import { resolveBuildAppVersion } from '../version/versionCheck'
 import { sanitizeDisplayName } from '../common/userDisplayName'
+import { SalesExternalLink } from './sales/SalesExternalLink'
 
 const CURRENT_VERSION = resolveBuildAppVersion(
   import.meta.env.VITE_APP_VERSION ?? (import.meta.env.MODE === 'test' ? '0.1.0' : undefined),
@@ -824,6 +825,20 @@ export function AppLayout() {
                     {entry.label}
                   </SidebarLink>
                 ))}
+                {category === '판매' ? (
+                  <>
+                    <SalesExternalLink
+                      show={showEstimatesList}
+                      envKey="VITE_WEB_ESTIMATE_URL"
+                      label="웹 종합견적서"
+                    />
+                    <SalesExternalLink
+                      show={showPartnerOrderList}
+                      envKey="VITE_WEB_ORDER_URL"
+                      label="웹 주문서"
+                    />
+                  </>
+                ) : null}
               </SidebarCategory>
             ))
           )}
@@ -911,6 +926,16 @@ export function AppLayout() {
               >
                 견적 가격 설정
               </SidebarLink>
+              <SalesExternalLink
+                show={showEstimatesList}
+                envKey="VITE_WEB_ESTIMATE_URL"
+                label="웹 종합견적서"
+              />
+              <SalesExternalLink
+                show={showPartnerOrderList}
+                envKey="VITE_WEB_ORDER_URL"
+                label="웹 주문서"
+              />
               {/* [C5 후속 C-4] 발송금지 거래처 — /admin/blocked-partners 라우트와 동일한 partners.block VIEW 기준. */}
             <SidebarLink
               to="/admin/blocked-partners"

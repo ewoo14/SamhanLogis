@@ -8,7 +8,7 @@
  * 해당 거래처의 DRAFT/ON_HOLD 주문만 칩으로 선택한다.
  */
 import { useEffect, useState } from 'react'
-import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Badge,
@@ -16,7 +16,6 @@ import {
   DataTable,
   Input,
   OrderNumberDisplay,
-  OrderStatusBadge,
   Select,
   type DataTableColumn,
 } from '@samhan/design-system'
@@ -35,8 +34,10 @@ import { restoreScrollAnchorWhenReady, saveScrollAnchor, type ReturnToLocation }
 import { AuditInfoBanner } from '../components/audit/AuditOverlaySection'
 import { usePageTitleStore } from '../stores/pageTitle'
 import { usePermissions } from '../hooks/usePermissions'
-import { SalesSubNav } from '../components/sales/SalesSubNav'
+import { searchPartners } from '../api/partnerApi'
 import { MergeConvertDialog } from './components/MergeConvertDialog'
+import { IndividualConvertDialog } from './components/IndividualConvertDialog'
+import type { IndividualConversionResult } from './components/individualConversion'
 import { useCollectionRealtime } from '../realtime/useCollectionRealtime'
 import { PartnerOrderBoardRealtimeClient } from '../realtime/PartnerOrderBoardRealtimeClient'
 import {
@@ -47,6 +48,17 @@ import {
 } from '../realtime/deletedRowDisplay'
 import { serverErrorMessage } from './dispatch-board/dispatchErrorMessage'
 import styles from '../components/sales/sales.module.css'
+
+const ORDER_STATUS_FILTER_OPTIONS: Array<{ value: PartnerOrderStatus | ''; label: string }> = [
+  { value: '', label: '전체' },
+  { value: 'DRAFT', label: '접수' },
+  { value: 'CONVERTED', label: '완료' },
+]
+const ORDER_STATUS_DISPLAY_LABEL: Record<PartnerOrderStatus, string> = {
+  ...PARTNER_ORDER_STATUS_LABEL,
+  DRAFT: '접수',
+  CONVERTED: '완료',
+}
 
 const krw = (n: number) => new Intl.NumberFormat('ko-KR').format(n)
 // v2 §정정 8 — 'YYYY/MM/DD' 통일.
@@ -85,6 +97,8 @@ const PRE_CONFIRM_STATUSES: ReadonlySet<PartnerOrderStatus> = new Set([
   'CONFIRMING',
 ])
 
+const MERGE_SELECTABLE_STATUSES: ReadonlySet<PartnerOrderStatus> = new Set(['DRAFT', 'ON_HOLD'])
+
 export function SalesPartnerOrderListPage() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -98,11 +112,13 @@ export function SalesPartnerOrderListPage() {
   const [statusFilter, setStatusFilter] = useState<PartnerOrderStatus | ''>(() => searchParams.get('status') as PartnerOrderStatus | '' || 'DRAFT')
   const [slipPublishStatusFilter, setSlipPublishStatusFilter] = useState<'' | 'FAILED' | 'PENDING_RETRY'>(() => searchParams.get('slipPublishStatus') as '' | 'FAILED' | 'PENDING_RETRY' || '')
   const [searchKeyword, setSearchKeyword] = useState(() => searchParams.get('keyword') ?? '')
-  const [includeDeleted, setIncludeDeleted] = useState(() => searchParams.get('includeDeleted') === 'true')
   const [page, setPage] = useState(0)
 
   /** Phase 2.6b D2: 병합 전환 모달 open/close. */
   const [mergeDialogOpen, setMergeDialogOpen] = useState(false)
+  const [individualDialogOpen, setIndividualDialogOpen] = useState(false)
+  const [selectedMergeOrders, setSelectedMergeOrders] = useState<PartnerOrderSummary[]>([])
+  const [mergeSelectionError, setMergeSelectionError] = useState<string | null>(null)
   /** Phase 2.6b D2: 병합 전환 성공 토스트 메시지 — null 이면 비표시. */
   const [convertSuccessMessage, setConvertSuccessMessage] = useState<string | null>(null)
   const [restoreError, setRestoreError] = useState<string | null>(null)
@@ -115,17 +131,21 @@ export function SalesPartnerOrderListPage() {
       if (value) next.set(key, value)
       else next.delete(key)
     }
-    if (includeDeleted) next.set('includeDeleted', 'true')
-    else next.delete('includeDeleted')
     if (page > 0) next.set('page', String(page))
     else next.delete('page')
     if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true })
-  }, [dateFrom, dateTo, partnerId, statusFilter, slipPublishStatusFilter, searchKeyword, includeDeleted, page, searchParams, setSearchParams])
+  }, [dateFrom, dateTo, partnerId, statusFilter, slipPublishStatusFilter, searchKeyword, page, searchParams, setSearchParams])
 
   const canCreateMerge = canAccess('sales.partner-order.convert', 'create')
   const canSearchPartners = canAccess('partners.search', 'view')
-  const canMergeConvert = canCreateMerge && canSearchPartners
   const canRestoreDeletedOrder = canAccess('sales.partner-order.list', 'restore')
+
+  // 목록 모집단이 바뀌면 기존 선택을 즉시 폐기한다. 이전 필터의 보이지 않는 주문이
+  // 현재 목록의 전환 대상으로 남지 않도록 하며, 검색·기간·상태·전표상태·페이지 이동을
+  // 모두 같은 규칙으로 처리한다.
+  useEffect(() => {
+    setSelectedMergeOrders((current) => current.length === 0 ? current : [])
+  }, [dateFrom, dateTo, partnerId, statusFilter, slipPublishStatusFilter, searchKeyword, page])
 
   /**
    * P1-3: status 변경 시 기간 필터 초기화 + 컨텍스트 힌트 표시.
@@ -176,7 +196,7 @@ export function SalesPartnerOrderListPage() {
 
   useEffect(() => {
     setPage(0)
-  }, [dateFrom, dateTo, partnerId, statusFilter, slipPublishStatusFilter, searchKeyword, includeDeleted])
+  }, [dateFrom, dateTo, partnerId, statusFilter, slipPublishStatusFilter, searchKeyword])
 
   useCollectionRealtime(PartnerOrderBoardRealtimeClient, 'board', [['partner-orders']])
 
@@ -192,17 +212,29 @@ export function SalesPartnerOrderListPage() {
   const query = useQuery({
     queryKey: [
       'partner-orders', dateFrom, dateTo, partnerId, statusFilter,
-      slipPublishStatusFilter, searchKeyword, includeDeleted, page,
+      slipPublishStatusFilter, searchKeyword, page, canSearchPartners,
     ],
-    queryFn: () => listPartnerOrders(page, 50, {
-      dateFrom: dateFrom || undefined,
-      dateTo: dateTo || undefined,
-      partnerId: partnerId.trim() || undefined,
-      status: statusFilter || undefined,
-      slipPublishStatus: slipPublishStatusFilter || undefined,
-      searchKeyword: searchKeyword.trim() || undefined,
-      ...(includeDeleted ? { includeDeleted: true } : {}),
-    }),
+    queryFn: async () => {
+      const result = await listPartnerOrders(page, 50, {
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+        partnerId: partnerId.trim() || undefined,
+        status: statusFilter || undefined,
+        slipPublishStatus: slipPublishStatusFilter || undefined,
+        searchKeyword: searchKeyword.trim() || undefined,
+      })
+      if (!canSearchPartners) return result
+      const codes = [...new Set(result.content.filter((row) => !row.partnerName).map((row) => row.partnerCode))]
+      const names = new Map<string, string>()
+      await Promise.all(codes.map(async (code) => {
+        const partner = (await searchPartners(code, { activeOnly: true })).find((item) => item.partnerCode === code)
+        if (partner?.name) names.set(code, partner.name)
+      }))
+      return {
+        ...result,
+        content: result.content.map((row) => ({ ...row, partnerName: row.partnerName ?? names.get(row.partnerCode) ?? null })),
+      }
+    },
     retry: 1,
   })
 
@@ -244,7 +276,69 @@ export function SalesPartnerOrderListPage() {
     )
   }
 
+  const isMergeSelectable = (order: PartnerOrderSummary) =>
+    order.isDeleted !== true && MERGE_SELECTABLE_STATUSES.has(order.status)
+
+  const handleMergeOrderSelection = (order: PartnerOrderSummary, checked: boolean) => {
+    if (!isMergeSelectable(order)) return
+    setMergeSelectionError(null)
+    if (!checked) {
+      setSelectedMergeOrders((current) => current.filter((item) => item.orderNumber !== order.orderNumber))
+      return
+    }
+    setSelectedMergeOrders((current) => {
+      if (current.some((item) => item.orderNumber === order.orderNumber)) return current
+      return [...current, order]
+    })
+  }
+
+  const handleMergeChoice = () => {
+    if (!canSearchPartners) {
+      setMergeSelectionError('병합전환에는 거래처 검색 권한이 필요합니다.')
+      return
+    }
+    const partnerCodes = new Set(selectedMergeOrders.map((order) => order.partnerCode))
+    if (partnerCodes.size > 1) {
+      setMergeSelectionError('병합전환은 같은 거래처 주문만 가능합니다. 개별전환은 다른 거래처 주문도 함께 처리할 수 있습니다.')
+      return
+    }
+    setMergeSelectionError(null)
+    setIndividualDialogOpen(false)
+    setMergeDialogOpen(true)
+  }
+
+  const handleIndividualCompleted = async (results: IndividualConversionResult[]) => {
+    const successCount = results.filter((result) => result.status === 'success').length
+    const failureCount = results.length - successCount
+    setConvertSuccessMessage(`개별 전환 완료: 성공 ${successCount}건 / 실패 ${failureCount}건`)
+    await queryClient.invalidateQueries({ queryKey: ['partner-orders'] })
+    await queryClient.invalidateQueries({ queryKey: ['partner-order-merge-candidates'] })
+  }
+
   const columns: DataTableColumn<PartnerOrderSummary>[] = [
+    {
+      key: 'mergeSelection',
+      header: '선택',
+      align: 'center',
+      mobilePriority: 'primary',
+      render: (o) => {
+        const selectable = isMergeSelectable(o)
+        const selected = selectedMergeOrders.some((item) => item.orderNumber === o.orderNumber)
+        return (
+          <span onClick={(event) => event.stopPropagation()}>
+            <input
+              type="checkbox"
+              data-testid={`partner-order-select-${o.orderNumber}`}
+              aria-label={`${o.orderNumber} 병합 선택`}
+              checked={selected}
+              disabled={!selectable}
+              title={selectable ? '출고전표 병합 대상으로 선택' : 'DRAFT 또는 ON_HOLD 주문만 선택할 수 있습니다'}
+              onChange={(event) => handleMergeOrderSelection(o, event.target.checked)}
+            />
+          </span>
+        )
+      },
+    },
     {
       key: 'orderNumber',
       header: '주문 번호',
@@ -334,7 +428,9 @@ export function SalesPartnerOrderListPage() {
                 {PARTNER_ORDER_STATUS_LABEL[o.status]}
               </Badge>
             ) : (
-              <OrderStatusBadge status={o.status} />
+              <Badge variant={o.status === 'CONVERTED' ? 'success' : 'warning'}>
+                {ORDER_STATUS_DISPLAY_LABEL[o.status]}
+              </Badge>
             )}
             {publishMeta ? (
               <Badge
@@ -417,28 +513,7 @@ export function SalesPartnerOrderListPage() {
 
   return (
     <div style={{ color: 'var(--ink-primary)', background: 'var(--surface-card)' }}>
-      <SalesSubNav />
       <div className={styles['wrap']}>
-        {/* [3a 데스크탑 ↔ 웹 분리] 본 화면은 내부 영업/관리자가 거래처가 보낸 주문을 조회·승인하는
-            화면. 거래처(파트너) 가 주문서를 직접 작성·발송하는 흐름은 외부 PWA (sub-nav 우측 "웹 주문서 ↗"). */}
-        <div
-          data-testid="partner-order-audience-banner"
-          role="note"
-          style={{
-            background: '#EFF6FF',
-            border: '1px solid #BFDBFE',
-            color: '#1E3A8A',
-            borderRadius: 6,
-            padding: '8px 12px',
-            marginBottom: 12,
-            fontSize: 12,
-            lineHeight: 1.5,
-          }}
-        >
-          <strong>내부 영업·관리자용 화면입니다.</strong>{' '}
-          거래처(파트너) 가 주문서를 직접 작성·발송하는 PWA 는 상단 우측{' '}
-          <em>「웹 주문서 ↗」</em> 외부 웹앱을 사용합니다.
-        </div>
         {/* PR-H4c FE-A: list 화면 audit 안내 — 상세 변경 이력은 row 클릭 후 상세에서 확인 */}
         <AuditInfoBanner
           message="주문 row 를 클릭하면 상세 화면에서 변경 이력 (수정 횟수 / 복원) 을 확인할 수 있습니다. 본 목록은 주문 변경 시 자동 갱신됩니다."
@@ -487,7 +562,7 @@ export function SalesPartnerOrderListPage() {
             주문서 관리
             <span className={styles['badge']}>전체 {query.data?.totalElements ?? 0}건</span>
           </div>
-          <div className={styles['topActions']}>
+          <div className={styles['listFilterGrid']}>
             <Input
               type="date"
               value={dateFrom}
@@ -496,16 +571,8 @@ export function SalesPartnerOrderListPage() {
               title={isPreConfirmStatus ? '진행중·보류·확인중 상태는 발송일(createdAt) 기준으로 조회됩니다' : undefined}
               data-testid="partner-order-list-date-from"
               inputSize="sm"
+              style={{ width: 150 }}
             />
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', fontSize: 13 }}>
-              <input
-                type="checkbox"
-                checked={includeDeleted}
-                onChange={(e) => setIncludeDeleted(e.target.checked)}
-                data-testid="partner-order-list-include-deleted"
-              />
-              삭제 문서 포함
-            </label>
             <Input
               type="date"
               value={dateTo}
@@ -514,6 +581,7 @@ export function SalesPartnerOrderListPage() {
               title={isPreConfirmStatus ? '진행중·보류·확인중 상태는 발송일(createdAt) 기준으로 조회됩니다' : undefined}
               data-testid="partner-order-list-date-to"
               inputSize="sm"
+              style={{ width: 150 }}
             />
             <Input
               value={partnerId}
@@ -522,6 +590,7 @@ export function SalesPartnerOrderListPage() {
               aria-label="거래처 필터"
               data-testid="partner-order-list-partner-filter"
               inputSize="sm"
+              style={{ width: '100%' }}
             />
             <Select
               value={statusFilter}
@@ -529,11 +598,11 @@ export function SalesPartnerOrderListPage() {
               aria-label="상태 필터"
               data-testid="partner-order-list-status-filter"
               selectSize="sm"
+              style={{ width: '100%' }}
             >
-              <option value="">전체 상태</option>
-              {(Object.keys(PARTNER_ORDER_STATUS_LABEL) as PartnerOrderStatus[]).map((s) => (
-                <option key={s} value={s}>
-                  {PARTNER_ORDER_STATUS_LABEL[s]}
+              {ORDER_STATUS_FILTER_OPTIONS.map((option) => (
+                <option key={option.value || 'all'} value={option.value}>
+                  {option.label}
                 </option>
               ))}
             </Select>
@@ -543,6 +612,7 @@ export function SalesPartnerOrderListPage() {
               aria-label="전표 발행상태 필터"
               data-testid="partner-order-list-slip-publish-filter"
               selectSize="sm"
+              style={{ width: '100%' }}
             >
               <option value="">전표 발행상태 전체</option>
               <option value="FAILED">발행실패</option>
@@ -555,6 +625,7 @@ export function SalesPartnerOrderListPage() {
               aria-label="검색어"
               data-testid="partner-order-list-keyword-filter"
               inputSize="sm"
+              style={{ width: '100%' }}
             />
           </div>
         </div>
@@ -581,37 +652,45 @@ export function SalesPartnerOrderListPage() {
           </button>
         ) : null}
 
-        {/* #825 슬7: 목록에서 혼합 선택을 시작하지 않고, 모달에서 거래처를 먼저 선택한다. */}
-        {canCreateMerge ? (
-          <div
+        {/* 목록 선택 후 개별/병합 경로를 고른다. */}
+        <div
             data-testid="merge-convert-action-bar"
             role="region"
-            aria-label="선택 주문 병합 전환"
+            aria-label="선택 주문 출고전표 전환"
             className={styles['mergeConvertActionBar']}
           >
             <span data-testid="merge-convert-selection-guide">
-              거래처를 먼저 선택하면 같은 거래처 주문만 병합 후보로 표시됩니다.
+              선택한 주문은 개별전환으로 각각 전표가 되며, 병합전환은 같은 거래처만 가능합니다.
             </span>
+            <span data-testid="merge-convert-selection-count">
+              목록에서 {selectedMergeOrders.length}건 선택됨
+            </span>
+            {mergeSelectionError ? (
+              <span role="alert" data-testid="merge-convert-selection-error">
+                {mergeSelectionError}
+              </span>
+            ) : null}
             <Button
               type="button"
               variant="primary"
-              data-testid="merge-convert-open"
-              title={canMergeConvert
-                ? '거래처를 선택하고 병합할 주문을 고릅니다'
-                : '거래처 검색 권한이 필요합니다'}
-              disabled={!canMergeConvert}
-              aria-disabled={!canMergeConvert}
-              onClick={() => setMergeDialogOpen(true)}
+              data-testid="order-convert-open"
+              title={!canCreateMerge ? '출고전표 전환 권한이 필요합니다' : !canSearchPartners ? '거래처 검색 권한이 필요합니다' : '선택한 주문을 출고전표로 전환합니다'}
+              disabled={!canCreateMerge || !canSearchPartners}
+              aria-disabled={!canCreateMerge || !canSearchPartners}
+              onClick={() => setIndividualDialogOpen(true)}
             >
-              출고전표로 병합 전환
+              출고전표 전환
             </Button>
-            {!canSearchPartners ? (
+            {!canCreateMerge ? (
+              <span role="alert" data-testid="merge-convert-permission-hint">
+                출고전표 전환 권한이 필요합니다.
+              </span>
+            ) : !canSearchPartners ? (
               <span role="alert" data-testid="merge-convert-permission-hint">
                 거래처 검색 권한이 필요합니다. 관리자에게 partners.search VIEW 권한을 요청해 주세요.
               </span>
             ) : null}
-          </div>
-        ) : null}
+        </div>
 
         {query.isLoading ? (
           <div className={styles['emptyState']}>주문 목록을 불러오는 중…</div>
@@ -672,8 +751,20 @@ export function SalesPartnerOrderListPage() {
       {/* Phase 2.6b D2: 병합 전환 모달 */}
       {mergeDialogOpen ? (
         <MergeConvertDialog
+          selectedOrders={selectedMergeOrders}
           onClose={handleMergeDialogClose}
           onSuccess={(slipNo, convertedOrderNos) => void handleMergeDialogSuccess(slipNo, convertedOrderNos)}
+        />
+      ) : null}
+      {individualDialogOpen ? (
+        <IndividualConvertDialog
+          selectedOrders={selectedMergeOrders}
+          onClose={() => setIndividualDialogOpen(false)}
+          onMerge={handleMergeChoice}
+          onCompleted={(results) => void handleIndividualCompleted(results)}
+          mergeError={mergeSelectionError}
+          mergeDisabled={!canSearchPartners}
+          mergeDisabledReason="거래처 검색 권한이 필요합니다. 관리자에게 partners.search VIEW 권한을 요청해 주세요."
         />
       ) : null}
     </div>

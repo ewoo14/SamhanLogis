@@ -48,11 +48,23 @@ public record PartnerOrderDetailResponse(
     /**
      * Entity 를 상세 DTO 로 변환한다 (productType enrich 없음 — 모든 라인 {@code productType=null}).
      *
-     * <p>{@code partnerName} 은 현재 partner-order-service entity 에 컬럼이 없어 {@code null} 로
-     * 반환한다. 후속 sub-task (SP-08-4-2 이후) 에서 partner-service lookup 으로 채운다.
+     * <p>{@code partnerName} 은 partner-service lookup 결과를 호출부가 주입한다.
      */
     public static PartnerOrderDetailResponse from(PartnerOrder order) {
         return from(order, Map.of());
+    }
+
+    /** partner-service lookup 결과를 주입해 상세 헤더의 거래처명을 채운다. */
+    public static PartnerOrderDetailResponse from(
+            PartnerOrder order, Map<String, String> productTypeByModelCode, String partnerName) {
+        PartnerOrderDetailResponse response = from(order, productTypeByModelCode);
+        return new PartnerOrderDetailResponse(
+                response.orderNumber(), response.partnerCode(), response.bizCode(), partnerName,
+                response.submittedAt(), response.status(), response.slipPublishStatus(),
+                response.totalAmount(), response.linkedSlipNo(), response.updatedAt(),
+                response.deliveryAddress(), response.siteAddress(), response.contactPhone(),
+                response.dueDate(), response.memo(), response.lines(), response.isDeleted(),
+                response.deletedAt(), response.deletedByName());
     }
 
     /**

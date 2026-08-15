@@ -11,7 +11,6 @@ import {
   getEstimateConfig,
   updateEstimateConfig,
 } from '../api/sales'
-import { SalesSubNav } from '../components/sales/SalesSubNav'
 import { usePermissions } from '../hooks/usePermissions'
 import { usePageTitleStore } from '../stores/pageTitle'
 import styles from '../components/sales/sales.module.css'
@@ -209,7 +208,6 @@ export function EstimatePricingConfigPage() {
 
   return (
     <div style={{ color: 'var(--ink-primary)', background: 'var(--surface-card)' }}>
-      <SalesSubNav />
       <div className={styles['wrap']}>
         {canViewEstimateConfig ? (
           <>

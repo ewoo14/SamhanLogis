@@ -393,14 +393,14 @@ export type PartnerOrderStatus =
   | 'CANCELED'
   | 'CONVERTED'
 
-/** PartnerOrderStatus → 한국어. 업무용어 통일: DRAFT=진행중, CONFIRMED=완료. */
+/** PartnerOrderStatus → 한국어. 업무용어 통일: 접수/완료 축을 사용한다. */
 export const PARTNER_ORDER_STATUS_LABEL: Record<PartnerOrderStatus, string> = {
-  DRAFT: '진행중',
+  DRAFT: '접수',
   ON_HOLD: '보류',
-  CONFIRMING: '확인중',
+  CONFIRMING: '접수',
   CONFIRMED: '완료',
   CANCELED: '취소',
-  CONVERTED: '전환완료',
+  CONVERTED: '완료',
 }
 
 /** 주문 전표 발행 상태 — 사용자 화면에는 대기/영구실패만 별도 표시한다. */

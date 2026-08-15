@@ -47,7 +47,7 @@ test('활성 CONFIRMED(완료) 주문 배지 = success 초록 (삭제행 중립�
   )
 
   await page.goto(`${BASE_URL}/#/sales/partner-orders`)
-  await page.getByTestId('partner-order-list-status-filter').selectOption('CONFIRMED')
+  await page.getByTestId('partner-order-list-status-filter').selectOption('CONVERTED')
   await page.getByTestId('partner-order-list-keyword-filter').fill('')
   await page.waitForTimeout(1000)
 

@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type MouseEvent as ReactMouseEvent, type ClipboardEvent as ReactClipboardEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Badge,
@@ -347,6 +347,73 @@ function execPartnerDraftGuardMessage(typedDraft: string, confirmedLabel: string
 
 export const DAILY_CLOSING_HEADERS = ['DC','일자','번호','창고명','품목명','수량','단가(VAT포함)','공급가액','부가세','합계','거래처명','거래처코드','출고가','할인율','총계','확인','회계반영일자'] as const
 const LEGACY_MERGE_COLS = new Set(['DC','일자','번호','창고명','거래처명','거래처코드','회계반영일자'])
+type DailyClosingHeader = typeof DAILY_CLOSING_HEADERS[number]
+type DailyClosingFilterType = 'exact' | 'empty' | 'not_empty' | 'include' | 'exclude'
+type DailyClosingSortDirection = 'asc' | 'desc'
+interface DailyClosingFilter {
+  type: DailyClosingFilterType
+  text: string
+}
+interface DailyClosingViewState {
+  filters: Partial<Record<DailyClosingHeader, DailyClosingFilter>>
+  globalSearch: string
+  sort: { col: DailyClosingHeader; dir: DailyClosingSortDirection } | null
+}
+
+const EMPTY_DAILY_CLOSING_VIEW_STATE: DailyClosingViewState = {
+  filters: {},
+  globalSearch: '',
+  sort: null,
+}
+const DAILY_CLOSING_FILTER_ICON = 'url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 18 18%22%3E%3Cpath d=%22M2 3h14M5 8h8M7 13h4%22 fill=%22none%22 stroke=%22%2336474f%22 stroke-width=%222%22/%3E%3C/svg%3E")'
+const DAILY_CLOSING_ASC_ICON = 'url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 18 18%22%3E%3Cpath d=%22M9 14V4m0 0L5 8m4-4 4 4%22 fill=%22none%22 stroke=%22%2336474f%22 stroke-width=%222%22/%3E%3C/svg%3E")'
+const DAILY_CLOSING_DESC_ICON = 'url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 18 18%22%3E%3Cpath d=%22M9 4v10m0 0 4-4m-4 4-4-4%22 fill=%22none%22 stroke=%22%2336474f%22 stroke-width=%222%22/%3E%3C/svg%3E")'
+const DAILY_CLOSING_HEADER_ICON_STYLE: CSSProperties = {
+  width: 18,
+  height: 18,
+  minWidth: 18,
+  flex: '0 0 18px',
+  display: 'inline-block',
+  backgroundRepeat: 'no-repeat',
+  backgroundPosition: 'center',
+  backgroundSize: '16px 16px',
+}
+
+function dailyClosingRawCellValue(row: DailyClosingSourceRow, header: DailyClosingHeader): string {
+  const values: Record<DailyClosingHeader, unknown> = {
+    'DC': row.dcCondition,
+    '일자': row.slipDate,
+    '번호': row.seqNo,
+    '창고명': row.warehouseName,
+    '품목명': row.productName,
+    '수량': row.quantity,
+    '단가(VAT포함)': row.unitPriceWithVat,
+    '공급가액': row.supplyAmount,
+    '부가세': row.vatAmount,
+    '합계': row.total,
+    '거래처명': row.partnerName,
+    '거래처코드': row.partnerCode,
+    '출고가': row.productPrice,
+    '할인율': row.discountRate,
+    '총계': row.grandTotal,
+    '확인': row.confirmation,
+    '회계반영일자': row.accountingPostedAt,
+  }
+  return String(values[header] ?? '')
+}
+
+function dailyClosingNumber(value: string): number | null {
+  const parsed = Number(value.replace(/,/g, '').trim())
+  return value.trim() !== '' && Number.isFinite(parsed) ? parsed : null
+}
+
+function dailyClosingSortNumber(value: string): number {
+  return Number(value.replace(/\(.*?\)/g, '').replace(/[^0-9]/g, '')) || 0
+}
+
+function dailyClosingIsDeleted(row: DailyClosingSourceRow): boolean {
+  return (row as DailyClosingSourceRow & { isDeleted?: boolean }).isDeleted === true
+}
 const LEGACY_DISCOUNT_COLORS: Record<string,string> = {'dc-45':'#fecaca','dc-46':'#fed7aa','dc-47':'#fef08a','dc-48':'#d9f99d','dc-49':'#bfdbfe'}
 export function formatLegacyNumber(value: string|number|null|undefined): string { return Math.round(Number(value)||0).toLocaleString() }
 function legacyDiscountClass(rate:number): string { return rate>=45&&rate<=49 ? `dc-${rate}` : '' }
@@ -452,11 +519,21 @@ function LegacyAmountEditor({
   values,
   error,
   onChange,
+  rowIndex,
+  selectedCells,
+  onCellMouseDown,
+  onCellMouseEnter,
+  selectionKey,
 }: {
   row: DailyClosingSourceRow
   values: CalculatedAmountValues | null
   error?: string
   onChange: (values: CalculatedAmountValues) => void
+  rowIndex: number
+  selectedCells: Set<string>
+  onCellMouseDown: (event: ReactMouseEvent, rowIndex: number, columnIndex: number) => void
+  onCellMouseEnter: (rowIndex: number, columnIndex: number) => void
+  selectionKey: (rowIndex: number, columnIndex: number) => string
 }) {
   const disabled = amountEditDisabled(row)
   const base = initialEditableAmounts(row)
@@ -513,25 +590,31 @@ function LegacyAmountEditor({
       style={field === 'rate' ? rateInputStyle : amountInputStyle}
     />
   )
+  const amountCell = (content: ReactNode, columnIndex: number, style: CSSProperties = num, className?: string) => <td
+    data-testid={`daily-closing-cell-${rowIndex}-${DAILY_CLOSING_HEADERS[columnIndex]}`}
+    data-selection-key={selectionKey(rowIndex, columnIndex)}
+    onMouseDown={(event) => onCellMouseDown(event, rowIndex, columnIndex)}
+    onMouseEnter={() => onCellMouseEnter(rowIndex, columnIndex)}
+    className={className}
+    style={{ ...style, backgroundColor: selectedCells.has(selectionKey(rowIndex, columnIndex)) ? '#dbeafe' : style.backgroundColor }}
+  >{content}</td>
 
   return <>
-    <td style={num}>
+    {amountCell(<>
       {input('unit', current.unit, '단가(VAT포함)')}
       {disabled ? <span title={amountEditDisabledReason(row)} style={{ marginLeft: 4, fontSize: 11 }}>수정 불가</span> : null}
       {!disabled && values ? <span role="status" style={{ marginLeft: 4, fontSize: 11 }}>수정됨</span> : null}
       {error ? <span role="alert" style={{ display: 'block', fontSize: 11 }}>{error}</span> : null}
-    </td>
-    <td style={num}>{values ? formatLegacyNumber(current.supply) : formatLegacyNumber(row.supplyAmount)}</td>
-    <td style={num}>{values ? formatLegacyNumber(current.vat) : formatLegacyNumber(row.vatAmount)}</td>
-    <td style={num}>{values ? formatLegacyNumber(current.total * row.quantity) : formatLegacyNumber(row.total)}</td>
-    <td style={num}>{input('price', current.price, '출고가')}</td>
-    <td className={legacyDiscountClass(Math.round(current.rate))} style={{ ...num, background: LEGACY_DISCOUNT_COLORS[legacyDiscountClass(Math.round(current.rate))] }}>
-      <div style={{ display: 'inline-flex', width: '100%', alignItems: 'center', justifyContent: 'center' }}>
+    </>, 6)}
+    {amountCell(values ? formatLegacyNumber(current.supply) : formatLegacyNumber(row.supplyAmount), 7)}
+    {amountCell(values ? formatLegacyNumber(current.vat) : formatLegacyNumber(row.vatAmount), 8)}
+    {amountCell(values ? formatLegacyNumber(current.total * row.quantity) : formatLegacyNumber(row.total), 9)}
+    {amountCell(input('price', current.price, '출고가'), 12)}
+    {amountCell(<div style={{ display: 'inline-flex', width: '100%', alignItems: 'center', justifyContent: 'center' }}>
         {input('rate', current.rate, '할인율')}
         <span style={{ marginLeft: 2 }}>%</span>
-      </div>
-    </td>
-    <td style={num}>{values ? formatLegacyNumber(current.total * row.quantity) : formatLegacyNumber(row.grandTotal)}</td>
+      </div>, 13, { ...num, background: LEGACY_DISCOUNT_COLORS[legacyDiscountClass(Math.round(current.rate))] }, legacyDiscountClass(Math.round(current.rate)) || undefined)}
+    {amountCell(values ? formatLegacyNumber(current.total * row.quantity) : formatLegacyNumber(row.grandTotal), 14)}
   </>
 }
 
@@ -556,7 +639,19 @@ function EditableLegacyDailyClosingTable({
     queryKey: ['daily-closing-source-rows', slipDate],
     queryFn: () => getDailyClosingRows(slipDate),
   })
-  const rows = Array.isArray(query.data) ? query.data : []
+  const rows = (Array.isArray(query.data) ? query.data : []).filter((row) => !dailyClosingIsDeleted(row))
+  const [viewStates, setViewStates] = useState<Record<'RESULT' | 'PRE_ISSUED', DailyClosingViewState>>({
+    RESULT: { ...EMPTY_DAILY_CLOSING_VIEW_STATE },
+    PRE_ISSUED: { ...EMPTY_DAILY_CLOSING_VIEW_STATE },
+  })
+  const [activeFilterColumn, setActiveFilterColumn] = useState<DailyClosingHeader | null>(null)
+  const [selectedCells, setSelectedCells] = useState<Set<string>>(new Set())
+  const selectionAnchor = useRef<{ row: number; col: number } | null>(null)
+  const selectingRef = useRef(false)
+  const currentViewState = viewStates[tab]
+  const updateViewState = (update: (state: DailyClosingViewState) => DailyClosingViewState) => {
+    setViewStates((current) => ({ ...current, [tab]: update(current[tab]) }))
+  }
   const rowKeys = useMemo(() => {
     const occurrences = new Map<string, number>()
     return new Map(rows.map((row) => {
@@ -651,12 +746,122 @@ function EditableLegacyDailyClosingTable({
       return next
     })
   }
-  const visible = useMemo(
+  const baseVisible = useMemo(
     () => rows.filter((row) => tab === 'RESULT'
       ? Boolean(row.accountingPostedAt)
       : !row.accountingPostedAt),
     [rows, tab],
   )
+  const visible = useMemo(
+    () => {
+      const state = currentViewState
+      const globalText = state.globalSearch.trim().toLowerCase()
+      const filtered = baseVisible.filter((row) => {
+        for (const [column, filter] of Object.entries(state.filters) as [DailyClosingHeader, DailyClosingFilter][]) {
+          const value = dailyClosingRawCellValue(row, column)
+          const text = filter.text.trim()
+          if (filter.type === 'exact' && value !== text) return false
+          if (filter.type === 'empty' && value.trim() !== '') return false
+          if (filter.type === 'not_empty' && value.trim() === '') return false
+          if (filter.type === 'include' && !value.includes(text)) return false
+          if (filter.type === 'exclude' && value.includes(text)) return false
+        }
+        return !globalText || DAILY_CLOSING_HEADERS.some((header) =>
+          dailyClosingRawCellValue(row, header).toLowerCase().includes(globalText))
+      })
+      if (!state.sort) return filtered
+      const originalIndex = new Map(baseVisible.map((row, index) => [row, index]))
+      return [...filtered].sort((left, right) => {
+        const column = state.sort!.col
+        const leftText = dailyClosingRawCellValue(left, column)
+        const rightText = dailyClosingRawCellValue(right, column)
+        let comparison = 0
+        if (column === '번호') {
+          comparison = dailyClosingSortNumber(leftText) - dailyClosingSortNumber(rightText)
+        } else {
+          const leftNumber = dailyClosingNumber(leftText)
+          const rightNumber = dailyClosingNumber(rightText)
+          if (leftNumber !== null && rightNumber !== null) comparison = leftNumber - rightNumber
+          else comparison = leftText.localeCompare(rightText, 'ko')
+        }
+        if (comparison === 0) return (originalIndex.get(left) ?? 0) - (originalIndex.get(right) ?? 0)
+        return state.sort!.dir === 'asc' ? comparison : -comparison
+      })
+    },
+    [baseVisible, currentViewState],
+  )
+  const cellSelectionKey = (rowIndex: number, columnIndex: number) => {
+    const row = visible[rowIndex]
+    return row ? `${rowKey(row)}::${columnIndex}` : `hidden::${rowIndex}::${columnIndex}`
+  }
+  const selectionRange = (rowIndex: number, columnIndex: number, replace: boolean) => {
+    const anchor = selectionAnchor.current ?? { row: rowIndex, col: columnIndex }
+    const next = replace ? new Set<string>() : new Set(selectedCells)
+    const minRow = Math.min(anchor.row, rowIndex)
+    const maxRow = Math.max(anchor.row, rowIndex)
+    const minCol = Math.min(anchor.col, columnIndex)
+    const maxCol = Math.max(anchor.col, columnIndex)
+    for (let row = minRow; row <= maxRow; row += 1) {
+      for (let col = minCol; col <= maxCol; col += 1) next.add(cellSelectionKey(row, col))
+    }
+    setSelectedCells(next)
+  }
+  const handleCellMouseDown = (event: ReactMouseEvent, rowIndex: number, columnIndex: number) => {
+    const target = event.target as HTMLElement
+    if (target.closest('input,select,textarea,button')) return
+    const toggled = event.ctrlKey || event.metaKey
+    if (!event.shiftKey) selectionAnchor.current = { row: rowIndex, col: columnIndex }
+    if (toggled) {
+      const key = cellSelectionKey(rowIndex, columnIndex)
+      setSelectedCells((current) => {
+        const next = new Set(current)
+        if (next.has(key)) next.delete(key)
+        else next.add(key)
+        return next
+      })
+    } else selectionRange(rowIndex, columnIndex, !event.shiftKey)
+    selectingRef.current = !toggled
+  }
+  const handleCellMouseEnter = (rowIndex: number, columnIndex: number) => {
+    if (selectingRef.current) selectionRange(rowIndex, columnIndex, true)
+  }
+  const selectedValue = (rowIndex: number, columnIndex: number): string => {
+    const row = visible[rowIndex]
+    if (!row) return ''
+    const header = DAILY_CLOSING_HEADERS[columnIndex]
+    if (!header) return ''
+    const key = cellSelectionKey(rowIndex, columnIndex)
+    const cell = typeof document === 'undefined'
+      ? null
+      : Array.from(document.querySelectorAll<HTMLElement>('[data-selection-key]')).find((candidate) => candidate.dataset.selectionKey === key)
+    const field = cell?.querySelector<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>('input,select,textarea')
+    if (field) return field.value
+    const numericHeaders = new Set<DailyClosingHeader>(['번호', '수량', '공급가액', '부가세', '합계', '출고가', '총계'])
+    if (numericHeaders.has(header) && cell?.textContent?.trim()) return cell.textContent.trim()
+    return dailyClosingRawCellValue(row, header)
+  }
+  const selectedSum = visible.reduce((sum, _row, rowIndex) => DAILY_CLOSING_HEADERS.reduce((rowSum, _header, columnIndex) => {
+    if (!selectedCells.has(cellSelectionKey(rowIndex, columnIndex))) return rowSum
+    return rowSum + (dailyClosingNumber(selectedValue(rowIndex, columnIndex)) ?? 0)
+  }, sum), 0)
+  const handleTableCopy = (event: ReactClipboardEvent<HTMLElement>) => {
+    if (selectedCells.size === 0 || (event.target as HTMLElement).closest('input,select,textarea')) return
+    event.preventDefault()
+    const coordinates: [number, number][] = []
+    visible.forEach((_row, rowIndex) => DAILY_CLOSING_HEADERS.forEach((_header, columnIndex) => {
+      if (selectedCells.has(cellSelectionKey(rowIndex, columnIndex))) coordinates.push([rowIndex, columnIndex])
+    }))
+    const rowIndexes = [...new Set(coordinates.map(([row]) => row))].sort((a, b) => a - b)
+    const columnIndexes = [...new Set(coordinates.map(([, column]) => column))].sort((a, b) => a - b)
+    const text = rowIndexes.map((row) => columnIndexes.map((column) =>
+      selectedCells.has(cellSelectionKey(row, column)) ? selectedValue(row, column) : '').join('\t')).join('\n')
+    event.clipboardData.setData('text/plain', text)
+  }
+  useEffect(() => {
+    setSelectedCells(new Set())
+    selectionAnchor.current = null
+    selectingRef.current = false
+  }, [slipDate, tab])
   const expandedGroupKey = expanded === null ? null : (() => {
     const row = visible.find((candidate) => rowKey(candidate) === expanded)
     return row ? row.slipDate + '_' + row.seqNo : null
@@ -673,14 +878,32 @@ function EditableLegacyDailyClosingTable({
     if (expandedGroupKey === key) span += 1
     return { start: true, span }
   }), [expandedGroupKey, visible])
+  const selectableCell = (
+    value: ReactNode,
+    rowIndex: number,
+    columnIndex: number,
+    style: CSSProperties,
+    rowSpan?: number,
+    className?: string,
+  ) => <td
+    data-testid={`daily-closing-cell-${rowIndex}-${DAILY_CLOSING_HEADERS[columnIndex]}`}
+    data-selection-key={cellSelectionKey(rowIndex, columnIndex)}
+    onMouseDown={(event) => handleCellMouseDown(event, rowIndex, columnIndex)}
+    onMouseEnter={() => handleCellMouseEnter(rowIndex, columnIndex)}
+    className={className}
+    style={{ ...style, backgroundColor: selectedCells.has(cellSelectionKey(rowIndex, columnIndex)) ? '#dbeafe' : style.backgroundColor }}
+    rowSpan={rowSpan}
+  >{value}</td>
   const mergedCell = (
     value: ReactNode,
     column: string,
     style: CSSProperties,
     merge: { start: boolean; span: number },
+    rowIndex: number,
+    columnIndex: number,
   ) => LEGACY_MERGE_COLS.has(column) && !merge.start
     ? null
-    : <td rowSpan={LEGACY_MERGE_COLS.has(column) ? merge.span : undefined} style={style}>{value}</td>
+    : selectableCell(value, rowIndex, columnIndex, style, LEGACY_MERGE_COLS.has(column) ? merge.span : undefined)
   const cell: CSSProperties = {
     padding: '8px 6px',
     border: '1px solid var(--line-default)',
@@ -752,14 +975,20 @@ function EditableLegacyDailyClosingTable({
         <h3 style={{ margin: 0 }}>출고전표 원본행</h3>
         <span style={{ color: 'var(--ink-secondary)', fontSize: 12 }}>출고일 {slipDate}</span>
       </div>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
+        <label>통합검색 <input data-testid="daily-closing-global-search" value={currentViewState.globalSearch} onChange={(event) => updateViewState((state) => ({ ...state, globalSearch: event.target.value }))} /></label>
+        <button type="button" onClick={() => updateViewState(() => ({ ...EMPTY_DAILY_CLOSING_VIEW_STATE }))}>열 필터·정렬 초기화</button>
+        <span data-testid="daily-closing-selection-summary">합계: {selectedSum.toLocaleString()}</span>
+      </div>
       {query.isError ? <div role="alert" className="error-banner">출고전표 원본행을 불러오지 못했습니다.</div> : (
         <div
           data-testid={query.isLoading || !active ? undefined : 'daily-closing-table'}
+          onCopy={handleTableCopy}
           className="daily-closing-table-wrapper"
           style={{ maxHeight: 'calc(100vh - 250px)', overflowY: 'auto', overflowX: 'auto' }}
         >
-          <table style={{ width: '100%', minWidth: 1680, borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: 12 }}>
-            <colgroup>{DAILY_CLOSING_HEADERS.map((header) => <col key={header} />)}</colgroup>
+          <table onCopy={handleTableCopy} onMouseUp={() => { selectingRef.current = false }} style={{ width: '100%', minWidth: 2200, borderCollapse: 'collapse', tableLayout: 'auto', fontSize: 12 }}>
+            <colgroup>{DAILY_CLOSING_HEADERS.map((header) => <col key={header} style={{ minWidth: ['품목명', '모델명', '거래처명', '번호'].includes(header) ? 180 : 96 }} />)}</colgroup>
             <thead><tr data-testid="daily-closing-columns">
               {DAILY_CLOSING_HEADERS.map((header) => (
                 <th
@@ -771,9 +1000,28 @@ function EditableLegacyDailyClosingTable({
                     zIndex: 2,
                     background: 'var(--surface-subtle)',
                     fontWeight: 700,
+                    whiteSpace: 'nowrap',
                   }}
                 >
-                  {header}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span>{header}</span>
+                    <button
+                      type="button"
+                      aria-label={`${header} 필터 열기`}
+                      title="필터"
+                      data-testid={`daily-closing-filter-button-${header}`}
+                      onClick={() => setActiveFilterColumn(activeFilterColumn === header ? null : header)}
+                      style={{ ...DAILY_CLOSING_HEADER_ICON_STYLE, border: 0, padding: 0, backgroundColor: 'transparent', backgroundImage: DAILY_CLOSING_FILTER_ICON, cursor: 'pointer', color: currentViewState.filters[header] ? 'var(--ink-link)' : 'var(--ink-secondary)' }}
+                    />
+                    <button type="button" aria-label={`${header} 오름차순`} data-testid={`daily-closing-sort-asc-${header}`} onClick={() => updateViewState((state) => ({ ...state, sort: state.sort?.col === header && state.sort.dir === 'asc' ? null : { col: header, dir: 'asc' } }))} style={{ ...DAILY_CLOSING_HEADER_ICON_STYLE, border: 0, padding: 0, backgroundColor: 'transparent', backgroundImage: DAILY_CLOSING_ASC_ICON, cursor: 'pointer' }} />
+                    <button type="button" aria-label={`${header} 내림차순`} data-testid={`daily-closing-sort-desc-${header}`} onClick={() => updateViewState((state) => ({ ...state, sort: state.sort?.col === header && state.sort.dir === 'desc' ? null : { col: header, dir: 'desc' } }))} style={{ ...DAILY_CLOSING_HEADER_ICON_STYLE, border: 0, padding: 0, backgroundColor: 'transparent', backgroundImage: DAILY_CLOSING_DESC_ICON, cursor: 'pointer' }} />
+                  </div>
+                  {activeFilterColumn === header ? <div style={{ display: 'grid', gap: 4, marginTop: 4 }}>
+                    <select aria-label={`${header} 필터 방식`} value={currentViewState.filters[header]?.type ?? 'include'} onChange={(event) => updateViewState((state) => ({ ...state, filters: { ...state.filters, [header]: { type: event.target.value as DailyClosingFilterType, text: state.filters[header]?.text ?? '' } } }))}>
+                      <option value="exact">정확히 일치</option><option value="empty">비어있음</option><option value="not_empty">비어있지 않음</option><option value="include">포함</option><option value="exclude">미포함</option>
+                    </select>
+                    <input aria-label={`${header} 필터 검색`} value={currentViewState.filters[header]?.text ?? ''} onChange={(event) => updateViewState((state) => ({ ...state, filters: { ...state.filters, [header]: { type: state.filters[header]?.type ?? 'include', text: event.target.value } } }))} />
+                  </div> : null}
                 </th>
               ))}
             </tr></thead>
@@ -795,12 +1043,12 @@ function EditableLegacyDailyClosingTable({
                   return start
                 })()
                 return <Fragment key={rowIdentity}>
-                  <tr>
-                    {mergedCell(row.dcCondition || '', 'DC', cell, merge)}
-                    {mergedCell(row.slipDate, '일자', cell, merge)}
-                    {mergedCell(formatLegacyNumber(row.seqNo), '번호', num, merge)}
-                    {mergedCell(row.warehouseName || '', '창고명', cell, merge)}
-                    <td style={cell}>
+                  <tr data-testid={`daily-closing-data-row-${index}`}>
+                    {mergedCell(row.dcCondition || '', 'DC', cell, merge, index, 0)}
+                    {mergedCell(row.slipDate, '일자', cell, merge, index, 1)}
+                    {mergedCell(formatLegacyNumber(row.seqNo), '번호', num, merge, index, 2)}
+                    {mergedCell(row.warehouseName || '', '창고명', cell, merge, index, 3)}
+                    {selectableCell(<>
                       <div>{row.productName}</div>
                       <button
                         type="button"
@@ -810,8 +1058,8 @@ function EditableLegacyDailyClosingTable({
                       >
                         {expandedRow ? '상세 접기' : '상세 펼치기'}
                       </button>
-                    </td>
-                    <td style={num}>{formatLegacyNumber(row.quantity)}</td>
+                    </>, index, 4, cell)}
+                    {selectableCell(formatLegacyNumber(row.quantity), index, 5, num)}
                     <LegacyAmountEditor
                       row={row}
                       values={drafts[rowKey(row)]
@@ -819,15 +1067,22 @@ function EditableLegacyDailyClosingTable({
                         ?? null}
                       error={rowErrors[rowKey(row)]}
                       onChange={(values) => changeDraft(row, values)}
+                      rowIndex={index}
+                      selectedCells={selectedCells}
+                      onCellMouseDown={handleCellMouseDown}
+                      onCellMouseEnter={handleCellMouseEnter}
+                      selectionKey={cellSelectionKey}
                     />
-                    {mergedCell(row.partnerName || '', '거래처명', cell, merge)}
-                    {mergedCell(row.partnerCode || '', '거래처코드', cell, merge)}
-                    <td style={cell}>{legacyStatusBadge(row)}</td>
+                    {mergedCell(row.partnerName || '', '거래처명', cell, merge, index, 10)}
+                    {mergedCell(row.partnerCode || '', '거래처코드', cell, merge, index, 11)}
+                    {selectableCell(legacyStatusBadge(row), index, 15, cell)}
                     {mergedCell(
                       row.accountingPostedAt ? row.accountingPostedAt.replace('T', ' ').slice(0, 16) : '',
                       '회계반영일자',
                       cell,
                       merge,
+                      index,
+                      16,
                     )}
                   </tr>
                   {expandedRow ? <tr data-testid={'daily-closing-expanded-' + row.seqNo}>

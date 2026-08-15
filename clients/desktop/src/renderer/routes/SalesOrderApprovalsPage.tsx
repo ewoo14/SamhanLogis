@@ -31,7 +31,6 @@ import {
 import { AuditInfoBanner } from '../components/audit/AuditOverlaySection'
 import { usePageTitleStore } from '../stores/pageTitle'
 import { usePermissions } from '../hooks/usePermissions'
-import { SalesSubNav } from '../components/sales/SalesSubNav'
 import styles from '../components/sales/sales.module.css'
 import { canResetPartnerPassword } from '../utils/orderAppAccess'
 
@@ -234,7 +233,6 @@ export function SalesOrderApprovalsPage() {
 
   return (
     <div style={{ color: 'var(--ink-primary)', background: 'var(--surface-card)' }}>
-      <SalesSubNav />
       <div className={styles['wrap']}>
         {/* PR-H4c FE-A: 승인 변경 audit 안내 — 변경 시 BE audit log 자동 기록 */}
         <AuditInfoBanner

@@ -4,6 +4,8 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.partnerorder.client.ProductClient;
 import com.samhanair.logis.partnerorder.client.ProductSummary;
+import com.samhanair.logis.partnerorder.vendor.client.PartnerLookupClient;
+import com.samhanair.logis.partnerorder.vendor.client.PartnerSummary;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
@@ -51,6 +53,7 @@ public class PartnerOrderQueryService {
     private final PartnerSelfScopeGuard partnerSelfScopeGuard;
     private final ProductClient productClient;
     private final EntityManager entityManager;
+    private final PartnerLookupClient partnerLookupClient;
 
     /**
      * 주문 목록을 필터와 페이지 조건으로 조회한다 (활성 행 전용).
@@ -130,7 +133,10 @@ public class PartnerOrderQueryService {
                 order.getPartnerCode(), callerPartnerCode, "본인 거래처 주문만 조회할 수 있습니다.");
         // Round C #23: 라인 productType("SINGLE"/"BUNDLE") enrich — FE 재고조회 모달(2.6d)이
         // 세트(BUNDLE) 라인을 재고조회 대상에서 제외하기 위함. 신규 DB 컬럼 없이 조회 시점 부착.
-        return PartnerOrderDetailResponse.from(order, resolveLineProductTypes(order));
+        String partnerName = partnerLookupClient.findByPartnerCode(order.getPartnerCode())
+                .map(PartnerSummary::name)
+                .orElse(null);
+        return PartnerOrderDetailResponse.from(order, resolveLineProductTypes(order), partnerName);
     }
 
     /**
@@ -212,8 +218,9 @@ public class PartnerOrderQueryService {
         if (partnerScope != null) {
             spec = spec.and(ownPartnerSpec(partnerScope));
         }
-        return partnerOrderRepository.findAll(spec, unsorted(pageable))
-                .map(PartnerOrderSummaryResponse::from);
+        Page<PartnerOrder> page = partnerOrderRepository.findAll(spec, unsorted(pageable));
+        Map<String, String> partnerNames = resolvePartnerNames(page.getContent());
+        return page.map(order -> PartnerOrderSummaryResponse.from(order, partnerNames.get(order.getPartnerCode())));
     }
 
     /** Pageable 의 Sort 를 제거한다 — 정렬은 서버 고정(양 조회 경로 정합). */
@@ -251,10 +258,21 @@ public class PartnerOrderQueryService {
 
         @SuppressWarnings("unchecked")
         List<PartnerOrder> rows = dataQuery.getResultList();
+        Map<String, String> partnerNames = resolvePartnerNames(rows);
         return new PageImpl<>(
-                rows.stream().map(PartnerOrderSummaryResponse::from).toList(),
+                rows.stream().map(order -> PartnerOrderSummaryResponse.from(order, partnerNames.get(order.getPartnerCode()))).toList(),
                 pageable,
                 total);
+    }
+
+    /** 목록 페이지의 고유 거래처 코드만 partner-service에서 조회한다. 장애 시 코드 폴백을 유지한다. */
+    private Map<String, String> resolvePartnerNames(List<PartnerOrder> orders) {
+        Map<String, String> names = new HashMap<>();
+        orders.stream().map(PartnerOrder::getPartnerCode).filter(code -> code != null && !code.isBlank())
+                .distinct().forEach(code -> partnerLookupClient.findByPartnerCode(code)
+                        .map(PartnerSummary::name).filter(name -> name != null && !name.isBlank())
+                        .ifPresent(name -> names.put(code, name)));
+        return names;
     }
 
     private String buildNativeWhereClause(

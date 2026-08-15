@@ -37,7 +37,6 @@ import {
 } from '../components/audit/AuditVersionHistory'
 import { usePageTitleStore } from '../stores/pageTitle'
 import { usePermissions } from '../hooks/usePermissions'
-import { SalesSubNav } from '../components/sales/SalesSubNav'
 import styles from '../components/sales/sales.module.css'
 
 type DirtyMap = Record<string, Partial<PartnerDcConfig>>
@@ -169,7 +168,6 @@ export function SalesPartnerDcConfigPage() {
 
   return (
     <div style={{ color: 'var(--ink-primary)', background: 'var(--surface-card)' }}>
-      <SalesSubNav />
       <div className={styles['wrap']}>
         {/* PR-H4c FE-A: DC 설정 변경은 거래처 단위 SSE + audit log 기록 */}
         <AuditInfoBanner

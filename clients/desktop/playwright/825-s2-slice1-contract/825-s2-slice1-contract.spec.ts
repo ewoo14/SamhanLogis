@@ -62,7 +62,9 @@ test.describe('#825 S2 슬라이스 1 대표 소비처 contract mock', () => {
 
   test('창고 단수 MergeConvertDialog — 다건 취소 후 1건은 즉시확정한다', async ({ page }) => {
     await gotoMock(page, '#/sales/partner-orders', false)
-    await page.getByTestId('merge-convert-open').click()
+    await page.locator('input[data-testid^="partner-order-select-"]:not(:disabled)').first().check()
+    await page.getByTestId('order-convert-open').click()
+    await page.getByTestId('merge-convert-action').click()
     await expect(page.getByTestId('merge-convert-dialog-body')).toBeVisible({ timeout: 10_000 })
     const input = page.getByTestId('merge-convert-warehouse').getByRole('combobox')
 

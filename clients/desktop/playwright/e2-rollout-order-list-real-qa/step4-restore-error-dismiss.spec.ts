@@ -108,7 +108,7 @@ test('restoreError 배너 — × dismiss 버튼 동작 + 필터변경 자동 소
   await restoreBtn.click()
   await expect(banner, '재클릭 시 배너 재노출').toBeVisible({ timeout: 10_000 })
   await page.screenshot({ path: path.join(SHOTS, 'step4-restore-error-banner-before-filter-change.png') })
-  await page.getByTestId('partner-order-list-status-filter').selectOption('CONFIRMED')
+  await page.getByTestId('partner-order-list-status-filter').selectOption('CONVERTED')
   await expect(banner, '필터 변경 시 배너 자동 소거').toBeHidden({ timeout: 5_000 })
   await page.screenshot({ path: path.join(SHOTS, 'step4-restore-error-banner-cleared-on-filter-change.png') })
 

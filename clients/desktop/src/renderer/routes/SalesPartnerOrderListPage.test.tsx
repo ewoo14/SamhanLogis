@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   listPartnerOrders: vi.fn(),
   restorePartnerOrder: vi.fn(),
   canAccess: vi.fn(() => true),
+  dataTableRowClick: vi.fn(),
 }))
 
 vi.mock('@samhan/design-system', () => ({
@@ -31,14 +32,27 @@ vi.mock('@samhan/design-system', () => ({
     columns,
     rows,
     rowTestId,
+    onRowClick,
+    rowClickable,
   }: {
     columns: Array<{ key: string; render: (row: PartnerOrderSummary) => React.ReactNode }>
     rows: PartnerOrderSummary[]
     rowTestId: (row: PartnerOrderSummary) => string
+    onRowClick?: (row: PartnerOrderSummary) => void
+    rowClickable?: (row: PartnerOrderSummary) => boolean
   }) => (
     <div data-testid="partner-order-table">
       {rows.map((row) => (
-        <div key={rowTestId(row)} data-testid={rowTestId(row)}>
+        <div
+          key={rowTestId(row)}
+          data-testid={rowTestId(row)}
+          onClick={() => {
+            if (rowClickable?.(row)) {
+              mocks.dataTableRowClick(row)
+              onRowClick?.(row)
+            }
+          }}
+        >
           {columns.map((column) => (
             <div key={column.key}>{column.render(row)}</div>
           ))}
@@ -62,20 +76,47 @@ vi.mock('../api/sales', async () => {
     restorePartnerOrder: mocks.restorePartnerOrder,
   }
 })
+
 vi.mock('../hooks/usePermissions', () => ({ usePermissions: () => ({ canAccess: mocks.canAccess }) }))
 vi.mock('../realtime/useCollectionRealtime', () => ({ useCollectionRealtime: vi.fn() }))
 vi.mock('../realtime/PartnerOrderBoardRealtimeClient', () => ({ PartnerOrderBoardRealtimeClient: {} }))
 vi.mock('../components/audit/AuditOverlaySection', () => ({ AuditInfoBanner: () => null }))
 vi.mock('../components/sales/SalesSubNav', () => ({ SalesSubNav: () => null }))
 vi.mock('./components/MergeConvertDialog', () => ({
-  MergeConvertDialog: ({ onSuccess }: { onSuccess: (slipNo: string, orderNos: string[]) => void }) => (
-    <button
-      type="button"
-      data-testid="test-merge-success"
-      onClick={() => onSuccess('SLIP-TEST-1', ['2026/05/31-2'])}
-    >
-      test merge success
-    </button>
+  MergeConvertDialog: ({
+    selectedOrders,
+    onSuccess,
+  }: {
+    selectedOrders?: PartnerOrderSummary[]
+    onSuccess: (slipNo: string, orderNos: string[]) => void
+  }) => (
+    <div data-testid="test-merge-dialog">
+      <span data-testid="test-merge-selected-count">{selectedOrders?.length ?? 0}</span>
+      <button
+        type="button"
+        data-testid="test-merge-success"
+        onClick={() => onSuccess('SLIP-TEST-1', ['2026/05/31-2'])}
+      >
+        test merge success
+      </button>
+    </div>
+  ),
+}))
+vi.mock('./components/IndividualConvertDialog', () => ({
+  IndividualConvertDialog: ({
+    selectedOrders,
+    onMerge,
+    mergeError,
+  }: {
+    selectedOrders: PartnerOrderSummary[]
+    onMerge: () => void
+    mergeError?: string | null
+  }) => (
+    <div data-testid="test-individual-dialog">
+      {selectedOrders.length}개 개별 전환
+      {mergeError ? <span data-testid="test-individual-merge-error">{mergeError}</span> : null}
+      <button type="button" data-testid="test-merge-choice" onClick={onMerge}>병합전환</button>
+    </div>
   ),
 }))
 vi.mock('../stores/pageTitle', () => ({ usePageTitleStore: () => vi.fn() }))
@@ -133,38 +174,12 @@ describe('SalesPartnerOrderListPage 전표 발행 상태 배지', () => {
     })
   })
 
-  it('기본 목록은 삭제행을 제외하고 토글을 켰을 때만 삭제행을 조회한다', async () => {
+  it('삭제 문서 토글 없이 기본 목록만 조회한다', async () => {
     renderPage()
 
     await screen.findByTestId('partner-order-table')
-    const listCalls = () => mocks.listPartnerOrders.mock.calls.filter(([, , filters]) => filters?.status === 'DRAFT')
-    expect(listCalls().at(-1)?.[2]).not.toHaveProperty('includeDeleted', true)
-
-    fireEvent.click(screen.getByTestId('partner-order-list-include-deleted'))
-    await waitFor(() => expect(listCalls().at(-1)?.[2]).toHaveProperty('includeDeleted', true))
-  })
-
-  it('삭제 포함 목록은 다음 페이지로 이동하고 토글을 끄면 첫 활성 페이지로 돌아온다', async () => {
-    mocks.listPartnerOrders.mockImplementation(async (page, size, filters) => ({
-      content: [row({ orderNumber: `${filters?.includeDeleted ? 'deleted' : 'active'}-${page}` })],
-      totalElements: filters?.includeDeleted ? 101 : 1,
-      totalPages: filters?.includeDeleted ? 3 : 1,
-      number: page,
-      size,
-      first: page === 0,
-      last: page === (filters?.includeDeleted ? 2 : 0),
-    }))
-
-    renderPage()
-    const toggle = await screen.findByTestId('partner-order-list-include-deleted')
-    fireEvent.click(toggle)
-    fireEvent.click(await screen.findByTestId('partner-order-list-next-page'))
-
-    await waitFor(() => expect(mocks.listPartnerOrders).toHaveBeenLastCalledWith(1, 50, expect.objectContaining({ includeDeleted: true })))
-    fireEvent.click(await screen.findByTestId('partner-order-list-next-page'))
-    await waitFor(() => expect(mocks.listPartnerOrders).toHaveBeenLastCalledWith(2, 50, expect.objectContaining({ includeDeleted: true })))
-    fireEvent.click(toggle)
-    await waitFor(() => expect(mocks.listPartnerOrders).toHaveBeenLastCalledWith(0, 50, expect.not.objectContaining({ includeDeleted: true })))
+    expect(screen.queryByTestId('partner-order-list-include-deleted')).toBeNull()
+    expect(mocks.listPartnerOrders.mock.calls.every(([, , filters]) => !filters?.includeDeleted)).toBe(true)
   })
 
   it('FAILED_PERMANENT·PENDING_RETRY만 배지를 표시하고 정상 상태는 표시하지 않는다', async () => {
@@ -287,7 +302,7 @@ describe('SalesPartnerOrderListPage 병합 권한 게이팅', () => {
     renderPage()
 
     expect(await screen.findByTestId('merge-convert-action-bar')).toBeTruthy()
-    expect((screen.getByTestId('merge-convert-open') as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByTestId('order-convert-open') as HTMLButtonElement).disabled).toBe(true)
     expect(screen.getByTestId('merge-convert-permission-hint').textContent).toContain(
       '거래처 검색 권한이 필요합니다',
     )
@@ -315,8 +330,9 @@ describe('SalesPartnerOrderListPage 병합 성공 캐시 무효화', () => {
     const invalidateQueries = vi.spyOn(client, 'invalidateQueries')
 
     renderPage(client)
-    await screen.findByTestId('merge-convert-open')
-    fireEvent.click(screen.getByTestId('merge-convert-open'))
+    fireEvent.click(await screen.findByTestId('partner-order-select-2026/05/31-2'))
+    fireEvent.click(screen.getByTestId('order-convert-open'))
+    fireEvent.click(screen.getByTestId('test-merge-choice'))
     fireEvent.click(screen.getByTestId('test-merge-success'))
 
     await waitFor(() => {
@@ -357,5 +373,135 @@ describe('SalesPartnerOrderListPage 복원 캐시 무효화', () => {
       expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['partner-order', '2026-05-31-restore'] })
     })
     expect(invalidateQueries).not.toHaveBeenCalledWith({ queryKey: ['partner-order', '2026/05/31-restore'] })
+  })
+})
+
+describe('SalesPartnerOrderListPage merge selection', () => {
+  beforeEach(() => {
+    mocks.listPartnerOrders.mockReset()
+    mocks.listPartnerOrders.mockResolvedValue({
+      content: [
+        row({ orderNumber: '2026/05/31-select-1', partnerCode: 'P-A', partnerName: 'A', status: 'DRAFT' }),
+        row({ orderNumber: '2026/05/31-select-2', partnerCode: 'P-A', partnerName: 'A', status: 'ON_HOLD' }),
+        row({ orderNumber: '2026/05/31-select-3', partnerCode: 'P-B', partnerName: 'B', status: 'DRAFT' }),
+        row({ orderNumber: '2026/05/31-select-4', partnerCode: 'P-A', partnerName: 'A', status: 'CONFIRMING' }),
+        row({ orderNumber: '2026/05/31-select-5', partnerCode: 'P-A', partnerName: 'A', status: 'CONVERTED', linkedSlipNo: '2026/05/31-2' }),
+      ],
+      totalElements: 5,
+      totalPages: 1,
+      number: 0,
+      size: 50,
+      first: true,
+      last: true,
+    })
+    mocks.canAccess.mockReset()
+    mocks.canAccess.mockReturnValue(true)
+  })
+
+  it('passes multiple same-partner eligible selections to the dialog', async () => {
+    renderPage()
+    fireEvent.click(await screen.findByTestId('partner-order-select-2026/05/31-select-1'))
+    fireEvent.click(screen.getByTestId('partner-order-select-2026/05/31-select-2'))
+    expect(screen.getByTestId('merge-convert-selection-count').textContent).toContain('2')
+    fireEvent.click(screen.getByTestId('order-convert-open'))
+    fireEvent.click(screen.getByTestId('test-merge-choice'))
+    expect(screen.getByTestId('test-merge-selected-count').textContent).toBe('2')
+  })
+
+  it('allows mixed partners for individual conversion but blocks the merge action', async () => {
+    renderPage()
+    fireEvent.click(await screen.findByTestId('partner-order-select-2026/05/31-select-1'))
+    const differentPartner = screen.getByTestId('partner-order-select-2026/05/31-select-3') as HTMLInputElement
+    fireEvent.click(differentPartner)
+    expect(differentPartner.checked).toBe(true)
+    fireEvent.click(screen.getByTestId('order-convert-open'))
+    fireEvent.click(screen.getByTestId('test-merge-choice'))
+    expect(screen.getByTestId('test-individual-merge-error').textContent).toContain('같은 거래처')
+  })
+
+  it('disables statuses outside DRAFT and ON_HOLD', async () => {
+    renderPage()
+    const confirming = await screen.findByTestId('partner-order-select-2026/05/31-select-4') as HTMLInputElement
+    expect(confirming.disabled).toBe(true)
+    const converted = screen.getByTestId('partner-order-select-2026/05/31-select-5') as HTMLInputElement
+    expect(converted.disabled).toBe(true)
+  })
+
+  it('does not invoke row navigation when the checkbox is clicked', async () => {
+    renderPage()
+    mocks.dataTableRowClick.mockClear()
+    fireEvent.click(await screen.findByTestId('partner-order-select-2026/05/31-select-1'))
+    expect(mocks.dataTableRowClick).not.toHaveBeenCalled()
+  })
+
+  it('opens conversion choices without preselection for partner-first merge flow', async () => {
+    renderPage()
+    const openButton = await screen.findByTestId('order-convert-open') as HTMLButtonElement
+    expect(openButton.disabled).toBe(false)
+    fireEvent.click(openButton)
+    expect(screen.getByTestId('test-individual-dialog')).toBeTruthy()
+  })
+
+  it('removes selections that disappear when the status filter changes', async () => {
+    const visibleOrders = [
+      row({ orderNumber: '2026/05/31-visible-1', partnerCode: 'P-A', partnerName: 'A', status: 'DRAFT' }),
+      row({ orderNumber: '2026/05/31-visible-2', partnerCode: 'P-A', partnerName: 'A', status: 'DRAFT' }),
+    ]
+    mocks.listPartnerOrders.mockImplementation((_page: number, _size: number, filters?: { status?: string }) =>
+      Promise.resolve({
+        content: filters?.status === 'CONVERTED' ? [] : visibleOrders,
+        totalElements: filters?.status === 'CONVERTED' ? 0 : visibleOrders.length,
+        totalPages: filters?.status === 'CONVERTED' ? 0 : 1,
+        number: 0,
+        size: 50,
+        first: true,
+        last: true,
+      }),
+    )
+
+    renderPage()
+    fireEvent.click(await screen.findByTestId('partner-order-select-2026/05/31-visible-1'))
+    fireEvent.click(screen.getByTestId('partner-order-select-2026/05/31-visible-2'))
+    expect(screen.getByTestId('merge-convert-selection-count').textContent).toContain('2')
+
+    fireEvent.change(screen.getByTestId('partner-order-list-status-filter'), { target: { value: 'CONVERTED' } })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('merge-convert-selection-count').textContent).toContain('0')
+    })
+
+    fireEvent.click(screen.getByTestId('order-convert-open'))
+    expect(screen.getByTestId('test-individual-dialog').textContent).toContain('0개 개별 전환')
+  })
+})
+
+describe('SalesPartnerOrderListPage individual conversion', () => {
+  beforeEach(() => {
+    mocks.listPartnerOrders.mockReset()
+    mocks.listPartnerOrders.mockResolvedValue({
+      content: [
+        row({ orderNumber: '2026/05/31-individual-a', partnerCode: 'P-A', status: 'DRAFT' }),
+        row({ orderNumber: '2026/05/31-individual-b', partnerCode: 'P-B', status: 'ON_HOLD' }),
+      ],
+      totalElements: 2,
+      totalPages: 1,
+      number: 0,
+      size: 50,
+      first: true,
+      last: true,
+    })
+    mocks.canAccess.mockReset()
+    mocks.canAccess.mockReturnValue(true)
+  })
+
+  it('allows different-partner selections for the primary individual conversion flow', async () => {
+    renderPage()
+    fireEvent.click(await screen.findByTestId('partner-order-select-2026/05/31-individual-a'))
+    fireEvent.click(screen.getByTestId('partner-order-select-2026/05/31-individual-b'))
+
+    expect(screen.queryByTestId('merge-convert-selection-error')).toBeNull()
+    expect(screen.getByTestId('merge-convert-selection-count').textContent).toContain('2')
+    fireEvent.click(screen.getByTestId('order-convert-open'))
+    expect(screen.getByTestId('test-individual-dialog').textContent).toContain('2')
   })
 })

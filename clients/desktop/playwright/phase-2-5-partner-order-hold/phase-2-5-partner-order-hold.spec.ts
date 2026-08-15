@@ -4,18 +4,18 @@
  * <h2>검증 대상</h2>
  * <ol>
  *   <li>주문 목록 기본 진입 — statusFilter 기본값 'DRAFT' + DRAFT 행만 표시</li>
- *   <li>상태 필터 '완료'(CONFIRMED) 전환 → CONFIRMED 행만 표시</li>
- *   <li>상태 필터 '보류'(ON_HOLD) 전환 → ON_HOLD 행만 표시</li>
+ *   <li>상태 필터 '완료'(CONVERTED) 전환 → 완료 행만 표시</li>
+ *   <li>상태 필터 '전체' 전환 → 접수·완료·보류 행을 모두 표시</li>
  *   <li>DRAFT 주문 상세 → '보류' 버튼 표시·클릭 → hold POST 호출 → ON_HOLD 상태 반영</li>
  *   <li>ON_HOLD 주문 상세 → '보류 해제' 버튼 표시·클릭 → release POST 호출 → DRAFT 반영</li>
- *   <li>상태 라벨 한글 확인 — '진행중' / '완료' / '보류'</li>
+ *   <li>상태 라벨 한글 확인 — '접수' / '완료' / '보류'</li>
  * </ol>
  *
  * <h2>Mock 전략 — VITE_MOCK_MODE=1 (mock.ts Phase 2.5 블록)</h2>
  * <ul>
  *   <li>GET /api/v1/partner-orders?status=DRAFT     → DRAFT 행 1건</li>
  *   <li>GET /api/v1/partner-orders?status=ON_HOLD   → ON_HOLD 행 1건</li>
- *   <li>GET /api/v1/partner-orders?status=CONFIRMED → CONFIRMED 행 1건</li>
+ *   <li>GET /api/v1/partner-orders?status=CONVERTED → 완료(CONFIRMED) 행 1건</li>
  *   <li>GET /api/v1/partner-orders/{id}             → orderId 별 status 분기
  *       (ord-draft=DRAFT / ord-hold=ON_HOLD)</li>
  *   <li>POST /api/v1/partner-orders/{id}/hold       → ON_HOLD PartnerOrderDetail 반환</li>
@@ -119,9 +119,9 @@ test.describe('Phase 2.5 주문 보류 + 상태 필터', () => {
   // SalesPartnerOrderListPage 는 useState 초기값으로 statusFilter='DRAFT' 를 설정하므로
   // 진입 즉시 ?status=DRAFT 로 listPartnerOrders 를 호출한다.
   // mock.ts 는 status=DRAFT 시 orderNumber='2026/05/04-1', partnerName='엘에이시스템에어'
-  // 를 반환한다. 필터 드롭다운 선택값도 '진행중'(DRAFT 라벨) 이어야 한다.
+  // 를 반환한다. 필터 드롭다운 선택값도 '접수'(DRAFT 라벨) 이어야 한다.
   // ──────────────────────────────────────────────────────────
-  test('시나리오 1: 목록 기본 진입 — 상태 필터 드롭다운 기본값 진행중(DRAFT) + DRAFT 행 표시', async ({
+  test('시나리오 1: 목록 기본 진입 — 상태 필터 드롭다운 기본값 접수(DRAFT) + DRAFT 행 표시', async ({
     page,
   }) => {
     await installAuthMock(page)
@@ -136,20 +136,20 @@ test.describe('Phase 2.5 주문 보류 + 상태 필터', () => {
     await expect(page.getByRole('table')).toBeVisible()
     await expect(page.getByRole('table')).toContainText('2026/05/04-1')
 
-    // 상태 배지 라벨 — '진행중' (DRAFT 라벨)
-    await expect(page.getByRole('table')).toContainText('진행중')
+    // 상태 배지 라벨 — '접수' (DRAFT 라벨)
+    await expect(page.getByRole('table')).toContainText('접수')
 
     // ON_HOLD 행 미노출 — DRAFT 필터이므로 보류 행 없음
     await expect(page.getByRole('table')).not.toContainText('보류')
   })
 
   // ──────────────────────────────────────────────────────────
-  // 시나리오 2: 상태 필터 '완료'(CONFIRMED) 전환 → CONFIRMED 행 표시
+  // 시나리오 2: 상태 필터 '완료'(CONVERTED) 전환 → 완료 행 표시
   //
   // mock.ts status=CONFIRMED → orderNumber='2026/05/03-1', partnerName='한빛쾌적',
   // linkedSlipNo='2026/05/03-1' 반환.
   // ──────────────────────────────────────────────────────────
-  test('시나리오 2: 상태 필터 "완료"(CONFIRMED) 전환 → CONFIRMED 행 표시', async ({
+  test('시나리오 2: 상태 필터 "완료"(CONVERTED) 전환 → 완료 행 표시', async ({
     page,
   }) => {
     await installAuthMock(page)
@@ -157,11 +157,11 @@ test.describe('Phase 2.5 주문 보류 + 상태 필터', () => {
 
     const statusFilter = page.getByTestId('partner-order-list-status-filter')
 
-    // 드롭다운 → 'CONFIRMED' 선택
-    await statusFilter.selectOption('CONFIRMED')
-    await expect(statusFilter).toHaveValue('CONFIRMED')
+    // 실제 화면의 완료 필터 값(CONVERTED)을 선택한다.
+    await statusFilter.selectOption('CONVERTED')
+    await expect(statusFilter).toHaveValue('CONVERTED')
 
-    // CONFIRMED 행 렌더 대기 — '완료' 라벨 포함
+    // 완료 행 렌더 대기 — '완료' 라벨 포함
     await expect(page.getByRole('table')).toContainText('완료', { timeout: 10_000 })
 
     // CONFIRMED 행 orderNumber / partnerName 확인
@@ -176,11 +176,11 @@ test.describe('Phase 2.5 주문 보류 + 상태 필터', () => {
   })
 
   // ──────────────────────────────────────────────────────────
-  // 시나리오 3: 상태 필터 '보류'(ON_HOLD) 전환 → ON_HOLD 행 표시
+  // 시나리오 3: 상태 필터 '전체' 전환 → 접수·완료·보류 행 표시
   //
   // mock.ts status=ON_HOLD → orderNumber='2026/05/05-2', partnerName='강남에어솔루션' 반환.
   // ──────────────────────────────────────────────────────────
-  test('시나리오 3: 상태 필터 "보류"(ON_HOLD) 전환 → ON_HOLD 행 표시', async ({
+  test('시나리오 3: 상태 필터 "전체" 전환 → 접수·완료·보류 행 표시', async ({
     page,
   }) => {
     await installAuthMock(page)
@@ -188,21 +188,19 @@ test.describe('Phase 2.5 주문 보류 + 상태 필터', () => {
 
     const statusFilter = page.getByTestId('partner-order-list-status-filter')
 
-    // 드롭다운 → 'ON_HOLD' 선택
-    await statusFilter.selectOption('ON_HOLD')
-    await expect(statusFilter).toHaveValue('ON_HOLD')
+    // 보류는 독립 필터가 아니라 전체 목록에서 관측한다.
+    await statusFilter.selectOption('')
+    await expect(statusFilter).toHaveValue('')
 
-    // ON_HOLD 행 렌더 대기 — '보류' 라벨 포함
+    // 전체 목록에는 ON_HOLD 행이 포함된다.
     await expect(page.getByRole('table')).toContainText('보류', { timeout: 10_000 })
 
     // ON_HOLD 행 orderNumber / partnerName 확인
     await expect(page.getByRole('table')).toContainText('2026/05/05-2')
     await expect(page.getByRole('table')).toContainText('강남에어솔루션')
 
-    // DRAFT 행 미노출 — ON_HOLD 필터 시 '진행중'(DRAFT) 상태 라벨이 테이블에 없어야 한다.
-    // (특정 거래처명으로 단언하지 않는다: Phase 2.6b 병합 시나리오가 동일 거래처의 DRAFT/ON_HOLD 행을
-    //  함께 seed 하므로, 거래처명 기반 배제는 드리프트에 취약하다. 필터 의미는 '상태=보류만' 이다.)
-    await expect(page.getByRole('table')).not.toContainText('진행중')
+    await expect(page.getByRole('table')).toContainText('접수')
+    await expect(page.getByRole('table')).toContainText('완료')
   })
 
   // ──────────────────────────────────────────────────────────
@@ -269,8 +267,8 @@ test.describe('Phase 2.5 주문 보류 + 상태 필터', () => {
     await expect(page.getByTestId('partner-order-hold')).toBeVisible({ timeout: 10_000 })
     await expect(page.getByTestId('partner-order-release')).toHaveCount(0)
 
-    // 상태 배지 '진행중' 로 갱신 확인
-    await expect(page.getByText('진행중').first()).toBeVisible()
+    // 상태 배지 '접수' 로 갱신 확인
+    await expect(page.getByText('접수').first()).toBeVisible()
 
     // 오류 배너 미노출
     await expect(page.getByTestId('partner-order-hold-error')).toHaveCount(0)
@@ -280,33 +278,33 @@ test.describe('Phase 2.5 주문 보류 + 상태 필터', () => {
   // 시나리오 6: 상태 라벨 한글 표기 확인
   //
   // PARTNER_ORDER_STATUS_LABEL 매핑:
-  //   DRAFT     → '진행중'
+  //   DRAFT     → '접수'
   //   ON_HOLD   → '보류'
   //   CONFIRMED → '완료'
   //
   // 목록에서 세 상태를 각각 필터링하여 라벨이 한국어로 정상 표시되는지 검증.
   // ──────────────────────────────────────────────────────────
-  test('시나리오 6: 상태 라벨 한글 확인 — 진행중/완료/보류 배지 노출', async ({ page }) => {
+  test('시나리오 6: 상태 라벨 한글 확인 — 접수/완료/보류 배지 노출', async ({ page }) => {
     await installAuthMock(page)
     await gotoListAndWait(page)
 
     const statusFilter = page.getByTestId('partner-order-list-status-filter')
 
-    // ① DRAFT 필터 → '진행중' 배지
+    // ① DRAFT 필터 → '접수' 배지
     await statusFilter.selectOption('DRAFT')
-    await expect(page.getByRole('table')).toContainText('진행중', { timeout: 10_000 })
+    await expect(page.getByRole('table')).toContainText('접수', { timeout: 10_000 })
     await expect(page.getByRole('table')).not.toContainText('완료')
 
-    // ② CONFIRMED 필터 → '완료' 배지
-    await statusFilter.selectOption('CONFIRMED')
+    // ② CONVERTED 필터 → '완료' 배지
+    await statusFilter.selectOption('CONVERTED')
     await expect(page.getByRole('table')).toContainText('완료', { timeout: 10_000 })
-    await expect(page.getByRole('table')).not.toContainText('진행중')
+    await expect(page.getByRole('table')).not.toContainText('접수')
 
-    // ③ ON_HOLD 필터 → '보류' 배지
-    await statusFilter.selectOption('ON_HOLD')
+    // ③ 전체 필터 → '보류' 배지
+    await statusFilter.selectOption('')
     await expect(page.getByRole('table')).toContainText('보류', { timeout: 10_000 })
-    await expect(page.getByRole('table')).not.toContainText('진행중')
-    await expect(page.getByRole('table')).not.toContainText('완료')
+    await expect(page.getByRole('table')).toContainText('접수')
+    await expect(page.getByRole('table')).toContainText('완료')
   })
 
   // ──────────────────────────────────────────────────────────
@@ -317,7 +315,7 @@ test.describe('Phase 2.5 주문 보류 + 상태 필터', () => {
   // data-testid='partner-order-hold-error' 배너를 노출한다.
   // mock.ts 는 ?mockHold409=1 쿼리 파라미터 시 409 를 반환.
   // ──────────────────────────────────────────────────────────
-  test('시나리오 7: 보류 409 오류 → "진행중(DRAFT) 상태인 주문서만 보류" 오류 배너', async ({
+  test('시나리오 7: 보류 409 오류 → "접수(DRAFT) 상태인 주문서만 보류" 오류 배너', async ({
     page,
   }) => {
     await installAuthMock(page)
@@ -333,10 +331,10 @@ test.describe('Phase 2.5 주문 보류 + 상태 필터', () => {
     await expect(holdBtn).toBeVisible()
     await holdBtn.click()
 
-    // 오류 배너 노출 — '진행중(DRAFT)' 문구 포함
+    // 오류 배너 노출 — '접수(DRAFT)' 문구 포함
     const errorBanner = page.getByTestId('partner-order-hold-error')
     await expect(errorBanner).toBeVisible({ timeout: 10_000 })
-    await expect(errorBanner).toContainText('진행중')
+    await expect(errorBanner).toContainText('접수')
   })
 
   // ──────────────────────────────────────────────────────────

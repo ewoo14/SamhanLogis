@@ -13,7 +13,7 @@ const ESTIMATE_ID = process.env['S4_REAL_QA_ESTIMATE_ID'] ?? ''
 const BASELINE_PATH = process.env['S4_REAL_QA_BASELINE_JSON'] ?? ''
 const SHOTS = resolveQaShotsDir(path.resolve(here, '../../../../docs/qa/883-s4-order-ds-migration-real-qa'))
 
-const ORDER_STATUS_LABELS = ['진행중', '보류', '확인중', '완료', '취소', '전환완료']
+const ORDER_STATUS_LABELS = ['접수', '보류', '완료', '취소']
 const ESTIMATE_STATUS_LABELS = ['작성중', '발송완료', '수주완료', '거절', '전표변환완료']
 
 type ScreenContract = {

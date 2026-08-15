@@ -196,7 +196,7 @@ test('#863 ① 부수관측 — 발행 배지 동거 시 상태 배지 줄바꿈
   await page.goto(`${BASE_URL}/#/sales/partner-orders`, { waitUntil: 'domcontentloaded' })
   const statusFilter = page.getByTestId('partner-order-list-status-filter')
   await expect(statusFilter).toBeVisible({ timeout: 30_000 })
-  await statusFilter.selectOption('CONFIRMED')
+  await statusFilter.selectOption('CONVERTED')
   await page.waitForTimeout(3000)
 
   async function measure(orderNo: string) {

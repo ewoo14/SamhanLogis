@@ -236,10 +236,10 @@ test.describe('좌측 메뉴 7그룹 collapsible 계약', () => {
 })
 
 // ---------------------------------------------------------------------------
-// TC-M1 ~ TC-M5
+// TC-M1 ~ TC-M6
 // ---------------------------------------------------------------------------
 
-test.describe('admin GAS 메뉴 일반 카테고리 노출 (TC-M1~M5)', () => {
+test.describe('admin GAS 메뉴 일반 카테고리 노출 (TC-M1~M6)', () => {
 
   test.skip(SKIP_UI, 'dev server 미가용 — VITE_MOCK_MODE=1 && npx vite --port 5173 후 PLAYWRIGHT_SKIP_UI=0 으로 재시도')
 
@@ -498,5 +498,21 @@ test.describe('admin GAS 메뉴 일반 카테고리 노출 (TC-M1~M5)', () => {
     expect(foundCount, 'TC-M5: 기존 마스터 메뉴 5개 모두 유지되어야 함').toBe(5)
 
     expect(errors, `TC-M5 pageerror 발생: ${errors.join('; ')}`).toHaveLength(0)
+  })
+
+  test('TC-M6: 판매 사이드바에 외부 웹 종합견적서·웹 주문서 진입점이 보인다', async ({ page }) => {
+    const errors: string[] = []
+    attachPageErrorHook(page, errors)
+
+    await page.goto(`${BASE_URL}/#/?mockRole=MASTER`, { waitUntil: 'domcontentloaded', timeout: 20_000 })
+    await waitForSidebar(page)
+    await openSidebarCategory(page, '판매')
+
+    const salesGroup = page.locator('[role="group"][aria-labelledby="sidebar-group-heading-판매"]')
+    await expect(salesGroup.getByTestId('sidebar-sales-external-estimate')).toBeVisible()
+    await expect(salesGroup.getByRole('button', { name: '웹 종합견적서 ↗' })).toBeVisible()
+    await expect(salesGroup.getByTestId('sidebar-sales-external-order')).toBeVisible()
+    await expect(salesGroup.getByRole('button', { name: '웹 주문서 ↗' })).toBeVisible()
+    expect(errors).toEqual([])
   })
 })

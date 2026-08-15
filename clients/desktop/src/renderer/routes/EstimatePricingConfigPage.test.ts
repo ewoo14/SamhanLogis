@@ -26,8 +26,10 @@ describe('EstimatePricingConfigPage contract', () => {
 
     expect(route).toContain("path: '/sales/estimate-config'")
     expect(route).toContain('<PermissionGuard pageCode="sales.estimate-config" action="view">')
-    expect(subNav).toContain("'/sales/estimate-config'")
-    expect(subNav).toContain('견적 가격 설정')
+    expect(subNav).not.toContain("'/sales/estimate-config'")
+    expect(subNav).not.toContain('견적 가격 설정')
+    expect(layout).toContain('to="/sales/estimate-config"')
+    expect(layout).toContain('data-testid="sidebar-sales-estimate-config"')
     expect(layout).toContain("const showEstimateConfig = dynamicCanAccess('sales.estimate-config', 'view')")
     expect(layout).not.toContain("dynamicCanAccess('sales.estimate-config', 'view') || dynamicCanAccess('products.price-schedule', 'view')")
     expect(api).toContain('getEstimateConfig')

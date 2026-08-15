@@ -126,7 +126,9 @@ test.describe('#825 S5 대표 3화면·신규 경계 도달성', () => {
 
   test('병합전환 single — 0건에서 확정 잠김·취소 가능, 재진입 후 목표 창고 확정', async ({ page }) => {
     await gotoMock(page, '/sales/partner-orders')
-    await page.getByTestId('merge-convert-open').click()
+    await page.locator('input[data-testid^="partner-order-select-"]:not(:disabled)').first().check()
+    await page.getByTestId('order-convert-open').click()
+    await page.getByTestId('merge-convert-action').click()
     const outer = page.getByTestId('merge-convert-warehouse').getByRole('combobox')
     await outer.fill('창')
 

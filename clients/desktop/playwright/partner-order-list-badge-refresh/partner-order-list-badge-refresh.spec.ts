@@ -6,7 +6,7 @@
  *   <li>같은 거래처 DRAFT 2건 병합 발행 성공</li>
  *   <li>수동 새로고침(page.reload) 없이 invalidateQueries(['partner-orders']) 로
  *       DRAFT 필터 목록에서 변환된 두 행이 사라짐</li>
- *   <li>전체 필터로 전환 시 두 행이 CONVERTED 배지(전환완료 라벨)로 노출</li>
+ *   <li>전체 필터로 전환 시 두 행이 CONVERTED 배지(완료 라벨)로 노출</li>
  * </ol>
  *
  * <h2>Mock 전략 — VITE_MOCK_MODE=1 (mock.ts 3-D 상태보존)</h2>
@@ -85,8 +85,10 @@ async function selectWarehouseAutocomplete(
 
 /** 같은 거래처 DRAFT 2건 병합 발행을 완료한다(성공 토스트까지). */
 async function performMerge(page: Page): Promise<void> {
-  await expect(page.getByTestId('merge-convert-open')).toBeEnabled({ timeout: 5_000 })
-  await page.getByTestId('merge-convert-open').click()
+  await expect(page.getByTestId('order-convert-open')).toBeEnabled({ timeout: 5_000 })
+  await page.getByTestId('order-convert-open').click()
+  await expect(page.getByTestId('individual-convert-choice-buttons')).toBeVisible({ timeout: 10_000 })
+  await page.getByTestId('merge-convert-action').click()
   await expect(page.getByTestId('merge-convert-dialog-body')).toBeVisible({ timeout: 10_000 })
 
   const partnerInput = page.getByTestId('merge-convert-partner-search')
@@ -148,7 +150,7 @@ test.describe('3-D 병합 후 주문 목록 배지 갱신 (invalidate 회귀)', 
     // CONVERTED 라벨: clients/desktop/src/renderer/api/sales.ts PARTNER_ORDER_STATUS_LABEL.
     const row = page.getByTestId('partner-order-row-2026/05/04-1')
     await expect(row).toBeVisible({ timeout: 10_000 })
-    const badge = row.locator('span').filter({ hasText: '전환완료' }).last()
-    await expect(badge).toContainText('전환완료')
+    const badge = row.locator('span').filter({ hasText: '완료' }).last()
+    await expect(badge).toContainText('완료')
   })
 })

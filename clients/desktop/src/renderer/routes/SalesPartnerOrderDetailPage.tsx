@@ -16,13 +16,13 @@ import {
   Input,
   Modal,
   OrderNumberDisplay,
-  OrderStatusBadge,
   Select,
   Spinner,
   WarehouseAutocomplete,
 } from '@samhan/design-system'
 import type { Warehouse } from '@samhan/design-system'
 import { listWarehouses, type StockBalanceLookupLine } from '../api/inventory'
+import { searchPartners } from '../api/partnerApi'
 import {
   SLIP_PUBLISH_STATUS_DISPLAY,
   convertPartnerOrderToSlip,
@@ -38,6 +38,7 @@ import {
 } from '../api/sales'
 import { InventoryLookupModal } from './components/InventoryLookupModal'
 import { LineLookupReferenceModal } from './components/LineLookupReferenceModal'
+import { PartnerOrderDetailReadOnly } from './components/PartnerOrderDetailReadOnly'
 import { apiClient } from '../api/client'
 import { PartnerOrderCollaborationPanel } from '../components/collab/PartnerOrderCollaborationPanel'
 import { CollaborativeSlipInput } from '../components/collab/CollaborativeSlipInput'
@@ -47,7 +48,6 @@ import { createDocCoeditProvider, type DocCoeditProvider } from '../realtime/cre
 import { usePageTitleStore } from '../stores/pageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { useIsMobile } from '../hooks/useIsMobile'
-import { SalesSubNav } from '../components/sales/SalesSubNav'
 import { getReturnTo, type ReturnNavigationState } from '../utils/returnContract'
 import { formatEditableAmountInput, parseEditableAmountForServer } from '../utils/editableAmountInput'
 import styles from '../components/sales/sales.module.css'
@@ -99,6 +99,16 @@ const bundleModeLabel = (mode: 'EXPAND' | 'KEEP' | null) => {
   if (mode === 'KEEP') return '묶음 유지'
   return null
 }
+
+const partnerOrderStatusLabel = (status: string) => {
+  if (status === 'DRAFT' || status === 'CONFIRMING') return '접수'
+  if (status === 'CONFIRMED' || status === 'CONVERTED') return '완료'
+  if (status === 'ON_HOLD') return '보류'
+  return status
+}
+
+const firstNonBlank = (...values: Array<string | null | undefined>) =>
+  values.find((value) => typeof value === 'string' && value.trim().length > 0) ?? '-'
 /**
  * 출고전표 전환 가능 status 화이트리스트 — BE requireConvertible(DRAFT/ON_HOLD 한정) 과 정합.
  * CONFIRMED 포함 나머지 상태는 전환 불가(BE 409 또는 business rule 위반).
@@ -255,6 +265,20 @@ export function SalesPartnerOrderDetailPage() {
     enabled: isValidId,
     retry: 1,
   })
+  const partnerNameQuery = useQuery({
+    queryKey: ['partner-name', query.data?.partnerCode ?? null],
+    queryFn: async () => {
+      const options = await searchPartners(query.data!.partnerCode, { activeOnly: true })
+      return options.find((option) => option.partnerCode === query.data!.partnerCode) ?? null
+    },
+    enabled: Boolean(query.data?.partnerCode && !query.data.partnerName),
+    staleTime: 5 * 60 * 1000,
+  })
+  const displayPartnerName = firstNonBlank(
+    query.data?.partnerName,
+    partnerNameQuery.data?.name,
+    query.data?.partnerCode,
+  )
   const { refetch } = query
   // coedit provider effect 는 query.data 객체 참조 변화가 아니라 모달/권한 상태 전이만 따라가야 한다.
   const orderDataRef = useRef<PartnerOrderDetail | null>(null)
@@ -310,7 +334,7 @@ export function SalesPartnerOrderDetailPage() {
     onError: (error) => {
       if (axios.isAxiosError(error)) {
         if (error.response?.status === 409) {
-          setHoldErrorMessage('진행중 상태인 주문서만 보류할 수 있습니다.')
+          setHoldErrorMessage('접수 상태인 주문서만 보류할 수 있습니다.')
           return
         }
         if (error.response?.status === 403) {
@@ -730,7 +754,6 @@ export function SalesPartnerOrderDetailPage() {
   if (!isValidId) {
     return (
       <>
-        <SalesSubNav />
         <Card padding={4} shadow="sm">
           <div className="empty-state">
             <h3>주문번호가 지정되지 않았습니다</h3>
@@ -746,7 +769,6 @@ export function SalesPartnerOrderDetailPage() {
 
   return (
     <>
-      <SalesSubNav />
       <div
         style={{
           display: 'flex',
@@ -885,10 +907,12 @@ export function SalesPartnerOrderDetailPage() {
                 {/* 배지 2개를 그룹핑 래퍼로 묶어야 space-between 3-child 배치로 상태 배지가
                     중앙에 부유하지 않는다(#854 R5 LOW-5). */}
                 <span className="mobile-summary-badge-group">
-                  <OrderStatusBadge
+                  <Badge
+                    variant={query.data.status === 'CONVERTED' || query.data.status === 'CONFIRMED' ? 'success' : 'warning'}
                     className="mobile-status-badge"
-                    status={query.data.status}
-                  />
+                  >
+                    {partnerOrderStatusLabel(query.data.status)}
+                  </Badge>
                   {slipPublishStatusMeta ? (
                     <Badge
                       variant={slipPublishStatusMeta.variant}
@@ -912,7 +936,7 @@ export function SalesPartnerOrderDetailPage() {
                 </div>
               ) : null}
               <div className="mobile-summary-partner">
-                {query.data.partnerName ?? query.data.partnerCode}
+                {displayPartnerName}
               </div>
               <div className="mobile-summary-divider" />
               <div className="mobile-summary-total-row">
@@ -1085,7 +1109,38 @@ export function SalesPartnerOrderDetailPage() {
               </MobileCollapsible>
             ) : null}
 
-            {!isMobile ? (
+            {!isMobile && query.data ? (
+              <PartnerOrderDetailReadOnly
+                order={query.data}
+                statusBadge={slipPublishStatusMeta ? (
+                  <Badge
+                    variant={slipPublishStatusMeta.variant}
+                    title={slipPublishStatusTitle}
+                    data-testid="partner-order-slip-publish-status"
+                  >
+                    {slipPublishStatusMeta.label}
+                  </Badge>
+                ) : null}
+                selectedLineIds={checkedLineIds}
+                onToggleLine={(lineId) => {
+                  setCheckedLineIds((prev) => {
+                    const next = new Set(prev)
+                    if (next.has(lineId)) next.delete(lineId)
+                    else next.add(lineId)
+                    return next
+                  })
+                }}
+                onToggleAllLines={(selected) => {
+                  setCheckedLineIds(selected ? new Set((query.data?.lines ?? []).map((line) => line.lineId)) : new Set())
+                }}
+                onInventoryLookup={() => setInventoryLookupOpen(true)}
+                onLineLookup={() => setLineLookupOpen(true)}
+                onClearSelection={() => setCheckedLineIds(new Set())}
+                canViewProductLookups={canViewProductLookups}
+              />
+            ) : null}
+
+            {query.data && slipPublishStatusMeta ? (false ? (
             <Card padding={4} shadow="sm">
               <div
                 style={{
@@ -1099,49 +1154,52 @@ export function SalesPartnerOrderDetailPage() {
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <h4 style={{ margin: 0 }}>
-                    거래처 · {query.data.partnerName ?? query.data.partnerCode}
+                    거래처 · {displayPartnerName}
                   </h4>
-                  <OrderStatusBadge status={query.data.status} />
+                    <Badge variant={query.data!.status === 'CONVERTED' || query.data!.status === 'CONFIRMED' ? 'success' : 'warning'}>
+                      {partnerOrderStatusLabel(query.data!.status)}
+                    </Badge>
                   {slipPublishStatusMeta ? (
                     <Badge
-                      variant={slipPublishStatusMeta.variant}
+                      variant={slipPublishStatusMeta!.variant}
                       title={slipPublishStatusTitle}
                       data-testid="partner-order-slip-publish-status"
                     >
-                      {slipPublishStatusMeta.label}
+                      {slipPublishStatusMeta!.label}
                     </Badge>
                   ) : null}
                 </div>
                 <strong style={{ fontVariantNumeric: 'tabular-nums' }}>
-                  합계 {krw(query.data.totalAmount)}원
+                  합계 {krw(query.data!.totalAmount)}원
                 </strong>
               </div>
               <div className="detail-grid">
-                <DetailGridField label="거래처 코드" value={query.data.partnerCode}>
-                  {emptyLabel(query.data.partnerCode)}
+                <DetailGridField label="거래처 코드" value={query.data!.partnerCode}>
+                  {emptyLabel(query.data!.partnerCode)}
                 </DetailGridField>
-                <DetailGridField label="연결 전표" value={query.data.linkedSlipNo}>
-                  {emptyLabel(query.data.linkedSlipNo)}
+                <DetailGridField label="연결 전표" value={query.data!.linkedSlipNo}>
+                  {emptyLabel(query.data!.linkedSlipNo)}
                 </DetailGridField>
-                <DetailGridField label="배송지" value={query.data.deliveryAddress}>
-                  {emptyLabel(query.data.deliveryAddress)}
+                <DetailGridField label="배송지" value={query.data!.deliveryAddress}>
+                  {emptyLabel(query.data!.deliveryAddress)}
                 </DetailGridField>
-                <DetailGridField label="현장" value={query.data.siteAddress}>
-                  {emptyLabel(query.data.siteAddress)}
+                <DetailGridField label="현장" value={query.data!.siteAddress}>
+                  {emptyLabel(query.data!.siteAddress)}
                 </DetailGridField>
-                <DetailGridField label="연락처" value={query.data.contactPhone}>
-                  {emptyLabel(query.data.contactPhone)}
+                <DetailGridField label="연락처" value={query.data!.contactPhone}>
+                  {emptyLabel(query.data!.contactPhone)}
                 </DetailGridField>
-                <DetailGridField label="납기" value={query.data.dueDate}>
-                  {emptyLabel(query.data.dueDate)}
+                <DetailGridField label="납기" value={query.data!.dueDate}>
+                  {emptyLabel(query.data!.dueDate)}
                 </DetailGridField>
-                <DetailGridField label="요청사항" value={query.data.memo}>
-                  {emptyLabel(query.data.memo)}
+                <DetailGridField label="요청사항" value={query.data!.memo}>
+                  {emptyLabel(query.data!.memo)}
                 </DetailGridField>
               </div>
             </Card>
-            ) : null}
+            ) : null) : null}
 
+            {isMobile ? (
             <Card padding={4} shadow="sm" style={{ marginTop: 24 }}>
               <div className="detail-mobile-hide" style={{
                 display: 'flex',
@@ -1193,7 +1251,7 @@ export function SalesPartnerOrderDetailPage() {
                 </div>
               </div>
               <div className="detail-mobile-hide" style={{ overflowX: 'auto' }}>
-                <table className={styles['estTable']}>
+                <table className={`${styles['estTable']} ${styles['orderLineTable']}`}>
                   <thead>
                     {/* v2 §정정 4/5 — '품명'→'품목명', '모델 코드'→'모델명' */}
                     <tr>
@@ -1416,6 +1474,7 @@ export function SalesPartnerOrderDetailPage() {
                 })}
               </div>
             </Card>
+            ) : null}
 
             {isMobile ? (
               collabCurrentValues ? (

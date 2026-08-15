@@ -47,9 +47,11 @@ const ORDER_B = order({ orderNumber: '2026/07/23-B', partnerCode: PARTNER_B.part
 const ORDER_C = order({ orderNumber: '2026/07/23-C', partnerCode: PARTNER_C.partnerCode, partnerName: PARTNER_C.name })
 
 vi.mock('@samhan/design-system', () => ({
+  Card: ({ children }: { children: React.ReactNode }) => <section>{children}</section>,
   Badge: ({ children, ...props }: { children: React.ReactNode } & Record<string, unknown>) => (
     <span {...props}>{children}</span>
   ),
+  OrderStatusBadge: ({ status }: { status: string }) => <span>{status}</span>,
   Button: ({ children, ...props }: { children: React.ReactNode } & Record<string, unknown>) => (
     <button {...props}>{children}</button>
   ),
@@ -119,10 +121,13 @@ vi.mock('../../components/sales/sales.module.css', () => ({ default: new Proxy({
 
 import { MergeConvertDialog } from './MergeConvertDialog'
 
-function renderDialog(client = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
+function renderDialog(
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+  selectedOrders: PartnerOrderSummary[] = [],
+) {
   return render(
     <QueryClientProvider client={client}>
-      <MergeConvertDialog onClose={vi.fn()} onSuccess={vi.fn()} selectedOrders={[]} />
+      <MergeConvertDialog onClose={vi.fn()} onSuccess={vi.fn()} selectedOrders={selectedOrders} />
     </QueryClientProvider>,
   )
 }
@@ -130,6 +135,90 @@ function renderDialog(client = new QueryClient({ defaultOptions: { queries: { re
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+})
+
+it('restores list-selected orders after resolving their partner', async () => {
+  mocks.searchPartners.mockResolvedValue([PARTNER_A])
+  mocks.listPartnerOrders.mockResolvedValue({ content: [ORDER_A, ORDER_C], totalElements: 2 })
+  mocks.listWarehouses.mockResolvedValue([])
+  mocks.getPartnerOrder.mockImplementation(async (orderNumber: string) => ({
+    orderNumber,
+    partnerName: PARTNER_A.name,
+    deliveryAddress: null,
+    contactPhone: null,
+    dueDate: null,
+    memo: null,
+    totalAmount: 1000,
+    lines: [{ lineId: `line-${orderNumber}`, productId: 'product-1', productName: '품목', modelCode: 'MODEL-1', quantity: 1, convertedQuantity: 0 }],
+  } as never))
+
+  renderDialog(undefined, [ORDER_A, ORDER_C])
+
+  expect((await screen.findByTestId('merge-convert-partner-input-value')).textContent).toContain(PARTNER_A.name)
+  await waitFor(() => {
+    expect(screen.getByTestId('merge-convert-mock-selected-order-count').textContent).toContain('2')
+  })
+})
+
+it('상세 조회 실패 시 실패 사실을 표시하고 승인을 막는다', async () => {
+  mocks.searchPartners.mockResolvedValue([PARTNER_A])
+  mocks.listPartnerOrders.mockResolvedValue({ content: [ORDER_A, ORDER_C], totalElements: 2 })
+  mocks.listWarehouses.mockResolvedValue([])
+  mocks.getPartnerOrder.mockRejectedValue(new Error('detail unavailable'))
+
+  renderDialog(undefined, [ORDER_A, ORDER_C])
+
+  const error = await screen.findByRole('alert', {}, { timeout: 3000 })
+  expect(error.textContent).toContain('주문 상세를 불러오지 못했습니다')
+  expect(screen.getByTestId('merge-convert-submit').hasAttribute('disabled')).toBe(true)
+})
+
+it('승인 전 병합 미리보기는 합쳐진 모든 라인과 출처 주문번호를 보여주고 접수 라벨을 쓴다', async () => {
+  mocks.searchPartners.mockResolvedValue([PARTNER_A])
+  mocks.listPartnerOrders.mockResolvedValue({ content: [ORDER_A, ORDER_C], totalElements: 2 })
+  mocks.listWarehouses.mockResolvedValue([])
+  mocks.getPartnerOrder.mockImplementation(async (orderNumber: string) => ({
+    orderNumber,
+    partnerName: PARTNER_A.name,
+    partnerCode: PARTNER_A.partnerCode,
+    status: 'DRAFT',
+    deliveryAddress: null,
+    contactPhone: null,
+    dueDate: null,
+    memo: null,
+    totalAmount: 1000,
+    lines: [
+      { lineId: `${orderNumber}-1`, productId: 'p-1', productName: '품목 1', modelCode: `MODEL-${orderNumber}-1`, quantity: 1, deliveryPrice: 100 },
+      { lineId: `${orderNumber}-2`, productId: 'p-2', productName: '품목 2', modelCode: `MODEL-${orderNumber}-2`, quantity: 2, deliveryPrice: 200 },
+    ],
+  } as never))
+
+  renderDialog(undefined, [ORDER_A, ORDER_C])
+
+  expect(await screen.findByText('MODEL-2026-07-23-A-1')).toBeTruthy()
+  expect(screen.getByText('MODEL-2026-07-23-A-2')).toBeTruthy()
+  expect(screen.getByText('MODEL-2026-07-23-C-1')).toBeTruthy()
+  expect(screen.getByText('MODEL-2026-07-23-C-2')).toBeTruthy()
+  expect(screen.getAllByText('접수').length).toBeGreaterThan(0)
+  expect(screen.getByText('출처')).toBeTruthy()
+  expect(screen.getAllByText('2026/07/23-A')).toHaveLength(2)
+})
+
+it('선택 주문 거래처와 선택 건수 사이에 시각적 간격을 둔다', async () => {
+  mocks.searchPartners.mockResolvedValue([PARTNER_A])
+  mocks.listPartnerOrders.mockResolvedValue({ content: [ORDER_A, ORDER_C], totalElements: 2 })
+  mocks.listWarehouses.mockResolvedValue([])
+  mocks.getPartnerOrder.mockResolvedValue({
+    orderNumber: ORDER_A.orderNumber,
+    partnerName: PARTNER_A.name,
+    lines: [],
+  } as never)
+
+  renderDialog(undefined, [ORDER_A, ORDER_C])
+
+  const count = await screen.findByTestId('merge-convert-mock-selected-order-count')
+  expect(count.previousElementSibling?.textContent).toContain(PARTNER_A.name)
+  expect(count.getAttribute('style')).toContain('margin')
 })
 
 describe('MergeConvertDialog 거래처 우선 주문 칩', () => {
@@ -399,4 +488,3 @@ describe('MergeConvertDialog 거래처 우선 주문 칩', () => {
     expect(await screen.findByTestId('merge-convert-conflict-shippingAddress-radio-2026-07-23-C')).toBeTruthy()
   })
 })
-

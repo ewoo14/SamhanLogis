@@ -39,9 +39,10 @@ function mockPermissions(entries: Array<{ pageCode: string; view?: boolean; edit
 }
 
 async function openMergeDialog(page: Page): Promise<void> {
-  await expect(page.getByTestId('merge-convert-open')).toBeVisible({ timeout: 10_000 })
-  await expect(page.locator('input[type="checkbox"][data-testid^="merge-checkbox-"]')).toHaveCount(0)
-  await page.getByTestId('merge-convert-open').click()
+  await expect(page.getByTestId('order-convert-open')).toBeEnabled({ timeout: 10_000 })
+  await page.getByTestId('order-convert-open').click()
+  await expect(page.getByTestId('individual-convert-choice-buttons')).toBeVisible({ timeout: 10_000 })
+  await page.getByTestId('merge-convert-action').click()
   await expect(page.getByTestId('merge-convert-dialog-body')).toBeVisible({ timeout: 10_000 })
 }
 
@@ -157,15 +158,13 @@ test.describe('#825 슬7 주문 병합 거래처 우선 선택', () => {
   test('권한 제거: partners.search VIEW가 없으면 병합 버튼을 잠그고 원인을 표시한다', async ({ page }) => {
     await installAuthMock(page)
     const perms = mockPermissions([
-      { pageCode: 'sales.partner-order.convert', view: false, edit: true },
+      { pageCode: 'sales.partner-order.convert', view: true, edit: true },
       { pageCode: 'sales.partner-order.list', view: true, edit: true },
     ])
     await gotoListAndWait(page, `&mockPerms=${encodeURIComponent(perms)}`)
 
-    const openButton = page.getByTestId('merge-convert-open')
-    await expect(openButton).toBeVisible({ timeout: 10_000 })
-    await expect(openButton).toBeDisabled()
-    await expect(openButton).toHaveAttribute('title', '거래처 검색 권한이 필요합니다')
+    const openButton = page.getByTestId('order-convert-open')
+    await expect(openButton).toBeDisabled({ timeout: 10_000 })
     await expect(page.getByTestId('merge-convert-permission-hint')).toContainText('partners.search VIEW')
   })
 

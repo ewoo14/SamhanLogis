@@ -225,11 +225,9 @@ describe('EstimateListPage E2 list realtime and restore', () => {
     listEstimatesMock.mockResolvedValue(pageOf([estimateRow()]))
     renderPage()
 
-    await screen.findByTestId('estimate-list-include-deleted')
+    await screen.findByTestId('estimate-list-table')
     expect(listEstimatesMock).toHaveBeenLastCalledWith(expect.not.objectContaining({ includeDeleted: true }))
-
-    fireEvent.click(screen.getByTestId('estimate-list-include-deleted'))
-    await waitFor(() => expect(listEstimatesMock).toHaveBeenLastCalledWith(expect.objectContaining({ includeDeleted: true })))
+    expect(screen.queryByTestId('estimate-list-include-deleted')).toBeNull()
   })
 
   it('슬래시 문서번호 견적 행 클릭은 404가 아닌 단일 상세 경로로 이동한다', async () => {
@@ -400,14 +398,14 @@ describe('EstimateListPage E2 list realtime and restore', () => {
     expect(screen.getByTestId('estimate-list-status-scope-note').textContent).toContain('걸러지지 않습니다')
   })
 
-  it('기간·삭제 필터는 종합견적서 탭에만 노출한다', async () => {
+  it('기간 필터는 종합견적서 탭에만 노출하고 삭제 필터는 없다', async () => {
     renderPage()
 
     await screen.findByTestId('estimate-list-table')
 
     expect(screen.getByTestId('estimate-list-filter-start')).toBeTruthy()
     expect(screen.getByTestId('estimate-list-filter-end')).toBeTruthy()
-    expect(screen.getByTestId('estimate-list-include-deleted')).toBeTruthy()
+    expect(screen.queryByTestId('estimate-list-include-deleted')).toBeNull()
   })
 
   it('웹 종합견적서 조회가 실패해도 데스크톱 행은 남기고 부분 실패를 표시한다', async () => {
