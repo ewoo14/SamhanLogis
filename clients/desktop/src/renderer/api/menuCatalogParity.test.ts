@@ -39,7 +39,7 @@ describe('mock menu catalog parity', () => {
     const serverEntries = readServerCatalog()
     const mockEntries = readMockCatalog()
 
-    expect(serverEntries).toHaveLength(92)
+    expect(serverEntries).toHaveLength(101)
     expect(mockEntries).toEqual(serverEntries)
     expect(mockEntries.some((entry) => entry.pageCode === 'accounting.bank-card-admin')).toBe(true)
   })

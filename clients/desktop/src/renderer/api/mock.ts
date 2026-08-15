@@ -14547,6 +14547,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       { category: '판매', label: '분류 관리', route: '/products/classifications', pageCode: 'products.list', order: 12 },
       { category: '판매', label: '카테고리별 단가변동', route: '/products/price-schedule', pageCode: 'products.price-schedule', order: 13 },
       { category: '판매', label: '시트 동기화', route: '/admin/sheet-sync', pageCode: 'products.sync', order: 14 },
+      { category: '판매', label: '견적 설정', route: '/sales/estimate-config', pageCode: 'sales.estimate-config', order: 15 },
       { category: '구매', label: '구매관리', route: '/purchases', pageCode: 'purchases.slip.list', order: 1 },
       { category: '구매', label: '재고이동 관리', route: '/transfers', pageCode: 'inventory.stock-transfer', order: 2 },
       { category: '구매', label: '입고 검수', route: '/warehouse/inbound-inspections', pageCode: 'inbound.inspection', order: 3 },
@@ -14558,6 +14559,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       { category: '회계', label: '계정과목', route: '/accounting/accounts', pageCode: 'accounting.accounts', order: 3 },
       { category: '회계', label: '분개장', route: '/accounting/journals', pageCode: 'accounting.journals', order: 4 },
       { category: '회계', label: '세금계산서', route: '/accounting/tax-invoices', pageCode: 'accounting.tax-invoice.list', order: 5 },
+      { category: '회계', label: '세금계산서 일괄발행', route: '/accounting/tax-invoices/batch', pageCode: 'accounting.tax-invoice.batch-issue', order: 6 },
       { category: '회계', label: '수신 세금계산서', route: '/accounting/tax-invoices/inbound', pageCode: 'accounting.tax-invoice.inbound.manage', order: 6 },
       { category: '회계', label: '합계잔액시산표', route: '/accounting/balances', pageCode: 'accounting.balances', order: 7 },
       { category: '회계', label: '재무 보고서', route: '/accounting/reports', pageCode: 'accounting.reports', order: 8 },
@@ -14606,7 +14608,14 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       { category: '인사', label: '운송사 목록', route: '/admin/carriers', pageCode: 'hr.carriers', order: 2 },
       { category: '인사', label: '결재라인 설정', route: '/admin/approval-line-config', pageCode: 'admin.approval-line-config', order: 3 },
       { category: '인사', label: '출고 마감시간 설정', route: '/admin/slip-cutoff', pageCode: 'hr.slip-cutoff', order: 4 },
+      { category: '인사', label: '권한설정', route: '/admin/permission-matrix', pageCode: 'system.permission-admin', order: 5 },
+      { category: '인사', label: '권한 일괄 적용', route: '/admin/permission-matrix/bulk', pageCode: 'system.permission-admin', order: 6 },
+      { category: '인사', label: '그룹 권한', route: '/admin/permission-groups/matrix', pageCode: 'system.permission-admin', order: 7 },
+      { category: '인사', label: '권한그룹 관리', route: '/admin/permission-groups/manage', pageCode: 'system.permission-admin', order: 8 },
+      { category: '인사', label: '권한 위임', route: '/admin/permission-groups/delegation', pageCode: 'system.permission-admin', order: 9 },
       { category: '개발', label: '버전 관리', route: '/admin/app-releases', pageCode: 'admin.app-release', order: 1 },
+      { category: '개발', label: '팝업공지', route: '/admin/app-notices', pageCode: 'dev.popup-notice', order: 2 },
+      { category: '개발', label: '활동 로그', route: '/admin/activity-logs', pageCode: 'dev.activity-log', order: 3 },
       { category: '배차', label: '배차현황', route: '/dispatch-board/history', pageCode: 'dispatch.board', order: 1 },
       { category: '배차', label: '배차 그룹', route: '/admin/dispatch-groups', pageCode: 'dispatch.board', order: 2 },
       { category: '배차', label: '가배차리스트', route: '/arologis/pre-classify', pageCode: 'arologis.dispatch.ops', order: 3 },
@@ -14626,9 +14635,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       { category: '창고 운영', label: '전표 수정 요청', route: '/admin/slip-edit-requests', pageCode: 'slip.edit-requests.decide', order: 6 },
       { category: '창고 운영', label: '사진 감사', route: '/admin/photo-audit', pageCode: 'slip.photo-audit', order: 7 },
     ]
-    return envelope(publicCatalog
-      .filter((entry) => mockCanAccess(entry.pageCode, 'view'))
-      .map((entry) => ({
+    return envelope(publicCatalog.map((entry) => ({
         app: 'samhan-public',
         ...entry,
         action: 'VIEW',

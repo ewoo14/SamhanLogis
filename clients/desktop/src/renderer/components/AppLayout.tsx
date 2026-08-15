@@ -384,6 +384,7 @@ export function AppLayout() {
   } = useMenuCatalog()
   const publicMenuCatalog = (menuCatalog ?? [])
     .filter((entry) => entry.app === 'samhan-public')
+    .filter((entry) => dynamicCanAccess(entry.pageCode, 'view'))
     .sort((left, right) => left.category.localeCompare(right.category, 'ko') || left.order - right.order)
   const catalogGroups = Array.from(
     publicMenuCatalog.reduce((groups, entry) => {
@@ -403,6 +404,12 @@ export function AppLayout() {
     '/admin/permission-groups/delegation': 'sidebar-hr-permission-delegation',
     '/admin/approval-line-config': 'sidebar-hr-approval-line-config',
     '/admin/slip-cutoff': 'sidebar-hr-slip-cutoff',
+    '/admin/app-releases': 'sidebar-dev-app-releases',
+    '/admin/app-notices': 'sidebar-dev-popup-notice',
+    '/admin/activity-logs': 'sidebar-dev-activity-log',
+    '/inventory/compensation-failures': 'sidebar-warehouse-compensation-failures',
+    '/accounting/tax-invoices/batch': 'sidebar-accounting-tax-invoice-batch-issue',
+    '/sales/estimate-config': 'sidebar-sales-estimate-config',
     '/accounting/bank-card-admin': 'sidebar-accounting-bank-card-admin',
     '/dispatch-board/history': 'sidebar-dispatch-history',
     '/admin/dispatch-groups': 'sidebar-dispatch-groups',
@@ -415,6 +422,59 @@ export function AppLayout() {
     '/arologis/admin/auto-dispatch': 'sidebar-arologis-auto-dispatch',
     '/arologis/admin/manual-dispatch': 'sidebar-arologis-manual-dispatch-admin',
     '/arologis/admin/driver-assignment': 'sidebar-arologis-driver-assignment',
+    '/sales': 'sidebar-sales',
+    '/sales/estimates': 'sidebar-sales-estimates',
+    '/sales/partner-orders': 'sidebar-sales-partner-orders',
+    '/sales/order-approvals': 'sidebar-sales-partners',
+    '/sales/partner-dc-config': 'sidebar-sales-partner-dc-config',
+    '/admin/blocked-partners': 'sidebar-sales-blocked-partners',
+    '/sales/slip-cleanup': 'sidebar-sales-slip-cleanup',
+    '/sales/next-day-slip': 'sidebar-sales-next-day-slip',
+    '/products/catalog': 'sidebar-products-catalog',
+    '/products/estimate-items': 'sidebar-products-estimate-items',
+    '/products/classifications': 'sidebar-products-classifications',
+    '/products/price-schedule': 'sidebar-products-price-schedule',
+    '/admin/sheet-sync': 'sidebar-settings-sheet-sync',
+    '/purchases': 'sidebar-purchases',
+    '/transfers': 'sidebar-transfers',
+    '/warehouse/inbound-inspections': 'sidebar-warehouse-inbound-inspections',
+    '/warehouse/audit': 'sidebar-warehouse-dps-compare',
+    '/warehouse/dps-compare/by-product': 'sidebar-warehouse-dps-by-product',
+    '/accounting/sales-slips': 'sidebar-accounting-sales-slips',
+    '/accounting/purchase-slips': 'sidebar-accounting-purchase-slips',
+    '/accounting/accounts': 'sidebar-accounting-accounts',
+    '/accounting/journals': 'sidebar-accounting-journals',
+    '/accounting/tax-invoices': 'sidebar-accounting-tax-invoices',
+    '/accounting/tax-invoices/inbound': 'sidebar-accounting-tax-invoice-inbound',
+    '/accounting/balances': 'sidebar-accounting-balances',
+    '/sales/closing': 'sidebar-accounting-sales-closing',
+    '/accounting/period-close': 'sidebar-accounting-period-close',
+    '/accounting/sales-commission-settlements': 'sidebar-accounting-sales-commission-settlements',
+    '/accounting/statement-batch': 'sidebar-accounting-statement-batch',
+    '/accounting/partner-ledger': 'sidebar-accounting-partner-ledger',
+    '/accounting/hometax-export': 'sidebar-accounting-hometax-export',
+    '/accounting/supplier-profiles': 'sidebar-accounting-supplier-profile',
+    '/accounting/bank-transactions': 'sidebar-accounting-bank-transactions',
+    '/accounting/deposit-mappings': 'sidebar-accounting-deposit-mapping',
+    '/accounting/admin/cash-receipts': 'sidebar-accounting-cash-receipts',
+    '/accounting/daily-closing': 'sidebar-accounting-daily-closings',
+    '/accounting/ledgers': 'sidebar-accounting-ledgers',
+    '/accounting/admin/ledger/sales': 'sidebar-accounting-admin-sales-ledger',
+    '/accounting/admin/ledger/purchase': 'sidebar-accounting-admin-purchase-ledger',
+    '/accounting/admin/migration-ops': 'sidebar-accounting-admin-migration-ops',
+    '/admin/accounting-edit-requests': 'sidebar-accounting-admin-edit-requests',
+    '/groupware/approvals': 'sidebar-groupware-approvals',
+    '/groupware/approval-templates': 'sidebar-groupware-approval-templates',
+    '/groupware/document-templates': 'sidebar-groupware-document-templates',
+    '/sales/link-dispatch': 'sidebar-link-dispatch',
+    '/admin/aligo-address-book': 'sidebar-messenger-aligo-address-book',
+    '/messenger': 'sidebar-messenger',
+    '/warehouses': 'sidebar-warehouses',
+    '/inventory/stock-balance': 'sidebar-inventory-stock-balance',
+    '/inventory/inout-analysis': 'sidebar-inventory-inout-analysis',
+    '/inventory/safety-stock-alerts': 'sidebar-warehouse-safety-stock-alerts',
+    '/admin/slip-edit-requests': 'sidebar-warehouse-slip-edit-requests',
+    '/admin/photo-audit': 'sidebar-warehouse-photo-audit',
   }
 
   // 외부 클릭 시 dropdown 닫기
@@ -655,6 +715,7 @@ export function AppLayout() {
     || showDispatchSmsPage
     || showExternalCarriers
     || showArologisAdminPage
+  const showChatRoomAdmin = dynamicCanAccess('messenger.admin', 'view')
 
   const showAudit = showInventoryAuditPage
   const showDpsCompare = showInventoryDps
@@ -701,7 +762,9 @@ export function AppLayout() {
     || showMessengerSend
   // [Round A P3] showRegionMgmt(arologis.region) 포함 — 배차지역 관리 단독 권한자가
   //   arologis 그룹 헤더+자식 전체를 잃던 선재 갭 해소(SidebarCategory show=false면 자식도 숨김).
-  const showArologisGroup = !isMenuCatalogLoading && publicMenuCatalog.length > 0
+  const showArologisGroup = showDispatchBoard || showArologis || showRegionMgmt
+  const hasCatalogMenu = !isMenuCatalogLoading && publicMenuCatalog.length > 0
+  const dispatchMenuCatalog = publicMenuCatalog.filter((entry) => entry.category === '배차')
   const showWarehouseOpsGroup =
     showInventoryWarehouse || showInventoryStockBalance || showInOutAnalysis || showSafetyStockAlerts
     || showInventoryCompensationFailures || showSlipEditRequests || showPhotoAudit
@@ -765,6 +828,7 @@ export function AppLayout() {
           )}
 
           {false ? <>
+          {false ? <SidebarLink to="/admin/chat-rooms" show={showChatRoomAdmin} data-testid="sidebar-chat-rooms">단톡방</SidebarLink> : null}
           {/* [Phase 6 v4 → P2-1] 판매 그룹 — 견적서 SamhanLogis 도메인 (legacy webview 폐기) + 4종 sub.
               [SP-D4] estimates.list / sales.partner-order.list 동적 RBAC 연동. */}
           <SidebarCategory
@@ -1551,13 +1615,36 @@ export function AppLayout() {
 
           {/* [Round B P2] 그룹 헤더 라벨 'arologis'(코드명 노출) → 한국어 업무 라벨 '배차'.
               다른 6그룹과 일관(판매/구매/회계/그룹웨어/인사/창고 운영). testid 무관(라벨만). */}
-          <SidebarCategory
-            label="배차"
-            show={showArologisGroup}
-            testId="sidebar-category-toggle-배차"
-             activeTargets={publicMenuCatalog.map((entry) => entry.route)}
+            <SidebarCategory
+              label="배차"
+              show={hasCatalogMenu && showArologisGroup}
+              testId="sidebar-category-toggle-배차"
+             activeTargets={[
+               '/dispatch-board/history',
+               '/admin/dispatch-groups',
+               '/arologis/pre-classify',
+               '/arologis/unassigned',
+               '/arologis/dispatch-sms',
+               '/arologis/dispatch-reconcile',
+               '/admin/regions',
+               '/admin/external-carriers',
+               '/arologis/admin/auto-dispatch',
+               '/arologis/admin/manual-dispatch',
+               '/arologis/admin/driver-assignment',
+             ]}
            >
-             {publicMenuCatalog.map((entry) => (
+             <SidebarLink to="/dispatch-board/history" show={dispatchMenuCatalog.some((entry) => entry.route === '/dispatch-board/history')} data-testid="sidebar-dispatch-history">
+               배차현황
+             </SidebarLink>
+             <SidebarLink to="/arologis/pre-classify" show={dispatchMenuCatalog.some((entry) => entry.route === '/arologis/pre-classify')} data-testid="sidebar-arologis-preclassify">
+               가배차리스트
+             </SidebarLink>
+             <SidebarLink to="/arologis/unassigned" show={dispatchMenuCatalog.some((entry) => entry.route === '/arologis/unassigned')} data-testid="sidebar-arologis-unassigned">
+               미배차리스트
+             </SidebarLink>
+             {dispatchMenuCatalog
+               .filter((entry) => entry.route === '/dispatch-board/history' || entry.route === '/arologis/pre-classify' || entry.route === '/arologis/unassigned')
+               .map((entry) => (
                <SidebarLink
                  key={entry.route}
                  to={entry.route}

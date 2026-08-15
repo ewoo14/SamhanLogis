@@ -76,7 +76,8 @@ test.describe('DEV-3 개발 메뉴 로그', () => {
 
     await page.goto(buildUrl('/admin/activity-logs', { mockRole: 'DEVELOPER', mockPerms: perms }), { waitUntil: 'domcontentloaded' })
     await waitForApp(page)
-    await expect(page.getByText('권한')).toBeVisible()
+    await expect(page).toHaveURL(/#\/$/)
+    await expect(page.getByTestId('sidebar-dev-activity-log')).toHaveCount(0)
   })
 
   test('모바일 390px에서 필터와 표가 화면 폭을 넘지 않는다', async ({ page }) => {
