@@ -1080,6 +1080,7 @@ export function DailyClosingPage() {
     setFilterDate(row.closingDate)
     setClosingKind(row.closingKind)
     setSourceKind(row.sourceKind)
+    setViewTab('DETAIL')
     window.setTimeout(() => {
       // preventScroll:true — focus() 기본값(false)이 scrollIntoView 보다 먼저 즉시
       // 스크롤을 일으켜 뒤이은 smooth 애니메이션을 무의미하게 만드는 동일 결함이

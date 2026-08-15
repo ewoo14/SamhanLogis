@@ -343,13 +343,13 @@ test.describe('AC-4 일마감 (daily-closings)', () => {
   test('DC-1 실행 거래처 activeOnly + 인라인 행 정렬 + 선택/해제 + 마감 실행 성공(메모 초기화)', async ({ page }) => {
     await installAuthMock(page)
     await blockLiveGatewayLeaks(page)
-    await gotoPage(page, '/accounting/daily-closings', 'daily-closing-exec-partner')
+    await gotoPage(page, '/accounting/daily-closings', 'daily-closing-page')
     await page.getByTestId('daily-closing-exec-button').click()
 
     // [#825 CM4] 실행 조건 인라인 행 정렬 — 거래처 입력이 폭 제약(220px) 래퍼로
     // 날짜 입력과 같은 행에 남아야 한다 (공용 wrapper width:100% 단독 행 감김 회귀 시
     // y 좌표가 어긋나 RED).
-    const dateBox = await page.getByTestId('daily-closing-exec-date').boundingBox()
+    const dateBox = await page.locator('[data-testid="daily-closing-exec-date"]:visible').boundingBox()
     const partnerBox = await page.getByTestId('daily-closing-exec-partner').boundingBox()
     expect(dateBox).not.toBeNull()
     expect(partnerBox).not.toBeNull()
@@ -382,14 +382,14 @@ test.describe('AC-4 일마감 (daily-closings)', () => {
     )
     const memo = page.getByTestId('daily-closing-exec-description')
     await memo.fill('AC-4 E2E 마감 검증')
-    await page.getByTestId('daily-closing-exec-button').click()
+    await page.getByTestId('daily-closing-exec-submit').click()
     await expect(memo).toHaveValue('', { timeout: 5_000 })
   })
 
   test('DC-2 [#825 재수렴 CM-b·#4] 미확정 draft 실행 차단(타이핑·빈 draft 양방향) — 안내 표시·마감 미실행(메모 유지) 후 정합 회복 시 실행 성공', async ({ page }) => {
     await installAuthMock(page)
     await blockLiveGatewayLeaks(page)
-    await gotoPage(page, '/accounting/daily-closings', 'daily-closing-exec-partner')
+    await gotoPage(page, '/accounting/daily-closings', 'daily-closing-page')
     await page.getByTestId('daily-closing-exec-button').click()
 
     const partnerInput = page.getByTestId('daily-closing-exec-partner')
@@ -405,7 +405,7 @@ test.describe('AC-4 일마감 (daily-closings)', () => {
 
     // [#825 S5] 범위 미지정은 전체로 폴백하지 않고 실행 자체를 잠근다.
     // 이후 기존 draft 가드를 검증하려면 먼저 거래처 범위를 명시적으로 확정해야 한다.
-    await expect(page.getByTestId('daily-closing-exec-button')).toBeDisabled()
+    await expect(page.getByTestId('daily-closing-exec-submit')).toBeDisabled()
     await expect(page.getByTestId('daily-closing-scope-hint')).toContainText("'전체' 칩을 선택하세요")
 
     // 명시적 SELECTED 범위에서 목록 미확정 draft 를 다시 만들어 기존 가드의
@@ -416,7 +416,7 @@ test.describe('AC-4 일마감 (daily-closings)', () => {
     await partnerInput.click()
     await partnerInput.fill('엘에이')
     await expect(partnerListbox(page)).toBeVisible({ timeout: 5_000 })
-    await page.getByTestId('daily-closing-exec-button').click()
+    await page.getByTestId('daily-closing-exec-submit').click()
 
     await expect(draftError).toBeVisible({ timeout: 5_000 })
     // 명시적 SELECTED 범위의 미확정 draft 는 목록 재선택 또는 '해제'를 안내한다.
@@ -430,7 +430,7 @@ test.describe('AC-4 일마감 (daily-closings)', () => {
       page, 'daily-closing-exec-partner', '엘에이', /엘에이시스템에어/, '엘에이시스템에어',
     )
     await expect(draftError).not.toBeVisible()
-    await page.getByTestId('daily-closing-exec-button').click()
+    await page.getByTestId('daily-closing-exec-submit').click()
     await expect(memo).toHaveValue('', { timeout: 5_000 })
 
     // [#825 재수렴 #4] 빈 draft + 확정 선택 잔존 — 선택(P1) 후 재포커스 시
@@ -443,7 +443,7 @@ test.describe('AC-4 일마감 (daily-closings)', () => {
     await memo.fill('#4 빈 draft 가드 검증')
     await partnerInput.click()
     await expect(partnerInput).toHaveValue('')
-    await page.getByTestId('daily-closing-exec-button').click()
+    await page.getByTestId('daily-closing-exec-submit').click()
 
     await expect(draftError).toBeVisible({ timeout: 5_000 })
     await expect(draftError).toContainText('엘에이시스템에어')
@@ -453,7 +453,7 @@ test.describe('AC-4 일마감 (daily-closings)', () => {
     await page.getByTestId('daily-closing-exec-partner-clear').click()
     await expect(draftError).not.toBeVisible()
     await page.getByTestId('daily-closing-all-chip').click()
-    await page.getByTestId('daily-closing-exec-button').click()
+    await page.getByTestId('daily-closing-exec-submit').click()
     await expect(memo).toHaveValue('', { timeout: 5_000 })
   })
 })

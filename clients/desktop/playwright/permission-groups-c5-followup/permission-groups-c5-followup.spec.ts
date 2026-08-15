@@ -160,6 +160,7 @@ test.describe('권한그룹 C5 후속 정리', () => {
     await expect(page.getByTestId('daily-closing-page')).toBeVisible({ timeout: 15000 })
     // 권한 축만 검증하도록 범위를 명시적으로 전체(ALL)로 선택한다.
     // 범위 미지정 disabled가 ACCOUNTANT의 실행 권한 단언을 마스킹하지 않게 한다.
+    await page.getByTestId('daily-closing-exec-button').click()
     await page.getByTestId('daily-closing-all-chip').click()
     await expect(page.getByTestId('daily-closing-exec-button')).toBeEnabled()
     await expect(page.getByText('일마감 실행 권한이 없습니다')).toHaveCount(0)
@@ -167,6 +168,7 @@ test.describe('권한그룹 C5 후속 정리', () => {
 
   test('mock runtime: view-only daily closing permission keeps daily close button disabled', async ({ page }) => {
     const viewOnly = encodeURIComponent(mockPerms([
+      { pageCode: 'accounting.daily-closing', view: true, edit: false },
       { pageCode: 'accounting.daily-closing.run', view: true, edit: false },
     ]))
 
@@ -178,7 +180,7 @@ test.describe('권한그룹 C5 후속 정리', () => {
     await expect(page).toHaveURL(/#\/accounting\/daily-closing/)
     await expect(page.getByTestId('daily-closing-page')).toBeVisible({ timeout: 15000 })
     await expect(page.getByTestId('daily-closing-exec-button')).toBeDisabled()
-    await expect(page.getByText('일마감 실행 권한이 없습니다')).toBeVisible()
+    await expect(page.getByText(/마감 실행 권한이 없습니다/)).toBeVisible()
   })
 
   test('mock runtime: MASTER daily-closing.unlock UPDATE shows reverse action', async ({ page }) => {
@@ -189,6 +191,7 @@ test.describe('권한그룹 C5 후속 정리', () => {
 
     await expect(page).toHaveURL(/#\/accounting\/daily-closing/)
     await expect(page.getByTestId('daily-closing-page')).toBeVisible({ timeout: 15000 })
+    await page.getByTestId('daily-closing-tab-history').click()
     await expect(page.getByTestId(/^daily-closing-reverse-button-/)).toBeVisible({ timeout: 15000 })
   })
 })
