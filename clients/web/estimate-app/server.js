@@ -13,6 +13,12 @@
 const path = require('path');
 // 네이버 자격증명은 추적되지 않는 infrastructure/.env.local 또는 배포 환경변수에서만 읽는다.
 require('dotenv').config({ path: path.resolve(__dirname, '../../../infrastructure/.env.local') });
+const {
+  assertCanonicalNaverEnvironment,
+  assertEstimateServiceEnvironment,
+} = require('./lib/env-contract');
+assertCanonicalNaverEnvironment();
+assertEstimateServiceEnvironment();
 const express = require('express');
 const helmet = require('helmet');
 const code = require('./lib/code');
