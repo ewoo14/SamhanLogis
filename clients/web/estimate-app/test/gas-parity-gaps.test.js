@@ -9,8 +9,16 @@ const orderView = fs.readFileSync(
   path.join(__dirname, '..', '..', 'order-app', 'index.html'),
   'utf8',
 );
+const orderApi = fs.readFileSync(
+  path.join(__dirname, '..', '..', 'order-app', 'src', 'samhanApi.ts'),
+  'utf8',
+);
 const confirmService = fs.readFileSync(
   path.join(__dirname, '..', '..', '..', '..', 'services', 'partner-order-service', 'src', 'main', 'java', 'com', 'samhanair', 'logis', 'partnerorder', 'service', 'PartnerOrderConfirmService.java'),
+  'utf8',
+);
+const partnerOrderConfig = fs.readFileSync(
+  path.join(__dirname, '..', '..', '..', '..', 'services', 'partner-order-service', 'src', 'main', 'resources', 'application.yml'),
   'utf8',
 );
 
@@ -28,8 +36,9 @@ describe('GAS parity gaps', () => {
 
   test('주문 확정 후 GAS 메일의 수신자·내용·시점에 대응하는 알림 계약이 있다', () => {
     expect(orderView).toMatch(/sendOrderFromUi\(items, order\)/);
-    expect(orderView).toMatch(/주문.*확정|확정.*주문/);
+    expect(orderApi).toMatch(/sendOrderFromUi:[\s\S]*partner-orders\/drafts/);
+    expect(orderApi).toMatch(/partner-orders\/\$\{encodeURIComponent\(draftId\)}\/confirm/);
     expect(confirmService).toMatch(/sendExternalEmail/);
-    expect(confirmService).toMatch(/confirmation-email/);
+    expect(partnerOrderConfig).toMatch(/partner-order:[\s\S]*confirmation-email:/);
   });
 });

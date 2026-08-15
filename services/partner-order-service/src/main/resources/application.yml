@@ -2,11 +2,6 @@ server:
   # 운영자 환경변수 SERVER_PORT 로 영구 우회 가능 (외부 process 가 default port 점유 시).
   port: ${SERVER_PORT:${SAMHAN_PARTNER_ORDER_PORT:8088}}
 
-# GAS 주문 성공 메일 대응 — 비어 있으면 발송하지 않음. 운영 수신자를 명시적으로 주입한다.
-samhan:
-  partner-order:
-    confirmation-email: ${SAMHAN_PARTNER_ORDER_CONFIRMATION_EMAIL:}
-
 spring:
   application:
     name: partner-order-service
@@ -128,6 +123,8 @@ samhan:
     # 복구 불가 4xx(INVALID_INPUT·CONFLICT)를 영구 실패로 확정하기 전 최소 시도 횟수. 1=즉시 fail-fast.
     permanent-error-min-attempts: 2
   partner-order:
+    # GAS 주문 성공 메일 대응 — 비어 있으면 발송하지 않음. 운영 수신자를 명시적으로 주입한다.
+    confirmation-email: ${SAMHAN_PARTNER_ORDER_CONFIRMATION_EMAIL:}
     vendor:
       # PR-F2 + SP-04 재검증 — 종합견적서/주문서 Google Sheet 원본 tab modelCode → 단가 lookup.
       # `종합견적서` tab 자체는 출력 양식이므로 기본값은 range override 없이
