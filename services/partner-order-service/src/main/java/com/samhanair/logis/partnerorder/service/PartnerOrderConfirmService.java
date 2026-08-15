@@ -5,6 +5,7 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.partnerorder.client.DcConfigClient;
 import com.samhanair.logis.partnerorder.client.ProductClient;
 import com.samhanair.logis.partnerorder.client.ProductSummary;
+import com.samhanair.logis.partnerorder.client.NotificationClient;
 import com.samhanair.logis.partnerorder.domain.HistoryEventType;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderDraft;
@@ -28,6 +29,8 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -76,6 +79,13 @@ public class PartnerOrderConfirmService {
 
     private final PartnerOrderRevisionService revisionService;
     private final PartnerOrderBoardChangePublisher boardChangePublisher;
+
+    /** 빈 값이면 메일을 발송하지 않는다. 운영에서 명시적으로 설정해야 한다. */
+    @Value("${samhan.partner-order.confirmation-email:}")
+    private String confirmationEmail;
+
+    @Autowired(required = false)
+    private NotificationClient notificationClient;
 
     private final EntityManager entityManager;
 
@@ -178,6 +188,11 @@ public class PartnerOrderConfirmService {
         UUID actorId = parseActorId(actorUserId);
         revisionService.capture(order, PartnerOrderRevisionType.CREATE, null,
                 actorId, actorName, null);
+        if (notificationClient != null && confirmationEmail != null && !confirmationEmail.isBlank()) {
+            notificationClient.sendExternalEmail(confirmationEmail,
+                    "[주문 확정] " + orderNo,
+                    "주문서가 확정되었습니다. 주문번호: " + orderNo);
+        }
         publishListChanged();
 
         return ConfirmResponse.from(order);

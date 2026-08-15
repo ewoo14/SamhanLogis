@@ -14,6 +14,10 @@ import axios, { type AxiosRequestConfig } from 'axios'
 
 /** dev 환경 BASE URL (vite proxy / nginx) — `VITE_API_BASE_URL` 로 override. */
 const BASE_URL: string = import.meta.env.VITE_API_BASE_URL || '/api/v1'
+/** 서버 전용 네이버 자격증명을 보유한 estimate-app의 공개 주소. */
+const ESTIMATE_APP_URL: string = (
+  import.meta.env.VITE_ESTIMATE_APP_URL || 'https://quote.samhan-air.com'
+).replace(/\/+$/, '')
 
 /** 세션 토큰 저장소 (sessionStorage 키). */
 const TOKEN_KEY = 'samhan-partner-token'
@@ -270,6 +274,12 @@ function previewHeaders(order: unknown): { headers: { 'X-Partner-Code': string }
 }
 
 const RPC_MAP: Record<string, RpcHandler> = {
+  // 브라우저는 네이버를 직접 호출하지 않고 estimate-app 서버 프록시만 호출한다.
+  searchNaverAddress: ([query]) =>
+    axios
+      .post(`${ESTIMATE_APP_URL}/address-search`, { query }, { timeout: 15000 })
+      .then((r) => r.data),
+
   // ─── 인증 / 등록 / 잠금 (RPC §S 카테고리) ───────────────────────────────
   checkAuthStatus: ([bizNo]) =>
     http
@@ -509,5 +519,11 @@ export const samhanApi = {
    */
   fetchQuantitySyncRules(): Promise<unknown[]> {
     return fetchQuantitySyncRules()
+  },
+
+  fetchAddressSearchStatus(): Promise<{ enabled: boolean }> {
+    return axios
+      .get<{ enabled?: boolean }>(`${ESTIMATE_APP_URL}/address-search/status`, { timeout: 5000 })
+      .then((r) => ({ enabled: r.data?.enabled === true }))
   },
 }

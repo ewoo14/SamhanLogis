@@ -1,0 +1,4 @@
+[estimate-app] v2 listening on http://localhost:61574
+[estimate-app] SAMHAN_API_BASE_URL=http://127.0.0.1:8080
+[estimate-app] SLIP_SERVICE_URL=(default :8086)
+[AppsScript] [checkUserAuth] by-email 500 → 미승인 처리
