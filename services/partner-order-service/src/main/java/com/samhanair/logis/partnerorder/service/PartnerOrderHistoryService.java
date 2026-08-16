@@ -67,12 +67,13 @@ public class PartnerOrderHistoryService {
                         "본인 거래처 주문 이력만 조회할 수 있습니다.");
             }
             return orderRepository
-                    .findAllByPartnerCodeAndBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(
+                    .findAllHistoryIncludingDeletedByPartnerCodeAndBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(
                             partnerScope, bizCode, from, to, pageable)
                     .map(HistoryResponse::from);
         }
         return orderRepository
-                .findAllByBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(bizCode, from, to, pageable)
+                .findAllHistoryIncludingDeletedByBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(
+                        bizCode, from, to, pageable)
                 .map(HistoryResponse::from);
     }
 }

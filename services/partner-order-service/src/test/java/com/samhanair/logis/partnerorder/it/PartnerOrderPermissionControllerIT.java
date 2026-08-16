@@ -187,7 +187,7 @@ class PartnerOrderPermissionControllerIT {
                 false, null, null);
         HistoryResponse history = new HistoryResponse(
                 "PO-1", "SLIP-1", "CONFIRMED", "PUBLISHED", BigDecimal.valueOf(1000),
-                LocalDateTime.of(2026, 5, 26, 9, 0));
+                LocalDateTime.of(2026, 5, 26, 9, 0), false);
         lenient().when(editRequestService.request(any(), any(), anyString(), any(), anyString()))
                 .thenReturn(editRequest);
         lenient().when(editRequestService.request(any(), any(), anyString(), any(), anyString(), any()))

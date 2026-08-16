@@ -2439,15 +2439,17 @@ async function saveOrderToNotion(_info, _items, _slipNo) {
 
 /**
  * legacy getNotionHistory(startDate, endDate) (line 2308) — 출고 이력.
- * SamhanLogis: GET /api/v1/partner-orders?startDate=&endDate=
+ * SamhanLogis: 발송내역 전용 GET /api/v1/partner-orders/history. 삭제행을 포함하는
+ * 예외는 이 조회 경로에서만 사용한다.
  */
-async function getNotionHistory(startDate, endDate) {
-  const email = Session.getActiveUser().getEmail();
+async function getNotionHistory(startDate, endDate, _dateField, bizCode) {
+  const historyBizCode = String(bizCode || '').trim();
+  if (!historyBizCode) return [];
   const data = await _msGet(
-    `${BASE_URL}/api/v1/partner-orders`,
-    { startDate, endDate, userEmail: email },
+    `${BASE_URL}/api/v1/partner-orders/history`,
+    { bizCode: historyBizCode, from: `${startDate}T00:00:00`, to: `${endDate}T23:59:59` },
   );
-  return Array.isArray(data) ? data : data?.items || [];
+  return Array.isArray(data) ? data : data?.content || data?.items || [];
 }
 
 /* ════════════════════════════════════════════════════════════════════════

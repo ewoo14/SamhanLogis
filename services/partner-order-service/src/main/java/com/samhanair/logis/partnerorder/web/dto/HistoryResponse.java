@@ -13,7 +13,8 @@ public record HistoryResponse(
         String status,
         String slipPublishStatus,
         BigDecimal totalAmount,
-        LocalDateTime confirmedAt) {
+        LocalDateTime confirmedAt,
+        boolean isDeleted) {
 
     public static HistoryResponse from(PartnerOrder order) {
         return new HistoryResponse(
@@ -22,6 +23,7 @@ public record HistoryResponse(
                 order.getStatus().name(),
                 order.getSlipPublishStatus().name(),
                 order.getTotalAmount(),
-                order.getConfirmedAt());
+                order.getConfirmedAt(),
+                Boolean.TRUE.equals(order.getIsDeleted()));
     }
 }

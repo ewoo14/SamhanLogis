@@ -58,6 +58,34 @@ public interface PartnerOrderRepository extends JpaRepository<PartnerOrder, UUID
     Page<PartnerOrder> findAllByPartnerCodeAndBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(
             String partnerCode, String bizCode, LocalDateTime from, LocalDateTime to, Pageable pageable);
 
+    /**
+     * 발송내역 전용 조회 — soft-deleted 원본도 발송 기록 행으로 남긴다.
+     *
+     * <p>native query 로 {@code PartnerOrder.@SQLRestriction}을 우회한다. 이 메서드는 history
+     * 경로에서만 사용하며, 일반 주문 목록·집계에는 사용하지 않는다.
+     */
+    @Query(value = "SELECT * FROM partner_orders "
+            + "WHERE biz_code = :bizCode AND confirmed_at BETWEEN :from AND :to "
+            + "ORDER BY confirmed_at DESC",
+            countQuery = "SELECT COUNT(*) FROM partner_orders "
+                    + "WHERE biz_code = :bizCode AND confirmed_at BETWEEN :from AND :to",
+            nativeQuery = true)
+    Page<PartnerOrder> findAllHistoryIncludingDeletedByBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(
+            @Param("bizCode") String bizCode, @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to, Pageable pageable);
+
+    /** PARTNER 발송내역 전용 조회 — 거래처 범위와 삭제행 보존을 함께 적용한다. */
+    @Query(value = "SELECT * FROM partner_orders "
+            + "WHERE partner_code = :partnerCode AND biz_code = :bizCode "
+            + "AND confirmed_at BETWEEN :from AND :to ORDER BY confirmed_at DESC",
+            countQuery = "SELECT COUNT(*) FROM partner_orders "
+                    + "WHERE partner_code = :partnerCode AND biz_code = :bizCode "
+                    + "AND confirmed_at BETWEEN :from AND :to",
+            nativeQuery = true)
+    Page<PartnerOrder> findAllHistoryIncludingDeletedByPartnerCodeAndBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(
+            @Param("partnerCode") String partnerCode, @Param("bizCode") String bizCode,
+            @Param("from") LocalDateTime from, @Param("to") LocalDateTime to, Pageable pageable);
+
     /** PARTNER 가 다른 거래처 사업자번호로 history 조회를 시도했는지 식별한다. */
     boolean existsByBizCodeAndPartnerCodeNot(String bizCode, String partnerCode);
 
