@@ -36,8 +36,7 @@ public class PartnerOrderHistoryController {
     @Operation(summary = "거래처 주문 history",
             description = "bizCode + 날짜 범위 페이지. confirmedAt DESC")
     @GetMapping
-    @RequirePermission(page = "sales.partner-order.history", action = PermissionAction.VIEW,
-            partnerSelfService = true)
+    @RequirePermission(page = "sales.partner-order.history", action = PermissionAction.VIEW)
     public ApiResponse<Page<HistoryResponse>> history(
             @RequestParam String bizCode,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
