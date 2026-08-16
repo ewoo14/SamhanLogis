@@ -53,6 +53,10 @@ public class QaPartnerAuthSeeder implements CommandLineRunner {
             throw new IllegalStateException(
                     "QA_PARTNER_ORDER_PASSWORD 환경변수가 비어 있어 QA 거래처 계정을 만들 수 없습니다");
         }
+        if (!configuredPassword.matches("\\d{4}")) {
+            throw new IllegalStateException(
+                    "QA_PARTNER_ORDER_PASSWORD 환경변수는 숫자 4자리 PIN이어야 합니다");
+        }
         if (repository.existsByBizNo(QA_BIZ_NO)) {
             log.info("QA partner auth account already exists; leaving it unchanged");
             return;

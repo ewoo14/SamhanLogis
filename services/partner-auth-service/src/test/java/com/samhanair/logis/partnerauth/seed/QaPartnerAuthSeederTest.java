@@ -10,7 +10,6 @@ import static org.mockito.Mockito.when;
 import com.samhanair.logis.partnerauth.domain.PartnerAuth;
 import com.samhanair.logis.partnerauth.domain.PartnerStatus;
 import com.samhanair.logis.partnerauth.repository.PartnerAuthRepository;
-import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -43,10 +42,22 @@ class QaPartnerAuthSeederTest {
     }
 
     @Test
+    void non_pin_password_fails_before_writing() {
+        PartnerAuthRepository repository = Mockito.mock(PartnerAuthRepository.class);
+        PasswordEncoder encoder = Mockito.mock(PasswordEncoder.class);
+        QaPartnerAuthSeeder seeder = new QaPartnerAuthSeeder(repository, encoder, "not-a-pin");
+
+        assertThatThrownBy(seeder::seed)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("4자리 PIN");
+        verify(repository, never()).save(Mockito.any());
+    }
+
+    @Test
     void creates_login_ready_account_with_encoded_password() {
         PartnerAuthRepository repository = Mockito.mock(PartnerAuthRepository.class);
         PasswordEncoder encoder = Mockito.mock(PasswordEncoder.class);
-        String configuredPassword = UUID.randomUUID().toString();
+        String configuredPassword = "1234";
         when(repository.existsByBizNo(QaPartnerAuthSeeder.QA_BIZ_NO)).thenReturn(false);
         when(encoder.encode(configuredPassword)).thenReturn("encoded-value");
         QaPartnerAuthSeeder seeder = new QaPartnerAuthSeeder(repository, encoder, configuredPassword);
@@ -67,7 +78,7 @@ class QaPartnerAuthSeederTest {
         PartnerAuthRepository repository = Mockito.mock(PartnerAuthRepository.class);
         PasswordEncoder encoder = Mockito.mock(PasswordEncoder.class);
         when(repository.existsByBizNo(QaPartnerAuthSeeder.QA_BIZ_NO)).thenReturn(true);
-        QaPartnerAuthSeeder seeder = new QaPartnerAuthSeeder(repository, encoder, UUID.randomUUID().toString());
+        QaPartnerAuthSeeder seeder = new QaPartnerAuthSeeder(repository, encoder, "1234");
 
         seeder.seed();
 

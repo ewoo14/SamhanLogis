@@ -48,6 +48,9 @@ samhan:
     url: ${SAMHAN_AUTH_SERVICE_URL:http://localhost:8081}
 
 app:
+  qa:
+    partner:
+      seed: ${SAMHAN_QA_PARTNER_SEED:false}
   security:
     internal:
       # Phase 8 2차 — SAMHAN_INTERNAL_TOKEN 우선, INTERNAL_AUTH_TOKEN legacy fallback (Phase 10 cutover 시점 단일화)
