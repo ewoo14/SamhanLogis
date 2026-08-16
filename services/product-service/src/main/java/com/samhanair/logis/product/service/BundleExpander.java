@@ -115,13 +115,13 @@ public class BundleExpander {
             String name = cp != null ? cp.getName() : c.getComponentProductCode();
             String modelName = cp != null ? cp.getModelName() : null;
             java.util.UUID pid = cp != null ? cp.getId() : null;
-            BigDecimal price = relationPrice(c, cp, parent.getProductCategory());
+            BigDecimal price = cp != null ? nz(cp.getDeliveryPrice()) : BigDecimal.ZERO;
             BigDecimal qty = c.getQtyMode() == BundleComponent.QtyMode.FOLLOW_SET
                     ? setQty.multiply(c.getDefaultQty())
                     : c.getDefaultQty();
             parts.add(new Part(c.getComponentProductCode(), pid, name, modelName, c.getComponentKind(),
                     c.getComponentVariant(), Boolean.TRUE.equals(c.getIsDefault()), price, qty,
-                    c.getContextDeliveryPrice(),
+                    c.getAllocationMode(), c.getAllocationWeight(), c.getFixedAllocationAmount(),
                     specOf(c.getSpecText()), cp != null ? cp.getPanelType() : null,
                     cp != null ? cp.getRemoteType() : null));
         }
@@ -130,8 +130,10 @@ public class BundleExpander {
         // explodeCommSets_ 처럼 필터/재배분 없이 전 구성품 개별 단가 유지.
         boolean isSingleSet = parent.getProductCategory() == ProductCategory.SINGLE_SET;
         List<Part> picked = isSingleSet ? pickedFilter(parts, opts) : parts;
-        if (isSingleSet && !hasCompleteContextDeliveryPrices(picked)) {
-            redistribute(picked, parent, setUnit, opts.setUnitOverride() != null);
+        if (isSingleSet && hasAllocationContract(picked)) {
+            redistributeFromContract(picked, parent, setUnit, opts.setUnitOverride() != null);
+        } else if (isSingleSet) {
+            redistributeLegacy(picked, parent, setUnit, opts.setUnitOverride() != null);
         }
 
         List<ExpandedLine> result = new ArrayList<>(picked.size());
@@ -141,22 +143,6 @@ public class BundleExpander {
                     p.specification));
         }
         return result;
-    }
-
-    /** 세트 관계 단가 우선, 미입력 행만 전역 제품 납품가로 fallback한다. */
-    private BigDecimal relationPrice(BundleComponent component, Product product, ProductCategory parentCategory) {
-        if (parentCategory == ProductCategory.COMMERCIAL_MULTI
-                && component.getContextReleasePrice() != null) {
-            return component.getContextReleasePrice();
-        }
-        if (component.getContextDeliveryPrice() != null) {
-            return component.getContextDeliveryPrice();
-        }
-        return product != null ? nz(product.getDeliveryPrice()) : BigDecimal.ZERO;
-    }
-
-    private boolean hasCompleteContextDeliveryPrices(List<Part> parts) {
-        return !parts.isEmpty() && parts.stream().allMatch(p -> p.contextDeliveryPrice != null);
     }
 
     // ── 옵션 선별(picked) — legacy explodeSetParts 4684~4720 ─────────────────────
@@ -317,7 +303,7 @@ public class BundleExpander {
     }
 
     // ── 싱글세트 재배분 — legacy explodeSetParts 후반부 + splitIndoorOutdoorToK ──────
-    private void redistribute(List<Part> picked, Product parent, BigDecimal setUnit, boolean explicitUnitOverride) {
+    private void redistributeLegacy(List<Part> picked, Product parent, BigDecimal setUnit, boolean explicitUnitOverride) {
         boolean household = isHousehold(parent.getName(), parent.getModelCode(), parent.getSpecText());
 
         List<Part> indoor = new ArrayList<>();
@@ -355,6 +341,68 @@ public class BundleExpander {
 
         assignGroup(indoor, split.indoor);
         assignGroup(outdoor, split.outdoor);
+    }
+
+    private boolean hasAllocationContract(List<Part> parts) {
+        return parts.stream().anyMatch(p -> p.allocationMode == BundleComponent.AllocationMode.AUTO
+                || p.fixedAllocationAmount != null);
+    }
+
+    private void redistributeFromContract(List<Part> picked, Product parent, BigDecimal setUnit,
+                                          boolean explicitUnitOverride) {
+        List<Part> indoor = picked.stream().filter(p -> p.kind == BundleComponent.ComponentKind.INDOOR
+                && p.allocationMode == BundleComponent.AllocationMode.AUTO).toList();
+        List<Part> outdoor = picked.stream().filter(p -> p.kind == BundleComponent.ComponentKind.OUTDOOR
+                && p.allocationMode == BundleComponent.AllocationMode.AUTO).toList();
+        List<Part> fixed = picked.stream().filter(this::isFixedAllocationPart).toList();
+        List<Part> reserved = picked.stream().filter(p -> !indoor.contains(p) && !outdoor.contains(p)).toList();
+        if (indoor.isEmpty() || outdoor.isEmpty()) {
+            if (!explicitUnitOverride) return;
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "싱글세트 구성품에 실내/실외 본체가 모두 필요합니다: " + parent.getModelCode());
+        }
+        BigDecimal fixedSum = reserved.stream().map(p -> p.fixedAllocationAmount != null
+                ? p.fixedAllocationAmount : p.price).map(BundleExpander::round).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal remain = round(setUnit).subtract(fixedSum).max(BigDecimal.ZERO);
+        int inWeight = indoor.stream().mapToInt(p -> p.allocationWeight == null ? 0 : p.allocationWeight).sum();
+        int outWeight = outdoor.stream().mapToInt(p -> p.allocationWeight == null ? 0 : p.allocationWeight).sum();
+        if (inWeight + outWeight <= 0) {
+            redistributeLegacy(picked, parent, setUnit, explicitUnitOverride);
+            return;
+        }
+        BigDecimal roundUnit = nz(parent.getAllocationRoundUnit());
+        BigDecimal indoorTotal = roundToUnit(remain.multiply(BigDecimal.valueOf(inWeight))
+                .divide(BigDecimal.valueOf(inWeight + outWeight), 2, RoundingMode.HALF_UP), roundUnit);
+        assignWeighted(indoor, indoorTotal, roundUnit);
+        assignWeighted(outdoor, remain.subtract(indoor.stream().map(p -> p.price)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)), roundUnit);
+        for (Part p : reserved) p.price = p.fixedAllocationAmount != null ? p.fixedAllocationAmount : p.price;
+    }
+
+    private boolean isFixedAllocationPart(Part p) {
+        return p.allocationMode == BundleComponent.AllocationMode.FIXED
+                && (p.kind == BundleComponent.ComponentKind.PANEL
+                || p.kind == BundleComponent.ComponentKind.REMOTE
+                || p.kind == BundleComponent.ComponentKind.MATERIAL);
+    }
+
+    private void assignWeighted(List<Part> group, BigDecimal total, BigDecimal roundUnit) {
+        if (group.size() == 1) { group.get(0).price = total; return; }
+        BigDecimal weightSum = group.stream().map(p -> BigDecimal.valueOf(p.allocationWeight == null ? 0 : p.allocationWeight))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal acc = BigDecimal.ZERO;
+        for (int i = 0; i < group.size(); i++) {
+            Part p = group.get(i);
+            p.price = i == group.size() - 1 ? total.subtract(acc)
+                    : roundToUnit(total.multiply(BigDecimal.valueOf(p.allocationWeight == null ? 0 : p.allocationWeight))
+                    .divide(weightSum, 2, RoundingMode.HALF_UP), roundUnit);
+            if (i < group.size() - 1) acc = acc.add(p.price);
+        }
+    }
+
+    private BigDecimal roundToUnit(BigDecimal value, BigDecimal unit) {
+        if (unit.signum() <= 0) return value;
+        return value.divide(unit, 0, RoundingMode.HALF_UP).multiply(unit);
     }
 
     /** 그룹 가격 배분 — 1개면 통째, 다수면 기존단가 비례 + 마지막 잔차 흡수(천원 반올림). */
@@ -552,14 +600,17 @@ public class BundleExpander {
         final boolean isDefault;
         BigDecimal price;
         final BigDecimal qty;
-        final BigDecimal contextDeliveryPrice;
+        final BundleComponent.AllocationMode allocationMode;
+        final Integer allocationWeight;
+        final BigDecimal fixedAllocationAmount;
         final String specification;
         final String panelType;
         final String remoteType;
 
         Part(String modelCode, java.util.UUID productId, String name, String modelName,
              BundleComponent.ComponentKind kind, String variant,
-             boolean isDefault, BigDecimal price, BigDecimal qty, BigDecimal contextDeliveryPrice,
+             boolean isDefault, BigDecimal price, BigDecimal qty, BundleComponent.AllocationMode allocationMode,
+             Integer allocationWeight, BigDecimal fixedAllocationAmount,
              String specification,
              String panelType, String remoteType) {
             this.modelCode = modelCode;
@@ -571,7 +622,9 @@ public class BundleExpander {
             this.isDefault = isDefault;
             this.price = price == null ? BigDecimal.ZERO : price;
             this.qty = qty;
-            this.contextDeliveryPrice = contextDeliveryPrice;
+            this.allocationMode = allocationMode;
+            this.allocationWeight = allocationWeight;
+            this.fixedAllocationAmount = fixedAllocationAmount;
             this.specification = specification;
             this.panelType = panelType;
             this.remoteType = remoteType;

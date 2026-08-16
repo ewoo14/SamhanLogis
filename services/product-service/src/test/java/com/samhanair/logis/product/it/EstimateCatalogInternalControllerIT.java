@@ -184,7 +184,6 @@ class EstimateCatalogInternalControllerIT extends AbstractPostgresIT {
         BundleComponent relation = BundleComponent.seed(parent.getId(), "IT_SINGLE_PRICE_IDU",
                 BigDecimal.ONE, BundleComponent.QtyMode.FOLLOW_SET,
                 BundleComponent.ComponentKind.INDOOR, null, true, null);
-        relation.changeContextPrices(new BigDecimal("606000"), new BigDecimal("606000"));
         bundleComponentRepository.save(relation);
         Product fallbackComponent = seedComponentProduct("IT_SINGLE_PRICE_FALLBACK", "전역 fallback 실외기",
                 ProductCategory.SINGLE_PART, EstimateCategory.SINGLE_SET);

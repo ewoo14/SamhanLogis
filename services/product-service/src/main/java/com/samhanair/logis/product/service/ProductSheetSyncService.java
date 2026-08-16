@@ -420,11 +420,6 @@ public class ProductSheetSyncService {
                 // 상업 구성품 동일 pair × 2는 한 세트에 2대 구성품이라는 계약이다.
                 qm = new QtyAndMode(BigDecimal.valueOf(pairOccurrences), BundleComponent.QtyMode.FOLLOW_SET);
             }
-            // 구성품 탭은 싱글(출고가 5/납품가 7), 상업(출고가 3/납품가 5)의
-            // 시트 원단가를 부모-자식 관계에 격리 저장한다.
-            BigDecimal contextReleasePrice = parseNullableDecimal(safeGet(cells, mapping.hasQtyColumn ? 3 : 5));
-            BigDecimal contextDeliveryPrice = parseNullableDecimal(safeGet(cells, mapping.hasQtyColumn ? 5 : 7));
-
             // ① 부모 BUNDLE 마킹(중복 회피).
             // ② 자식 parentBundleSetModel.
             // ③ BundleComponent upsert(부모,자식코드 natural key).
@@ -478,11 +473,9 @@ public class ProductSheetSyncService {
             if (match == null) {
                 BundleComponent created = BundleComponent.seed(parent.getId(), childModel,
                         qm.qty, qm.mode, kind, blankToNull(variant), isDefault, blankToNull(spec));
-                created.changeContextPrices(contextReleasePrice, contextDeliveryPrice);
                 bundleComponentRepository.save(created);
             } else {
                 match.changeAttributes(qm.qty, qm.mode, kind, blankToNull(variant), isDefault, blankToNull(spec));
-                match.changeContextPrices(contextReleasePrice, contextDeliveryPrice);
                 bundleComponentRepository.save(match);
             }
             result.linkedOccurrences++;
