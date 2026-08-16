@@ -1092,6 +1092,7 @@ export function SalesPartnerOrderDetailPage() {
                   { label: '현장', value: query.data.siteAddress },
                   { label: '연락처', value: query.data.contactPhone },
                   { label: '납기', value: query.data.dueDate },
+                  { label: '입금예정일', value: query.data.paymentDueDate },
                   { label: '요청사항', value: query.data.memo },
                 ].map(({ label, value }) => {
                   const displayValue = emptyLabel(value)
@@ -1191,6 +1192,9 @@ export function SalesPartnerOrderDetailPage() {
                 </DetailGridField>
                 <DetailGridField label="납기" value={query.data!.dueDate}>
                   {emptyLabel(query.data!.dueDate)}
+                </DetailGridField>
+                <DetailGridField label="입금예정일" value={query.data!.paymentDueDate}>
+                  {emptyLabel(query.data!.paymentDueDate)}
                 </DetailGridField>
                 <DetailGridField label="요청사항" value={query.data!.memo}>
                   {emptyLabel(query.data!.memo)}

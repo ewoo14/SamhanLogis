@@ -35,6 +35,7 @@ public record PartnerOrderDetailResponse(
         String siteAddress,
         String contactPhone,
         String dueDate,
+        String paymentDueDate,
         String memo,
         List<LineResponse> lines,
         boolean isDeleted,
@@ -63,7 +64,7 @@ public record PartnerOrderDetailResponse(
                 response.submittedAt(), response.status(), response.slipPublishStatus(),
                 response.totalAmount(), response.linkedSlipNo(), response.updatedAt(),
                 response.deliveryAddress(), response.siteAddress(), response.contactPhone(),
-                response.dueDate(), response.memo(), response.lines(), response.isDeleted(),
+                response.dueDate(), response.paymentDueDate(), response.memo(), response.lines(), response.isDeleted(),
                 response.deletedAt(), response.deletedByName());
     }
 
@@ -98,6 +99,7 @@ public record PartnerOrderDetailResponse(
                 order.getAuditAddress(),
                 order.getContactPhone(),
                 order.getDueDate() == null ? null : order.getDueDate().toString(),
+                order.getPaymentDueDate() == null ? null : order.getPaymentDueDate().toString(),
                 order.getMemo(),
                 order.getLines().stream()
                         .map(line -> LineResponse.from(

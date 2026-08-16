@@ -3349,7 +3349,7 @@ function calcSetUnitPrice(s){
 function partsForSetStrict_(s){return SINGLE_PARTS.filter(p=>(p?.setModel||'')===(s?.model||''));}
 const isRemote=p=>/리모컨/.test(p?.kind||'')||/리모컨/.test(p?.name||'');
 const isPanel=p=>/(판넬|패널)/.test(p?.kind||'')||/(판넬|패널)/.test(p?.name||'');
-const isHideMat=p=>/유연호스\s*I형|운임|절삭/i.test(((p?.kind)||'')+' '+((p?.name)||''));const isFoot=p=>/발통/.test(p?.name||'')||/SI-AL700a/i.test(p?.model||'')||(FOOT_ROUND&&p?.model===FOOT_ROUND);
+const isHideMat=p=>/유연호스\s*I형/i.test(((p?.kind)||'')+' '+((p?.name)||''));const isFoot=p=>/발통/.test(p?.name||'')||/SI-AL700a/i.test(p?.model||'')||(FOOT_ROUND&&p?.model===FOOT_ROUND);
 const isMaterial=p=>/자재/.test(p?.feat||'');
 
 function explodeSetParts(s, qty, setUnitOverride){
@@ -3610,7 +3610,6 @@ function updateHomeFilterOptions(){
   const text = (HOME_FILTER.text||'').trim();
 
   let rows = HOMEMULTI.filter(r=>{
-    if(/운임|절삭/i.test(r?.name||'')) return false;
     return true;
   }).map(r=>{
     const c = normalizeHomeCategory(r);
@@ -3671,7 +3670,6 @@ function updateSingleFilterOptions(){
   const text = (SINGLE_FILTER.text||'').trim();
 
   let rows = SINGLE_SETS.filter(s=>{
-    if(/운임|절삭/i.test(s?.name||'')) return false;
     const cls = classifySingleSetFixed(s);
     const size = (s?.sizeText && String(s.sizeText).trim()) || (s?.size||'');
     if(cls.catL==='냉난방 스탠드' && cls.catM==='프레스티지' && String(size).replace(/[^\d]/g,'')==='13') return false;
@@ -3880,7 +3878,6 @@ function renderHome(){
   const body=el('#homeBody');body.innerHTML='';
 
   let rows=HOMEMULTI.filter(r=>{
-    if(/운임|절삭/i.test(r?.name||'')) return false;
     return true;
   }).map((r,idx)=>{
     const {catL,catM,catS}=normalizeHomeCategory(r);
@@ -4060,7 +4057,6 @@ function renderSingle(){
   const body=el('#singleBody');body.innerHTML='';
 
   let rows=SINGLE_SETS.filter(s=>{
-    if(/운임|절삭/i.test(s?.name||'')) return false;
     const cls=classifySingleSetFixed(s);
     const size=(s?.sizeText&&String(s.sizeText).trim())||(s?.size||'');
     if(cls.catL==='냉난방 스탠드'&&cls.catM==='프레스티지'&&String(size).replace(/[^\d]/g,'')==='13') return false;
@@ -4433,7 +4429,6 @@ function renderComm(){
     const nm = r?.name || '';
     const dp = r?.disp || '';
     const txt = `${nm} ${dp}`;
-    if (/운임|절삭/i.test(nm)) return false;
     if (/(GHP|프레스티지|동시냉난방|공장전원)/i.test(txt) && ![...KIT_WHITELIST].some(w=>txt.includes(w))) return false;
     return true;
   }).map((r, idx) => {
@@ -4837,9 +4832,8 @@ function renderOld(){
   body.innerHTML = '';
   
   OLD_PRODUCTS.forEach((item, idx) => {
-    // 헤더 및 운임/절삭 제외
+    // 헤더 제외
     if(item.name === '품 명' || item.name === '품명' || item.model === '모델명') return;
-    if(/운임|절삭/.test(item.name)) return;
 
     const q = oldQty.get(item.model) || 0;
     
@@ -4911,7 +4905,7 @@ function renderOld(){
 /* 구형 합계 계산 */
 function sumOld(){
   return OLD_PRODUCTS.reduce((acc, item) => {
-    if(/운임|절삭/.test(item.name) || item.name==='품 명') return acc;
+    if(item.name==='품 명') return acc;
 
     const q = oldQty.get(item.model)||0;
     
@@ -5166,7 +5160,6 @@ function renderSingleOptions(){
   box.querySelectorAll('input,select').forEach(c=>c.addEventListener('change',()=>{
     clearManualQtyLocks('single');
     SINGLE_SETS.forEach(s=>{
-      if(/운임|절삭/i.test(s?.name||'')) return;
       const unit=calcSetUnitPrice(s);const q=singleQty.get(s.id)||0;
       const uCell=document.querySelector(`#singleBody [data-ssu="${s.id}"]`);
       const sCell=document.querySelector(`#singleBody [data-ss="${s.id}"]`);
@@ -5194,7 +5187,6 @@ function recomputeSingleBaseFoot(){
     const skip=new Set([SS_FOOT_ROUND_ID,SS_FOOT_FLAT_ID].filter(Boolean));
     SINGLE_SETS.forEach(s=>{
       if(skip.has(s.id)) return;
-      if(/운임|절삭/i.test(s?.name||'')) return;
       const q=singleQty.get(s.id)||0;if(!q) return;
       const mdl=String(s?.model||'');
       if(/^(AP230DAPDHH1S|AP290DAPDHH1S)$/i.test(mdl)) flat+=q; else round+=q;
@@ -5209,7 +5201,6 @@ function recomputeSingleExtras(){
   const remoteExcluded=!!el('#ss_remote_ex')?.checked;const remoteOpt=el('#ss_remote')?.value||'';
   if(!remoteExcluded&&(remoteOpt==='유선리모컨'||remoteOpt==='컬러유선리모컨')){
     SINGLE_SETS.forEach(s=>{
-      if(/운임|절삭/i.test(s?.name||'')) return;
       if(!is1WaySet_(s)) return;
       if(!allowRemoteChange_(s)) return;
       boardQty+=(singleQty.get(s.id)||0);
@@ -5219,7 +5210,6 @@ function recomputeSingleExtras(){
   let pumpQty=0;
   SINGLE_SETS.forEach(s=>{
     if(s.id===SS_CEILING_PUMP_ID) return;
-    if(/운임|절삭/i.test(s?.name||'')) return;
     if(/실링/i.test(((s?.name)||'')+' '+((s?.model)||''))){pumpQty+=(singleQty.get(s.id)||0);}
   });
   setSingleDerivedQty_(SS_CEILING_PUMP_ID, 'ADP-F075SP', pumpQty, '실링용 드레인펌프 파생');
@@ -6214,7 +6204,7 @@ function openPreview(){
   });
 
   OLD_PRODUCTS.forEach(item => {
-    if(item.name === '품 명' || /운임|절삭/.test(item.name)) return;
+    if(item.name === '품 명') return;
 
     const q = oldQty.get(item.model) || 0;
     if(!q) return;
@@ -6725,7 +6715,7 @@ function buildSendRows(){
 
   // 구형
   OLD_PRODUCTS.forEach(item => {
-    if(item.name === '품 명' || /운임|절삭/.test(item.name)) return;
+    if(item.name === '품 명') return;
 
     const q = oldQty.get(item.model) || 0;
     if(!q) return;

@@ -147,9 +147,13 @@ public class PartnerOrderConfirmService {
         PartnerOrderPriceCalculationService.Calculation calculation =
                 effectivePriceCalculationService().calculate(partnerCode, request);
         List<ConfirmLineRequest> reqLines = request.lines();
-        if (!calculation.available() || calculation.lines().size() != reqLines.size()
-                || calculation.lines().stream().anyMatch(line -> line.finalPrice() == null
-                        || line.finalPrice().signum() <= 0)) {
+        boolean invalidCalculation = calculation.lines().size() != reqLines.size();
+        for (int i = 0; !invalidCalculation && i < calculation.lines().size(); i++) {
+            BigDecimal calculatedPrice = calculation.lines().get(i).finalPrice();
+            invalidCalculation = calculatedPrice == null || calculatedPrice.signum() == 0
+                    || (calculatedPrice.signum() < 0 && !isLegacyAdjustmentLine(legacySnapshot, i));
+        }
+        if (!calculation.available() || invalidCalculation) {
             throw new BusinessException(ErrorCode.PRICE_CALCULATION_UNAVAILABLE,
                     ErrorCode.PRICE_CALCULATION_UNAVAILABLE.getDefaultMessage());
         }
@@ -175,10 +179,12 @@ public class PartnerOrderConfirmService {
             ProductSummary p = calculatedLine.product();
             BigDecimal priceVat = calculatedLine.finalPrice();
             BigDecimal legacyPrice = legacyUnitPrice(legacySnapshot, i);
-            if (legacyPrice != null && legacyPrice.signum() > 0) {
+            if (legacyPrice != null && (legacyPrice.signum() > 0
+                    || isLegacyAdjustmentLine(legacySnapshot, i))) {
                 priceVat = legacyPrice;
             }
-            if (priceVat == null || priceVat.signum() <= 0) {
+            if (priceVat == null || priceVat.signum() == 0
+                    || (priceVat.signum() < 0 && !isLegacyAdjustmentLine(legacySnapshot, i))) {
                 throw new BusinessException(ErrorCode.INTERNAL_ERROR,
                         "확정 최종 단가가 0원입니다: " + modelCodeSnapshot(p));
             }
@@ -320,6 +326,21 @@ public class PartnerOrderConfirmService {
         JsonNode price = root.get("items").get(index).get("price");
         if (price == null || !price.isNumber()) return null;
         return price.decimalValue();
+    }
+
+    /**
+     * 레거시가 음수로 허용하는 조정행(운임/절삭)인지 판별한다. 일반 품목의 음수 단가는
+     * 확정하지 않는다. 레거시 {@code Code.js:2122-2128}는 이 행들의 음수 부호를 total/supply/vat에
+     * 그대로 보존하므로, 이 좁은 범위만 확정 경로에 연결한다.
+     */
+    private boolean isLegacyAdjustmentLine(JsonNode root, int index) {
+        if (root == null || !root.has("items") || !root.get("items").isArray()
+                || index < 0 || index >= root.get("items").size()) {
+            return false;
+        }
+        JsonNode item = root.get("items").get(index);
+        String name = text(item, "name", "");
+        return name.contains("운임") || name.contains("절삭");
     }
 
     private String modelCodeSnapshot(ProductSummary product) {

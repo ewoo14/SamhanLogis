@@ -154,9 +154,10 @@ function makeOrder(overrides: Partial<PartnerOrderDetail> = {}): PartnerOrderDet
     updatedAt: '2099-07-01T00:00:00',
     deliveryAddress: null,
     siteAddress: null,
-    contactPhone: null,
-    dueDate: '2099-07-10',
-    memo: '초기 요청',
+      contactPhone: null,
+      dueDate: '2099-07-10',
+      paymentDueDate: '2099-07-15',
+      memo: '초기 요청',
     lines: [
       {
         productId: 'product-1',
@@ -262,6 +263,7 @@ describe('SalesPartnerOrderDetailPage 출고전표 전환 오류 안내', () => 
       siteAddress: '현장 A',
       contactPhone: '010-1234-5678',
       dueDate: '2099-07-10',
+      paymentDueDate: '2099-07-15',
       memo: '상세 요청사항',
     }))
 
@@ -269,7 +271,7 @@ describe('SalesPartnerOrderDetailPage 출고전표 전환 오류 안내', () => 
 
     const detail = await screen.findByTestId('partner-order-detail-read-only')
     const text = detail.textContent ?? ''
-    for (const value of ['PT-DETAIL', '2026/05/31-1', '서울시 강남구', '현장 A', '010-1234-5678', '2099-07-10', '상세 요청사항']) {
+    for (const value of ['PT-DETAIL', '2026/05/31-1', '서울시 강남구', '현장 A', '010-1234-5678', '2099-07-10', '2099-07-15', '상세 요청사항']) {
       expect(text).toContain(value)
     }
     for (const heading of ['선택', '품목명', '모델명', '수량', '납품가', '소계', '전환됨', '잔여', '묶음 처리', '구성품 펼침']) {

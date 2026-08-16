@@ -16,6 +16,7 @@ import com.samhanair.logis.partnerorder.client.DcConfigClient;
 import com.samhanair.logis.partnerorder.client.ProductClient;
 import com.samhanair.logis.partnerorder.client.ProductSummary;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
+import com.samhanair.logis.partnerorder.domain.PartnerOrderDraft;
 import com.samhanair.logis.partnerorder.realtime.PartnerOrderBoardChangePublisher;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderDraftRepository;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderHistoryRepository;
@@ -255,6 +256,52 @@ class PartnerOrderConfirmServiceTest {
         verify(orderRepository).save(saved.capture());
         assertThat(saved.getValue().getLines()).singleElement()
                 .satisfies(line -> assertThat(line.getPriceVat()).isEqualByComparingTo("600000"));
+    }
+
+    @Test
+    void confirm_keepsLegacyNegativeCutPrice_andPersistsNegativeFinalAmount() throws Exception {
+        UUID productId = UUID.fromString("22222222-2222-2222-2222-222222222222");
+        UUID partnerId = UUID.fromString("33333333-3333-3333-3333-333333333333");
+        UUID draftId = UUID.fromString("44444444-4444-4444-4444-444444444444");
+        ProductSummary product = new ProductSummary(
+                productId, "절삭", "CUT-1", null, new BigDecimal("1000"), "ACTIVE",
+                "CUT-1", null, null, null, null, new BigDecimal("1000"),
+                new BigDecimal("1000"), true);
+        PartnerOrderDraft draft = PartnerOrderDraft.create(
+                "P-CUT", 1L, "주문서 확정 임시저장",
+                "{\"items\":[{\"name\":\"절삭\",\"price\":-800000}],\"order\":{}}", null);
+        ReflectionTestUtils.setField(draft, "id", draftId);
+        when(draftRepository.findById(draftId)).thenReturn(Optional.of(draft));
+        when(orderRepository.findByIdempotencyKey("PO-CONF-P-CUT-1")).thenReturn(Optional.empty());
+        when(partnerIdentityResolver.requirePartnerId("P-CUT", "B1")).thenReturn(partnerId);
+        when(productClient.lookupByModelCodes(List.of("CUT-1"))).thenReturn(List.of(product));
+        when(productClient.lookupFixedDiscountRates(List.of(productId))).thenReturn(Map.of());
+        when(dcConfigClient.calculateDetailed(eq("P-CUT"), anyList()))
+                .thenReturn(new DcConfigClient.CalculationResult(
+                        Map.of("0", new DcConfigClient.CalculatedLine(new BigDecimal("1000"), BigDecimal.ZERO)), true));
+        when(entityManager.createNativeQuery("SELECT pg_advisory_xact_lock(CAST(hashtext(?1) AS bigint))"))
+                .thenReturn(advisoryLockQuery);
+        when(advisoryLockQuery.setParameter(anyInt(), anyString())).thenReturn(advisoryLockQuery);
+        when(advisoryLockQuery.getSingleResult()).thenReturn(null);
+        when(orderRepository.findAllByOrderNoStartingWith(any(String.class))).thenReturn(List.of());
+        when(orderRepository.save(any(PartnerOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.confirm("P-CUT", "B1", "user", "사용자", draftId,
+                new com.samhanair.logis.partnerorder.web.dto.ConfirmRequest(List.of(
+                        new com.samhanair.logis.partnerorder.web.dto.ConfirmLineRequest(
+                                null, "CUT-1", "oldProducts", 1, null)), "주소"));
+
+        ArgumentCaptor<PartnerOrder> saved = ArgumentCaptor.forClass(PartnerOrder.class);
+        verify(orderRepository).save(saved.capture());
+        // tools/legacy-gas/거래처 발송 주문서/Code.js:2122-2128 — 음수 price도 제외하지 않고
+        // total/supply/vat에 음수 부호를 보존한다. -800000 × 1의 확정 라인 합계는 -800000이다.
+        assertThat(saved.getValue().getLines()).singleElement()
+                .satisfies(line -> {
+                    assertThat(line.getPriceVat()).isEqualByComparingTo("-800000");
+                    assertThat(line.getSupplyAmount()).isEqualByComparingTo("-727273");
+                    assertThat(line.getVatAmount()).isEqualByComparingTo("-72727");
+                    assertThat(line.getLineTotal()).isEqualByComparingTo("-800000");
+                });
     }
 
     private static PartnerOrder order(String orderNo) {
