@@ -40,6 +40,7 @@ class JwtAuthenticationGatewayFilterFactoryTest {
 
     // 32+ byte HS256 secret so JJWT key generation is happy.
     private static final String SECRET = "test-secret-key-test-secret-key-test!";
+    private static final String AROLOGIS_SECRET = "arologis-secret-key-arologis-secret-key!";
 
     private JwtAuthenticationGatewayFilterFactory factory;
     private JwtProperties props;
@@ -184,6 +185,32 @@ class JwtAuthenticationGatewayFilterFactoryTest {
         assertThat(captured[0].getHeaders().getFirst(HttpHeaderConstants.AROLOGIS_ROLE_HEADER))
                 .isEqualTo("AROLOGIS_MANAGER");
         assertThat(captured[0].getHeaders().getFirst(HttpHeaderConstants.CALLER_ROLE_HEADER)).isNull();
+    }
+
+    @Test
+    @DisplayName("menu-catalog route accepts an Arologis JWT signed with its dedicated environment secret")
+    void arologisRoute_usesDedicatedSecretForMenuCatalog() {
+        String token = Jwts.builder().subject("arologis-user")
+                .claim("role", "AROLOGIS_MASTER")
+                .issuedAt(Date.from(Instant.now()))
+                .expiration(Date.from(Instant.now().plusSeconds(3600)))
+                .signWith(Keys.hmacShaKeyFor(AROLOGIS_SECRET.getBytes()), Jwts.SIG.HS256).compact();
+        JwtAuthenticationGatewayFilterFactory.Config config =
+                new JwtAuthenticationGatewayFilterFactory.Config();
+        config.setSecret(AROLOGIS_SECRET);
+        GatewayFilter filter = factory.apply(config);
+        MockServerHttpRequest request = MockServerHttpRequest.get("/auth/admin/menu-catalog")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token).build();
+        MockServerWebExchange exchange = MockServerWebExchange.from(request);
+        ServerHttpRequest[] captured = new ServerHttpRequest[1];
+        GatewayFilterChain chain = e -> { captured[0] = e.getRequest(); return Mono.empty(); };
+
+        StepVerifier.create(filter.filter(exchange, chain)).verifyComplete();
+
+        assertThat(exchange.getResponse().getStatusCode()).isNull();
+        assertThat(captured[0]).isNotNull();
+        assertThat(captured[0].getHeaders().getFirst(HttpHeaderConstants.AROLOGIS_ROLE_HEADER))
+                .isEqualTo("AROLOGIS_MASTER");
     }
 
     @Test

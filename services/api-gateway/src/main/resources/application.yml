@@ -226,6 +226,15 @@ spring:
           filters:
             - JwtAuthentication
 
+        - id: auth-service-menu-catalog-arologis
+          uri: lb://auth-service
+          predicates:
+            - Path=/auth/admin/menu-catalog
+          filters:
+            - name: JwtAuthentication
+              args:
+                secret: ${SAMHAN_AROLOGIS_JWT_SECRET:}
+
         - id: auth-service-admin-authenticated
           uri: lb://auth-service
           predicates:
