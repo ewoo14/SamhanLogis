@@ -91,4 +91,54 @@ describe('종합견적서 발송내역 로그인 식별자 연결', () => {
       '2026-08-01', '2026-08-16', '출고일', '211-87-12345',
     )).resolves.toEqual(rows);
   });
+
+  describe('history upstream 직원 인증 전달 — 적대검증 RED', () => {
+    const historyCall = () => mockSnapshotGet.mock.calls.at(-1);
+
+    beforeEach(() => {
+      mockSnapshotGet.mockImplementation(async (_url, config) => {
+        const headers = config?.headers || {};
+        if (!headers.Authorization || !headers['X-User-Id']) {
+          return { status: 401, data: { message: '인증 필요' } };
+        }
+        if (headers['X-Is-Partner'] === 'true') {
+          return { status: 403, data: { message: '[SP-PO-1] 동적 권한 deny — page=sales.partner-order.history action=VIEW' } };
+        }
+        return { status: 200, data: { success: true, data: { content: [{ slipNo: 'H-1' }] } } };
+      });
+    });
+
+    test('인증된 직원은 history upstream에서 200을 받고 목록을 받는다', async () => {
+      await expect(code.getNotionHistory(
+        '2000-01-01', '2100-01-01', '출고일', '211-87-12345',
+        {
+          Authorization: 'Bearer employee-jwt',
+          'X-User-Id': 'employee-001',
+          'X-Is-Partner': 'false',
+          'X-Partner-Code': '2118712345',
+        },
+      )).resolves.toEqual([{ slipNo: 'H-1', date: '', custName: '' }]);
+      expect(historyCall()[1].headers).toEqual(expect.objectContaining({
+        Authorization: 'Bearer employee-jwt',
+        'X-User-Id': 'employee-001',
+        'X-Is-Partner': 'false',
+        'X-Partner-Code': '2118712345',
+      }));
+    });
+
+    test('권한 없는 직원은 history upstream의 403 계약을 그대로 받는다', async () => {
+      await expect(code.getNotionHistory(
+        '2000-01-01', '2100-01-01', '출고일', '211-87-12345',
+        {
+          Authorization: 'Bearer employee-jwt',
+          'X-User-Id': 'employee-002',
+          'X-Is-Partner': 'true',
+          'X-Partner-Code': '2118712345',
+        },
+      )).rejects.toMatchObject({
+        statusCode: 403,
+        message: expect.stringContaining('[SP-PO-1] 동적 권한 deny'),
+      });
+    });
+  });
 });
