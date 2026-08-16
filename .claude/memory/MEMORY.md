@@ -94,6 +94,10 @@
 
 - [🚨 GUI 라이브QA 는 개발책임자의 화면을 빼앗는다 — 허락받고 돌리고 라운드마다 프로세스 회수](feedback_gui_live_qa_steals_the_desktop.md)
 
+- [🚨 종합견적서는 직원 전용 · 주문서웹이 거래처용 — 인증 경로가 다르다](feedback_estimate_app_is_staff_only.md)
+
+- [🚨 스크린샷은 행 수를 세라 — stub 은 한글도 정상이다](feedback_screenshot_row_count_must_match_data.md)
+
 # 커밋/PR/문서 규약
 - [한국어 의무 — 커밋/PR/Issue/보고](feedback_korean_commits.md)
 - [🚨🚨 내가 커밋한 QA 하네스가 CI 를…](feedback_qa_harness_commit_breaks_ci.md)

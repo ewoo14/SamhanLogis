@@ -5,6 +5,7 @@ metadata:
   node_type: memory
   type: feedback
   originSessionId: c2ed01c8-fdc9-42e8-b0c2-4893fe025ab5
+  modified: 2026-08-16T08:43:14.312Z
 ---
 
 # PR 게시 한국어 인코딩 — 파이프 금지·파일 경유·사후 검사
@@ -27,3 +28,34 @@ metadata:
 4. 기존 규칙 [[feedback-powershell-utf8-writes]](body-file=Write/heredoc만)의 확장 — PATCH·파이프 경로까지.
 
 사례: #724 코멘트 4880519014/4880525022 — SHA 정정 PATCH 가 깨뜨림 → 파일 경유 재PATCH 로 복원(각 코멘트에 자가 정정 이력 기재).
+
+---
+
+## 🚨 2026-08-16 재발 2회 — 이번엔 heredoc 이 아니라 **`-b "…"` 인라인**이었다
+
+```text
+gh pr comment 1246 -b "…본문에 `백틱` 포함…"
+gh pr comment 1254 -b "…| 개발 | `=1` | 생략 |…"
+
+셸 출력
+  /usr/bin/bash: line 34: 기간: command not found
+  /usr/bin/bash: line 35: =1: command not found
+⟹ 큰따옴표 안의 백틱이 명령 치환으로 실행돼 표·코드스팬이 통째로 사라진 채 게시됐다
+```
+
+🔑 **위 규칙 1번("인라인 --body 는 짧은 ASCII 위주만")을 두 번 어겼다.**
+길고 한국어이고 백틱이 있는 본문을 `-b "…"` 로 밀어 넣은 것이 원인이다.
+heredoc 만 조심하면 된다고 좁게 기억한 것이 재발 기제다.
+
+### How to apply — 판별을 단순화한다
+
+```text
+🚨 PR/이슈 본문은 예외 없이 Write 도구로 파일을 만들고 --body-file 로 게시한다
+   "짧으니까" · "코드블록 없으니까" 로 예외를 두지 마라 — 두 번 다 그렇게 시작했다
+🚫 gh pr comment -b "…"  ·  gh issue comment -b "…"  는 본문에 쓰지 마라
+   (한 줄 ASCII 상태 알림 정도만 허용)
+🚩 재발을 알아채는 신호: 셸 출력에 `command not found` 가 섞여 나온다
+   커밋/게시가 "성공" 으로 끝나도 그 줄이 보이면 본문이 훼손된 것이다
+```
+
+복구법: 같은 내용을 Write 로 파일화해 다시 게시하고, **새 코멘트 맨 위에 "바로 위 코멘트는 훼손됐고 이것이 정본" 을 명시**한다(삭제하지 말 것 — 이력이 남아야 한다).
