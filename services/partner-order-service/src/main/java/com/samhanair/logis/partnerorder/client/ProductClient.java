@@ -134,7 +134,7 @@ public class ProductClient {
             Map<UUID, BigDecimal> result = new HashMap<>();
             for (Map.Entry<?, ?> entry : rawMap.entrySet()) {
                 try {
-                    UUID productId = UUID.fromString(String.valueOf(entry.getKey()));
+                    UUID productId = OpaqueUuidDecoder.decode(String.valueOf(entry.getKey()));
                     if (!(entry.getValue() instanceof Map<?, ?> value)) {
                         continue;
                     }

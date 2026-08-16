@@ -4,12 +4,12 @@ import java.nio.ByteBuffer;
 import java.util.Base64;
 import java.util.UUID;
 
-/** product-service의 UUID/opaque 식별자 wire 계약을 내부 UUID로 복원한다. */
-final class OpaqueUuidDecoder {
+/** 서비스 간 UUID/opaque 식별자 wire 계약을 내부 UUID로 복원한다. */
+public final class OpaqueUuidDecoder {
     private OpaqueUuidDecoder() {
     }
 
-    static UUID decode(String value) {
+    public static UUID decode(String value) {
         if (value == null || value.isBlank()) {
             return null;
         }

@@ -214,6 +214,19 @@ class ProductClientTest {
     }
 
     @Test
+    void lookupFixedDiscountRates_acceptsOpaqueProductIdMapKey() {
+        server.expect(once(), requestTo(FIXED_DISCOUNT_ENDPOINT))
+                .andRespond(withSuccess("""
+                        {"success":true,"data":{"AAAAAAAAAAAAAAAAAAAAAA":{"fixedDiscountRate":45.00}}}
+                        """, MediaType.APPLICATION_JSON));
+
+        Map<UUID, java.math.BigDecimal> rates = client.lookupFixedDiscountRates(List.of(UUID.randomUUID()));
+
+        assertThat(rates).containsKey(UUID.fromString("00000000-0000-0000-0000-000000000000"));
+        server.verify();
+    }
+
+    @Test
     void lookupFixedDiscountRates_원격장애는_가격계산불가로_표면화한다() {
         UUID productId = UUID.fromString("00000000-0000-0000-0000-000000000101");
         server.expect(once(), requestTo(FIXED_DISCOUNT_ENDPOINT))
