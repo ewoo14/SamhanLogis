@@ -50,8 +50,8 @@ public class MinioInspectionAttachmentStorage implements InspectionAttachmentSto
      */
     public MinioInspectionAttachmentStorage(
             @Value("${app.inventory.minio.endpoint:http://localhost:9000}") String endpoint,
-            @Value("${app.inventory.minio.access-key:samhan}") String accessKey,
-            @Value("${app.inventory.minio.secret-key:samhan_dev_pw}") String secretKey,
+            @Value("${app.inventory.minio.access-key}") String accessKey,
+            @Value("${app.inventory.minio.secret-key}") String secretKey,
             @Value("${app.inventory.minio.bucket:inspection-attachments}") String bucket,
             @Value("${app.inventory.minio.presigned-expiry-seconds:3600}") int presignedExpirySeconds) {
         this.endpoint = endpoint;

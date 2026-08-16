@@ -35,8 +35,8 @@ public class MinioApprovalAttachmentStorage implements ApprovalAttachmentStorage
 
     public MinioApprovalAttachmentStorage(
             @Value("${samhan.minio.endpoint:http://localhost:9000}") String endpoint,
-            @Value("${samhan.minio.access-key:samhan}") String accessKey,
-            @Value("${samhan.minio.secret-key:samhan_dev_pw}") String secretKey,
+            @Value("${samhan.minio.access-key}") String accessKey,
+            @Value("${samhan.minio.secret-key}") String secretKey,
             @Value("${samhan.minio.groupware-approval-bucket:groupware-approval-attachments}") String bucket) {
         this.endpoint = endpoint;
         this.accessKey = accessKey;

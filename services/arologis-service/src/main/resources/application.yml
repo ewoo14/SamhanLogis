@@ -16,8 +16,8 @@ spring:
     # Phase 10 W10-1 chained-default — SAMHAN_AROLOGIS_DB_* 우선, LEGACY_DB_* legacy fallback.
     url: jdbc:postgresql://${SAMHAN_AROLOGIS_DB_HOST:${LEGACY_DB_HOST:localhost}}:${SAMHAN_AROLOGIS_DB_PORT:${LEGACY_DB_PORT:5432}}/${SAMHAN_AROLOGIS_DB_NAME:${LEGACY_DB_NAME:arologis_db}}
     # W10-5 회고 — chained-default + samhan default fallback (env 미설정 시 connection refused 회피)
-    username: ${SAMHAN_AROLOGIS_DB_USER:${LEGACY_DB_USER:${DB_USER:samhan}}}
-    password: ${SAMHAN_AROLOGIS_DB_PASSWORD:${LEGACY_DB_PASSWORD:${DB_PASSWORD:samhan_dev_pw}}}
+    username: ${SAMHAN_AROLOGIS_DB_USER:${LEGACY_DB_USER:${DB_USER}}}
+    password: ${SAMHAN_AROLOGIS_DB_PASSWORD:${LEGACY_DB_PASSWORD:${DB_PASSWORD}}}
   jpa:
     hibernate:
       ddl-auto: validate
@@ -70,7 +70,7 @@ samhan:
     # 2026-05-14 — 아로로지스 독립 분리 (자체 JWT 발급/검증).
     # secret 64+ char 의무 (HS256 안전성). prod/production 은 반드시 SAMHAN_AROLOGIS_JWT_SECRET 환경변수 주입.
     jwt:
-      secret: ${SAMHAN_AROLOGIS_JWT_SECRET:dev-only-secret-must-be-64-chars-or-longer-for-hmac-sha256-min-x}
+      secret: ${SAMHAN_AROLOGIS_JWT_SECRET}
       access-expiry-seconds: ${SAMHAN_AROLOGIS_JWT_ACCESS_EXPIRY_SECONDS:3600}
       refresh-expiry-seconds: ${SAMHAN_AROLOGIS_JWT_REFRESH_EXPIRY_SECONDS:2592000}
       issuer: ${SAMHAN_AROLOGIS_JWT_ISSUER:arologis-service}
@@ -117,7 +117,7 @@ app:
   security:
     internal:
       # Phase 10 — SAMHAN_INTERNAL_TOKEN 표준 (chained-default).
-      token: ${SAMHAN_INTERNAL_TOKEN:${INTERNAL_AUTH_TOKEN:dev-internal-token-change-me}}
+      token: ${SAMHAN_INTERNAL_TOKEN:${INTERNAL_AUTH_TOKEN:CHANGE_ME_LOCAL_ONLY}}
   # Stage 3 local-test seed toggle (DriverSeeder + DispatchSeeder).
   # 운영/CI 에서는 반드시 false (또는 미설정) 유지. dev profile + 본 토글 양쪽 활성 시에만 시드 진입.
   arologis:

@@ -204,7 +204,7 @@ test('R9 홈택스 라이브: 사업자번호 정상/누락 표본을 CONFIRMED 
 
   const salesQuery = await request.get(
     `${SLIP_API}/internal/slips/sales-query?from=2026-08-10&to=2026-08-10&page=0&size=200`,
-    { headers: { 'X-Internal-Token': 'dev-internal-token-change-me' } },
+    { headers: { 'X-Internal-Token': 'CHANGE_ME_LOCAL_ONLY' } },
   )
   expect(salesQuery.status()).toBe(200)
   const salesRows = (await salesQuery.json()).data.content as Array<Record<string, any>>

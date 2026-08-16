@@ -37,9 +37,9 @@ docker compose -f infrastructure/docker-compose.yml -f infrastructure/docker-com
 |---|---|---|
 | API Gateway | http://localhost:8080 | Samhan Public 통합 진입점 |
 | Eureka | http://localhost:8761 | 서비스 등록 상태 |
-| Grafana | http://localhost:3000 | `admin / samhan_dev_pw` |
+| Grafana | http://localhost:3000 | `infrastructure/.env` 의 자격 |
 | Prometheus | http://localhost:9090 | MIG-21 metrics |
-| MinIO Console | http://localhost:9001 | `samhan / samhan_dev_pw` |
+| MinIO Console | http://localhost:9001 | `infrastructure/.env` 의 자격 |
 | desktop | Electron 자동 실행, renderer http://localhost:5173 | 회계/영업 admin |
 | mobile | Expo QR | 거래처 주문서 WebView |
 | mobile-staff | Expo QR | 현장 직원 견적 WebView |
@@ -55,11 +55,11 @@ Client 로그는 `logs/local-stack/clients/*.log`에 쌓인다.
 
 | 사용자 | 비밀번호 | 역할 |
 |---|---|---|
-| `master@samhan.test` | `Pa$$w0rd!` | `MASTER` |
-| `manager@samhan.test` | `Pa$$w0rd!` | `MANAGER` |
-| `accountant@samhan.test` | `Pa$$w0rd!` | `ACCOUNTANT` |
-| `staff@samhan.test` | `Pa$$w0rd!` | `STAFF` |
-| `driver@samhan.test` | `Pa$$w0rd!` | `DRIVER` |
+| `master@samhan.test` | `QA_DEV_DEFAULT_PASSWORD` | `MASTER` |
+| `manager@samhan.test` | `QA_DEV_DEFAULT_PASSWORD` | `MANAGER` |
+| `accountant@samhan.test` | `QA_DEV_DEFAULT_PASSWORD` | `ACCOUNTANT` |
+| `staff@samhan.test` | `QA_DEV_DEFAULT_PASSWORD` | `STAFF` |
+| `driver@samhan.test` | `QA_DEV_DEFAULT_PASSWORD` | `DRIVER` |
 
 Samhan Public backend role enum은 `MASTER / DEVELOPER / MANAGER / DISPATCH / SALES / ACCOUNTANT / WAREHOUSE / INVENTORY / STAFF / DRIVER` 10종이다. STAFF/DRIVER 추가는 본 MIG-23 슬라이스에서 진행되었다. 아로로지스 기사 앱은 별도 자체 인증이며, dev seed의 기사 전화번호 `010-2000-0001`부터 사용할 수 있다.
 
@@ -79,7 +79,7 @@ Samhan Public backend role enum은 `MASTER / DEVELOPER / MANAGER / DISPATCH / SA
 CI의 `Applied Flyway Migration Guard`가 서비스명 목록 없이 레포 전체의 `**/db/migration/V*.sql`을 `origin/main`과 비교해 수정·삭제·이름변경을 차단한다. 신규 migration 추가는 허용한다.
 
 1. `.\scripts\seed-local-stack.ps1` 실행 후 MIG-1~11 reimport 결과에서 `processed` 또는 `skipped`가 출력되는지 확인한다.
-2. desktop 로그인: `master@samhan.test / Pa$$w0rd!`.
+2. desktop 로그인: `master@samhan.test / QA_DEV_DEFAULT_PASSWORD` 환경변수 값.
 3. 회계 관리자 메뉴에서 다음 화면을 순서대로 연다.
    - Cash 지출/입금
    - Order 목록/상세

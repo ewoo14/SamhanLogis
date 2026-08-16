@@ -24,6 +24,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
  * gradle test 를 통과시킨다 (assemble 만으로도 PR 가능).
  */
 @ExtendWith(AbstractPostgresIT.DockerAvailableCondition.class)
+@org.springframework.context.annotation.Import(com.samhanair.logis.security.test.GatewayAttestationMockMvcConfig.class)
 public abstract class AbstractPostgresIT {
 
     /** product-service estimate-catalog 외부 client 격리 — Eureka 비활성 IT 5xx 회피. */

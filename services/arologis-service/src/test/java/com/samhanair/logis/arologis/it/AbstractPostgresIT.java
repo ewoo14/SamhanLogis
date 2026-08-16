@@ -14,7 +14,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
  * 한글 path JDK 트랩 회피 — Docker 미가용 시 IT skip.
  */
 @ExtendWith(AbstractPostgresIT.DockerAvailableCondition.class)
-@Import(GatewayAttestationMockMvcConfig.class)
+@Import(com.samhanair.logis.security.test.GatewayAttestationMockMvcConfig.class)
 public abstract class AbstractPostgresIT {
 
     @SuppressWarnings("resource")
@@ -41,7 +41,6 @@ public abstract class AbstractPostgresIT {
         registry.add("eureka.client.register-with-eureka", () -> "false");
         registry.add("eureka.client.fetch-registry", () -> "false");
         registry.add("app.security.internal.token", () -> "test-internal-token");
-        registry.add("samhan.security.gateway-attestation", () -> GatewayAttestationMockMvcConfig.ATTESTATION);
         registry.add("samhan.arologis.client.skeleton-mode", () -> "true");
         // SP-D4 cycle 4 fix — HikariCP 풀 축소 (PR #188 / SP-D4 inventory CI 회고)
         registry.add("spring.datasource.hikari.maximum-pool-size", () -> "3");

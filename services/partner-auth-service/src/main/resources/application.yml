@@ -60,10 +60,8 @@ samhan:
 
 # PR #462 Round C #4 — DefaultDynamicPermissionClient 가 auth-service /auth/internal/** 호출 시 보내는 X-Internal-Token.
 # auth-service 의 SAMHAN_INTERNAL_TOKEN 와 동일 값이어야 한다 (auth-service 는 allow-missing-token=false → 토큰 누락/불일치 시 401).
-# 재리뷰 #4/#11/#12 — dev 기본값을 13 service 표준 'dev-internal-token-change-me' 로 통일한다(= auth-service default
-#   + InternalTokenGuard.DEV_DEFAULT + docker-compose SAMHAN_INTERNAL_TOKEN). 이전 'dev-only-token-replace' 는
-#   ① auth-service default 와 불일치 → env 미주입 로컬부팅 시 권한조회 401, ② InternalTokenGuard 의 prod 부팅 차단가드가
-#   무력화(DEV_DEFAULT 불일치로 isDevDefault=false)되는 두 문제가 있었다. prod 는 SAMHAN_INTERNAL_TOKEN env 주입이 기성.
+# 재리뷰 #4/#11/#12 — 토큰은 환경변수로만 주입한다. prod 및 통합테스트는
+#   SAMHAN_INTERNAL_TOKEN 을 명시해야 하며, 미설정 상태를 기본 자격으로 우회하지 않는다.
 app:
   security:
     internal:

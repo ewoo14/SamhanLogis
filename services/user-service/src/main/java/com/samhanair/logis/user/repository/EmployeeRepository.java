@@ -98,6 +98,7 @@ public interface EmployeeRepository extends JpaRepository<Employee, UUID> {
     List<Employee> searchEmployeeDirectory(@Param("q") String q, Pageable pageable);
 
     /** #31 — estimate-app 접속 게이트 (legacy Notion AUTH DB 의 email 승인 조회 치환). */
+    @EntityGraph(attributePaths = "department")
     Optional<Employee> findByEmail(String email);
 
     @EntityGraph(attributePaths = "department")

@@ -25,17 +25,20 @@ import org.testcontainers.containers.PostgreSQLContainer;
  * (slip-service AbstractPostgresIT 답습 — 메모리 {@code feedback_testcontainers_windows_docker.md})
  */
 @ExtendWith(AbstractPostgresIT.DockerAvailableCondition.class)
+@org.springframework.context.annotation.Import(com.samhanair.logis.security.test.GatewayAttestationMockMvcConfig.class)
 public abstract class AbstractPostgresIT {
 
     @Autowired
     protected DynamicPermissionClient dynamicPermissionClient;
 
+    private static final String POSTGRES_PASSWORD = UUID.randomUUID().toString();
+
     @SuppressWarnings("resource")
     protected static final PostgreSQLContainer<?> POSTGRES =
             new PostgreSQLContainer<>("postgres:16-alpine")
                     .withDatabaseName("accounting_db")
-                    .withUsername("samhan")
-                    .withPassword("samhan_dev_pw");
+                    .withUsername(UUID.randomUUID().toString())
+                    .withPassword(POSTGRES_PASSWORD);
 
     static {
         try {

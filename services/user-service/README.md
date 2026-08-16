@@ -46,7 +46,7 @@ The `OrgChartSeeder` provisions the 16 real employees of Samhan Logis on first b
 ## Internal service-to-service token
 
 Both `user-service` (caller) and `auth-service` (callee) share `app.security.internal.token`,
-overridable via env `INTERNAL_AUTH_TOKEN`. Default for dev: `dev-internal-token-change-me`.
+overridable via env `INTERNAL_AUTH_TOKEN`. Dev placeholder: `CHANGE_ME_LOCAL_ONLY`.
 
 **보안 가드**: `prod` 프로파일이 활성화된 상태에서 토큰이 dev 기본값으로 남아있으면
 `InternalTokenGuard` 가 부팅을 거부한다. 운영 배포 전 반드시 `INTERNAL_AUTH_TOKEN` 환경변수로

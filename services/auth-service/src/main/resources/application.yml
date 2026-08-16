@@ -7,8 +7,8 @@ spring:
     name: auth-service
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:auth_db}
-    username: ${DB_USER:samhan}
-    password: ${DB_PASSWORD:samhan_dev_pw}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
   jpa:
     hibernate:
       ddl-auto: validate
@@ -54,7 +54,7 @@ app:
       secure: ${COOKIE_SECURE:false}
     internal:
       # Phase 8 2차 — SAMHAN_INTERNAL_TOKEN 우선, INTERNAL_AUTH_TOKEN legacy fallback (Phase 10 cutover 시점 단일화)
-      token: ${SAMHAN_INTERNAL_TOKEN:${INTERNAL_AUTH_TOKEN:dev-internal-token-change-me}}
+      token: ${SAMHAN_INTERNAL_TOKEN:${INTERNAL_AUTH_TOKEN:CHANGE_ME_LOCAL_ONLY}}
       # W10-4 (PR #99) DV-3 — auth-service 만 /auth/internal/ prefix + ROLE_INTERNAL + 토큰 누락 시 즉시 401
       path-prefix: /auth/internal/
       role: INTERNAL

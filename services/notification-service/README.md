@@ -93,7 +93,7 @@ W3 통합 PR 시점에 PR #92 BE Reviewer 의 후속 backlog #4 (UserClient fan-
 |---|---|---|
 | `SAMHAN_NOTIFICATION_PORT` | 8093 | |
 | `SAMHAN_NOTIFICATION_DB_*` | localhost:5432/notification_db | |
-| `SAMHAN_INTERNAL_TOKEN` | dev-internal-token-change-me | prod 부팅 거부 가드 |
+| `SAMHAN_INTERNAL_TOKEN` | CHANGE_ME_LOCAL_ONLY | prod 부팅 거부 가드 |
 | `SAMHAN_USER_SERVICE_URL` | http://localhost:8083 | UserClient base |
 | `SAMHAN_DISCOVERY_PROVIDER` | eureka | aws-cloud-map (Phase 10) |
 | `SAMHAN_ALIGO_*` | placeholder | api-url / key / userid / sender |

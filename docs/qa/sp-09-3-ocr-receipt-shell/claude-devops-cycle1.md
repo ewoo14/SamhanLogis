@@ -106,7 +106,7 @@ Phase 11 sandbox 연동 후 CLOVA 로 변경 필요한데 이를 놓치기 쉽�
 
 ```bash
 # 빈 값 — 통과 예상 (정상)
-echo 'CLOVA_OCR_API_KEY=' | grep -E 'CLOVA_(OCR_)?(API_KEY|SECRET_KEY|INVOKE_URL)\s*=\s*[^$\s{"\x27][^\s]*'
+echo 'CLOVA_OCR_API_KEY='<credential-from-env>'CLOVA_(OCR_)?(API_KEY|SECRET_KEY|INVOKE_URL)\s*=\s*[^$\s{"\x27][^\s]*'
 # 출력 없음 → PASS
 
 # 실 값 — 차단 예상 (정상)

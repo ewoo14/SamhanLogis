@@ -1,6 +1,5 @@
 package com.samhanair.logis.arologis.config;
 
-import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.DisplayName;
@@ -19,7 +18,7 @@ class ArologisJwtPropertiesTest {
     @DisplayName("production 프로파일은 공개 아로로지스 JWT dev secret 부팅 거부")
     void productionProfile_rejectsDevDefaultSecret() {
         ArologisJwtProperties properties = properties("production",
-                "dev-only-secret-must-be-64-chars-or-longer-for-hmac-sha256-min-x");
+                "short-secret");
 
         assertThatThrownBy(properties::verify)
                 .isInstanceOf(IllegalStateException.class)
@@ -36,12 +35,14 @@ class ArologisJwtPropertiesTest {
     }
 
     @Test
-    @DisplayName("비운영 프로파일은 아로로지스 dev JWT secret 경고만 기록")
-    void nonProductionProfile_warnsOnly() {
+    @DisplayName("비운영 프로파일도 아로로지스 JWT secret 미설정/공개값을 부팅 거부")
+    void nonProductionProfile_rejectsUnsafeSecret() {
         ArologisJwtProperties properties = properties("local",
-                "dev-only-secret-must-be-64-chars-or-longer-for-hmac-sha256-min-x");
+                "short-secret");
 
-        assertThatCode(properties::verify).doesNotThrowAnyException();
+        assertThatThrownBy(properties::verify)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("SAMHAN_AROLOGIS_JWT_SECRET");
     }
 
     private static ArologisJwtProperties properties(String profile, String secret) {

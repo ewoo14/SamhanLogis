@@ -9,6 +9,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.FlywayException;
 import org.junit.jupiter.api.AfterAll;
@@ -40,14 +41,15 @@ class Issue1096ProductCleanupMigrationIT {
             "설치비5", "설치비6", "설치비7", "설치비8", "설치비9", "영업수수료",
             "운임", "절삭", "조달수수료", "카드수수료", "판매수수료");
 
+    private static final String POSTGRES_PASSWORD = UUID.randomUUID().toString();
     private static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine")
             .withDatabaseName("issue_1096_product_cleanup_db")
-            .withUsername("samhan")
-            .withPassword("samhan_dev_pw");
+            .withUsername(UUID.randomUUID().toString())
+            .withPassword(POSTGRES_PASSWORD);
     private static final PostgreSQLContainer<?> MIXED_POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine")
             .withDatabaseName("issue_1096_product_cleanup_mixed_db")
-            .withUsername("samhan")
-            .withPassword("samhan_dev_pw");
+            .withUsername(UUID.randomUUID().toString())
+            .withPassword(POSTGRES_PASSWORD);
 
     @BeforeAll
     static void seedBeforeV31() throws Exception {

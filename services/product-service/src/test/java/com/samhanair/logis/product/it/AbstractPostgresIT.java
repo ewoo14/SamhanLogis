@@ -1,5 +1,7 @@
 package com.samhanair.logis.product.it;
 
+import java.util.UUID;
+
 import com.samhanair.logis.product.domain.EstimateCategory;
 import com.samhanair.logis.product.service.ClassificationService;
 import com.samhanair.logis.product.service.ProductService;
@@ -25,7 +27,11 @@ import org.testcontainers.containers.PostgreSQLContainer;
  * 테스트를 fail 이 아닌 skip 으로 처리한다.
  */
 @ExtendWith(AbstractPostgresIT.DockerAvailableCondition.class)
+@org.springframework.context.annotation.Import(com.samhanair.logis.security.test.GatewayAttestationMockMvcConfig.class)
 public abstract class AbstractPostgresIT {
+
+    /** 통합테스트 컨테이너 자격은 매 실행 임시값이다 — 소스에 실 개발 스택 자격을 박지 않는다. */
+    private static final String POSTGRES_PASSWORD = UUID.randomUUID().toString();
 
     @Autowired
     protected ClassificationService quantitySyncClassificationService;
@@ -37,8 +43,8 @@ public abstract class AbstractPostgresIT {
     protected static final PostgreSQLContainer<?> POSTGRES =
             new PostgreSQLContainer<>("postgres:16-alpine")
                     .withDatabaseName("product_db")
-                    .withUsername("samhan")
-                    .withPassword("samhan_dev_pw");
+                    .withUsername(UUID.randomUUID().toString())
+                    .withPassword(POSTGRES_PASSWORD);
 
     /** 통합 fixture가 target 역할을 관리자 분류 경로로 구성한다. */
     protected final void classifyQuantitySyncTarget(String modelCode) {

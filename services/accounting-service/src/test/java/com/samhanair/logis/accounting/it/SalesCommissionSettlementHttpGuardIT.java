@@ -22,6 +22,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
@@ -52,6 +53,9 @@ class SalesCommissionSettlementHttpGuardIT {
     @Autowired
     private TestRestTemplate restTemplate;
 
+    @Value("${SAMHAN_GATEWAY_ATTESTATION}")
+    private String gatewayAttestation;
+
     @MockBean
     private DynamicPermissionClient dynamicPermissionClient;
 
@@ -71,6 +75,7 @@ class SalesCommissionSettlementHttpGuardIT {
                 .thenReturn(false);
 
         HttpHeaders headers = new HttpHeaders();
+        headers.set("X-Samhan-Gateway-Attestation", gatewayAttestation);
         headers.set("X-User-Id", SALES_ACCOUNT_ID.toString());
         headers.set("X-User-Role", "SALES");
 

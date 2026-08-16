@@ -46,6 +46,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -81,6 +82,65 @@ class JournalCollabIT extends AbstractPostgresIT {
     // 치환해야 base @BeforeEach 의 when() 스텁이 성립한다(누락 시 실 빈 호출 → InvalidUseOfMatchers).
     @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class)
     private com.samhanair.logis.security.permission.DynamicPermissionClient dynamicPermissionClient;
+
+    @Test
+    void malformedOpaqueJournalCollabIdentifier_returns400ApiResponse() throws Exception {
+        mvc.perform(get("/accounting/journals/{journalId}/collab/comments", "not-a-valid-opaque-id")
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .param("limit", "20"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+                .andExpect(jsonPath("$.message").value("유효하지 않은 분개 식별자입니다."))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("not-a-valid-opaque-id"))));
+    }
+
+    @Test
+    void malformedOpaqueJournalCollabIdentifiers_allReturn400() throws Exception {
+        String bad = "not-a-valid-opaque-id";
+        String actor = ACTOR_ID;
+        assertMalformedCollab("POST /comments", post("/accounting/journals/" + bad + "/collab/comments")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"body\":\"probe\",\"anchor\":\"description\"}"));
+        assertMalformedCollab("DELETE /comments/{commentId}", delete("/accounting/journals/" + bad
+                + "/collab/comments/00000000-0000-0000-0000-000000000001"));
+        assertMalformedCollab("POST /comments/{commentId}/resolve", post("/accounting/journals/" + bad
+                + "/collab/comments/00000000-0000-0000-0000-000000000001/resolve"));
+        assertMalformedCollab("POST /edits", post("/accounting/journals/" + bad + "/collab/edits")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"changeSet\":\"{\\\"description\\\":{\\\"after\\\":\\\"probe\\\"}}\"}"));
+        assertMalformedCollab("GET /edits", get("/accounting/journals/" + bad + "/collab/edits"));
+        assertMalformedCollab("GET /coedit", get("/accounting/journals/" + bad + "/collab/coedit"));
+        assertMalformedCollab("POST /coedit/update", post("/accounting/journals/" + bad + "/collab/coedit/update")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"update\":\"probe\"}"));
+        assertMalformedCollab("POST /coedit/awareness", post("/accounting/journals/" + bad + "/collab/coedit/awareness")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"awareness\":\"probe\"}"));
+        assertMalformedCollab("GET /stream", get("/accounting/journals/" + bad + "/collab/stream"));
+        assertMalformedCollab("POST /presence/join", post("/accounting/journals/" + bad + "/collab/presence/join")
+                .header(USER_ID_HEADER, actor).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"sessionId\":\"probe\",\"displayName\":\"probe\"}"));
+        assertMalformedCollab("POST /presence/leave", post("/accounting/journals/" + bad + "/collab/presence/leave")
+                .header(USER_ID_HEADER, actor).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"sessionId\":\"probe\"}"));
+        assertMalformedCollab("GET /presence", get("/accounting/journals/" + bad + "/collab/presence"));
+    }
+
+    private void assertMalformedCollab(String route,
+            org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request) throws Exception {
+            MvcResult result = mvc.perform(request
+                    .header(USER_ID_HEADER, ACTOR_ID)
+                    .header(USER_NAME_HEADER, "회계담당자")
+                    .header("X-User-Role", "MASTER")
+                    .header("X-Is-System-Master", "true"))
+                .andReturn();
+        String body = result.getResponse().getContentAsString();
+        System.out.println("[ACCOUNTING-RAW] " + route + " status=" + result.getResponse().getStatus()
+                + " body=" + body);
+        assertThat(result.getResponse().getStatus()).isEqualTo(400);
+        assertThat(body).contains("\"code\":\"INVALID_INPUT\"")
+                .doesNotContain("not-a-valid-opaque-id");
+    }
 
     /** 댓글 등록, 조회, 해결, 삭제가 실 DB 에 반영되는지 검증한다. */
     @Test

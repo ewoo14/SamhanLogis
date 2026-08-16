@@ -10,8 +10,8 @@ spring:
     # default 값은 로컬 docker-compose 와의 호환을 위한 자리 표시자이며 실제 환경에서는 override 필수.
     # W10-5 회고 — chained-default 표준 통일 (SAMHAN_PARTNER_ORDER_DB_* 우선, LEGACY_DB_* fallback, samhan default).
     url: jdbc:postgresql://${SAMHAN_PARTNER_ORDER_DB_HOST:${LEGACY_DB_HOST:${DB_HOST:localhost}}}:${SAMHAN_PARTNER_ORDER_DB_PORT:${LEGACY_DB_PORT:${DB_PORT:5432}}}/${SAMHAN_PARTNER_ORDER_DB_NAME:${LEGACY_DB_NAME:${DB_NAME:partner_order_db}}}
-    username: ${SAMHAN_PARTNER_ORDER_DB_USER:${LEGACY_DB_USER:${DB_USER:samhan}}}
-    password: ${SAMHAN_PARTNER_ORDER_DB_PASSWORD:${LEGACY_DB_PASSWORD:${DB_PASSWORD:samhan_dev_pw}}}
+    username: ${SAMHAN_PARTNER_ORDER_DB_USER:${LEGACY_DB_USER:${DB_USER}}}
+    password: ${SAMHAN_PARTNER_ORDER_DB_PASSWORD:${LEGACY_DB_PASSWORD:${DB_PASSWORD}}}
   jackson:
     # P1-2 (Phase 2.4) — createdAt(LocalDateTime) 을 ISO-8601 문자열로 직렬화.
     # 기본값(write-dates-as-timestamps: true) 은 [2026, 5, 30, 12, 0, 0] 배열 형식으로 직렬화되어

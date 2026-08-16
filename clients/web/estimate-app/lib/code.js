@@ -66,7 +66,7 @@ const DC_CONFIG_BASE = process.env.DC_CONFIG_SERVICE_URL || PARTNER_BASE;
 const DC_INTERNAL_TOKEN =
   process.env.SAMHAN_INTERNAL_TOKEN ||
   process.env.INTERNAL_AUTH_TOKEN ||
-  'dev-internal-token-change-me';
+  'CHANGE_ME_LOCAL_ONLY';
 const AUDIT_LOG_URL = process.env.AUDIT_LOG_URL || `${BASE_URL}/api/v1/audit-logs/front`;
 
 // #31 — 라이브(06-09) 주소검색/지오코딩 자격 (legacy Code.js 3014-3025, env 주입).

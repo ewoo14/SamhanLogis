@@ -21,7 +21,7 @@ import org.springframework.core.env.Environment;
 public class InternalTokenGuard {
 
     /** dev 환경 기본 토큰 값 — env-templates / application.yml default 와 1:1 일치. */
-    public static final String DEV_DEFAULT = "dev-internal-token-change-me";
+    public static final String DEV_DEFAULT = "CHANGE_ME_LOCAL_ONLY";
 
     /** 운영 프로파일 별칭. 배포 환경은 production 을 사용하므로 prod 단일 검사로는 부족하다. */
     private static final Set<String> PROD_PROFILES = Set.of("prod", "production");

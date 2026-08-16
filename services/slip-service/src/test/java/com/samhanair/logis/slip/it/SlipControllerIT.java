@@ -94,6 +94,43 @@ class SlipControllerIT extends AbstractPostgresIT {
     @MockBean
     private PartnerInternalClient partnerInternalClient;
 
+    @Test
+    void malformedOpaqueSlipIdentifier_returns400ApiResponse() throws Exception {
+        mockMvc.perform(get("/slips/not-a-valid-opaque-id")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "SALES"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+                .andExpect(jsonPath("$.message").value("요청 파라미터 형식이 올바르지 않습니다."))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("not-a-valid-opaque-id"))));
+    }
+
+    @Test
+    void validOpaqueSlipIdentifier_stillReturns200() throws Exception {
+        String slipId = createOutboundSlipAsSales();
+
+        mockMvc.perform(get("/slips/" + slipId)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "SALES"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.id").value(slipId));
+    }
+
+    @Test
+    void malformedConverterSlipIdentifier_returns400ApiResponse() throws Exception {
+        mockMvc.perform(get("/slips/not-a-valid-opaque-id/revertability")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "SALES"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+                .andExpect(jsonPath("$.message").value("요청 파라미터 형식이 올바르지 않습니다."))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("not-a-valid-opaque-id"))));
+    }
+
     @BeforeEach
     void mockProductClient() {
         Mockito.lenient().when(partnerInternalClient.resolvePartnerCode(ArgumentMatchers.any()))

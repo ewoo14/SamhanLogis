@@ -37,6 +37,9 @@ Assert-Command "npm.cmd" "Node.js 20+ 설치"
 Assert-DockerDaemon
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
+$localEnvHelper = Join-Path $RepoRoot "infrastructure\scripts\ensure-local-env.ps1"
+. (Resolve-Path -LiteralPath $localEnvHelper)
+$localEnvFile = Initialize-SamhanLocalEnv -ProjectRoot $RepoRoot
 $portResolver = Join-Path $RepoRoot "scripts\lib\local-stack-port.ps1"
 . (Resolve-Path -LiteralPath $portResolver)
 $eurekaPort = Get-LocalStackPort -Service 'eureka-server'
@@ -141,7 +144,7 @@ Invoke-AtRoot {
 
     Write-Host "[local-stack] docker compose up -d"
     $composeArgs = if ($Rebuild) { @('up', '-d', '--build') } else { @('up', '-d') }
-    docker compose @ComposeFiles @composeArgs
+    docker compose --env-file $localEnvFile @ComposeFiles @composeArgs
     $composeExitCode = $LASTEXITCODE
     if ($composeExitCode -ne 0) {
         throw "[local-stack] docker compose up 실패 (exit $composeExitCode)"
@@ -172,9 +175,9 @@ Write-Host ""
 Write-Host "SamhanLogis local stack URLs"
 Write-Host "  API Gateway       http://localhost:$gatewayPort"
 Write-Host "  Eureka            http://localhost:$eurekaPort"
-Write-Host "  Grafana           http://localhost:3000  (admin / samhan_dev_pw)"
+Write-Host "  Grafana           http://localhost:3000  (자격: infrastructure/.env)"
 Write-Host "  Prometheus        http://localhost:9090"
-Write-Host "  MinIO Console     http://localhost:9001  (samhan / samhan_dev_pw)"
+Write-Host "  MinIO Console     http://localhost:9001  (자격: infrastructure/.env)"
 Write-Host "  Desktop           Electron 자동 실행, Vite renderer http://localhost:5173"
 Write-Host "  Estimate Web      http://localhost:5183"
 Write-Host "  Order Web         http://localhost:5180"

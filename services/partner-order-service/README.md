@@ -179,7 +179,7 @@ DB 완전 장애의 부수 영향(heartbeat 포함 인스턴스 전체 metric �
 |---|---|---|
 | `DB_*` | `partner_order_db` 등 | placeholder |
 | `EUREKA_URL` | `http://localhost:8761/eureka/` | |
-| `INTERNAL_TOKEN` | `dev-internal-token-change-me` | prod default 사용 시 부팅 거부 |
+| `INTERNAL_TOKEN` | `CHANGE_ME_LOCAL_ONLY` | prod placeholder 사용 시 부팅 거부 |
 | `BOOTSTRAP_CACHE_REFRESH_MINUTES` | 10 | bootstrap 내부 캐시 evict 후 prefetch 주기(분) |
 | `samhan.draft.ttl-days` | 30 | DraftCleanupScheduler |
 | `samhan.outbox.max-retry-hours` | 24 | confirm 흐름 retry 한계. claim 시점 종결 가드가 `handleRetry` 도달 여부와 무관하게 이 상한을 보장 |

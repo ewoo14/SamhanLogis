@@ -27,6 +27,9 @@ command -v npm >/dev/null 2>&1 || { echo "[local-stack] 'npm' 미설치 (Node 20
 
 cd "$ROOT_DIR"
 
+source "$ROOT_DIR/scripts/ensure-local-env.sh"
+ensure_local_env "$ROOT_DIR"
+
 if [[ "$SKIP_BUILD" -eq 0 ]]; then
   if [[ "$SERIAL_BUILD" -eq 1 ]]; then
     GRADLE_OPTS_ARRAY=(--no-daemon --no-parallel)
@@ -54,9 +57,9 @@ if [[ "$SKIP_BUILD" -eq 0 ]]; then
 fi
 
 if [[ "$REBUILD" -eq 1 ]]; then
-  docker compose -f infrastructure/docker-compose.yml -f infrastructure/docker-compose.local-all.yml up -d --build
+  docker compose --env-file "$LOCAL_ENV_FILE" -f infrastructure/docker-compose.yml -f infrastructure/docker-compose.local-all.yml up -d --build
 else
-  docker compose -f infrastructure/docker-compose.yml -f infrastructure/docker-compose.local-all.yml up -d
+  docker compose --env-file "$LOCAL_ENV_FILE" -f infrastructure/docker-compose.yml -f infrastructure/docker-compose.local-all.yml up -d
 fi
 
 wait_http() {
@@ -106,9 +109,9 @@ cat <<'URLS'
 SamhanLogis local stack URLs
   API Gateway       http://localhost:8080
   Eureka            http://localhost:8761
-  Grafana           http://localhost:3000  (admin / samhan_dev_pw)
+  Grafana           http://localhost:3000  (credentials: infrastructure/.env)
   Prometheus        http://localhost:9090
-  MinIO Console     http://localhost:9001  (samhan / samhan_dev_pw)
+  MinIO Console     http://localhost:9001  (credentials: infrastructure/.env)
   Desktop           Electron auto launch, Vite renderer http://localhost:5173
   Estimate Web      http://localhost:5183
   Order Web         http://localhost:5180

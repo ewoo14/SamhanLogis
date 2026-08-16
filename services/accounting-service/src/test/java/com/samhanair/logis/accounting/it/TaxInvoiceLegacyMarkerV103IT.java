@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.util.UUID;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -16,15 +17,18 @@ import org.testcontainers.containers.PostgreSQLContainer;
 @ExtendWith(AbstractPostgresIT.DockerAvailableCondition.class)
 class TaxInvoiceLegacyMarkerV103IT {
 
+    private static final String TEST_DB_USER = "it_" + UUID.randomUUID().toString().replace("-", "");
+    private static final String TEST_DB_PASSWORD = UUID.randomUUID().toString();
+
     private static final PostgreSQLContainer<?> FULL = new PostgreSQLContainer<>("postgres:16-alpine")
             .withDatabaseName("tax_invoice_v103_full")
-            .withUsername("samhan")
-            .withPassword("samhan_dev_pw");
+            .withUsername(TEST_DB_USER)
+            .withPassword(TEST_DB_PASSWORD);
 
     private static final PostgreSQLContainer<?> INCREMENTAL = new PostgreSQLContainer<>("postgres:16-alpine")
             .withDatabaseName("tax_invoice_v103_incremental")
-            .withUsername("samhan")
-            .withPassword("samhan_dev_pw");
+            .withUsername(TEST_DB_USER)
+            .withPassword(TEST_DB_PASSWORD);
 
     @BeforeAll
     static void migrateFreshFullAndIncremental() {

@@ -59,10 +59,10 @@ role 기반 2-action(`role_page_permissions`)을 **계정 단위 × page × 7-ac
 | `DB_PORT`              | `5432`                                                    | PostgreSQL port                                   |
 | `DB_NAME`              | `auth_db`                                                 | Database name                                     |
 | `DB_USER`              | `samhan`                                                  | Database user                                     |
-| `DB_PASSWORD`          | `samhan_dev_pw`                                           | Database password                                 |
+| `DB_PASSWORD`          | `infrastructure/.env`                                    | Database password                                 |
 | `EUREKA_URL`           | `http://localhost:8761/eureka/`                           | Eureka registry URL                               |
 | `JWT_SECRET`           | `dev-secret-change-me-in-production-32bytes-min!`         | HS256 signing key (>=32 byte)                     |
-| `INTERNAL_AUTH_TOKEN`  | `dev-internal-token-change-me`                            | service-to-service shared secret (X-Internal-Token). prod 프로파일에서 dev 기본값이면 부팅 실패 (`InternalTokenGuard`) |
+| `INTERNAL_AUTH_TOKEN`  | `CHANGE_ME_LOCAL_ONLY`                                    | service-to-service shared secret (X-Internal-Token). prod 프로파일에서 placeholder면 부팅 실패 (`InternalTokenGuard`) |
 
 ## Profiles
 

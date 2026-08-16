@@ -66,7 +66,7 @@
 docker compose -f infrastructure/docker-compose.yml logs auth-service | Select-String "Flyway"
 
 # flywayValidate 대신 — 로컬 Docker DB 에 직접 접속하여 스키마 체크섬 확인
-$env:PGPASSWORD = "samhan_dev_pw"
+$env:PGPASSWORD = "<credential-from-env>"
 psql -h localhost -p 5432 -U samhan -d auth_db `
     -c "SELECT version, description, type, installed_on, success FROM flyway_schema_history ORDER BY version;"
 ```

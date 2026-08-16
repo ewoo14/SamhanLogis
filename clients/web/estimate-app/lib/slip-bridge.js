@@ -35,12 +35,12 @@ const SLIP_BASE =
 const INTERNAL_TOKEN =
   process.env.SAMHAN_INTERNAL_TOKEN ||
   process.env.INTERNAL_AUTH_TOKEN ||
-  'dev-internal-token-change-me';
+  'CHANGE_ME_LOCAL_ONLY';
 
 // 운영 가드 — slip-service 쪽은 InternalTokenGuard 가 dev 토큰 prod 부팅을 차단하므로
 // dev 기본값으로는 운영 발행이 어차피 401 이지만, 미설정을 조기에 드러낸다.
 if (process.env.NODE_ENV === 'production'
-  && INTERNAL_TOKEN === 'dev-internal-token-change-me') {
+  && INTERNAL_TOKEN === 'CHANGE_ME_LOCAL_ONLY') {
   Logger.log('[slip-bridge] ⚠️ SAMHAN_INTERNAL_TOKEN 미설정 (운영) — 출고전표 발행이 401 로 거부됩니다. .env 설정 필요');
 }
 

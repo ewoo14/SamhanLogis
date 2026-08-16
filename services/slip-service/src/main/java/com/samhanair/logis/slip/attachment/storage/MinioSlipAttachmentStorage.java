@@ -41,8 +41,8 @@ public class MinioSlipAttachmentStorage implements SlipAttachmentStorage {
 
     public MinioSlipAttachmentStorage(
             @Value("${app.slip.minio.endpoint:http://localhost:9000}") String endpoint,
-            @Value("${app.slip.minio.access-key:samhan}") String accessKey,
-            @Value("${app.slip.minio.secret-key:samhan_dev_pw}") String secretKey,
+            @Value("${app.slip.minio.access-key}") String accessKey,
+            @Value("${app.slip.minio.secret-key}") String secretKey,
             @Value("${app.slip.minio.bucket:slip-attachments}") String bucket,
             @Value("${app.slip.minio.presigned-expiry-seconds:3600}") int presignedExpirySeconds) {
         this.endpoint = endpoint;

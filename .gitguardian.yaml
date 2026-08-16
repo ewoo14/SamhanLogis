@@ -1,36 +1,23 @@
-# GitGuardian config — dev-only test 비밀번호 자동 ignore
-# 가드: feedback_gitguardian_false_positive (메모리)
-#
-# 본 config 는 dev-only test 비밀번호 (이미 main 의 docker-compose.yml /
-# OrgChartSeeder.java 등에 평문 존재) 를 PR 신규 commit 에서 재언급 시 자동 ignore.
-# Phase 11 AWS cutover 시점에 모든 dev secret rotation 의무.
-
+# GitGuardian 설정.
+# 코드·설정에는 allowlist를 두지 않는다.
+# 예외는 적용 후 불변인 Flyway 마이그레이션과 그 짝 IT뿐이며, 파일 단위로 지목한다.
+# ignored-matches(값 기반)는 쓰지 않는다 — 값이 어디에 들어와도 안 잡히기 때문이다.
+# 로컬 개발 자격은 infrastructure/.env (gitignored)에서 주입한다.
 version: 2
-
 secret:
-  # 무시할 파일 경로 패턴 (dev-only 인프라 + docs + service application.yml 한정)
   ignored-paths:
-    - "infrastructure/scripts/start-local-full.ps1"
-    - "infrastructure/scripts/stop-local-full.ps1"
-    - "infrastructure/env-templates/.env.dev-seed"
-    - "infrastructure/docker-compose.yml"
-    - "services/*/src/main/resources/application*.yml"   # W10-5 추가: chained-default fallback (samhan/samhan_dev_pw)
-    - "services/*/src/main/resources/application*.yaml"
-    - "docs/migration/ecount-reference/**"
-    - "docs/qa/**"
-    - "docs/dev-reports/**"
-    - "perf/k6/**"                                       # PR #424 추가: k6 부하 하네스 (dev_p05_pass! 부하 계정 로그인)
-    - "scripts/run-load-test.ps1"                        # PR #424 추가: 부하 러너 사전 점검 로그인 (dev_p05_pass!)
-
-  # 무시할 secret pattern (dev-only test password)
-  ignored-matches:
-    - name: "DB dev password (samhan_dev_pw) — docker-compose default"
-      match: "samhan_dev_pw"
-    - name: "Master seed dev password (samhan!2026) — OrgChartSeeder"
-      match: "samhan!2026"
-    - name: "Internal token dev placeholder"
-      match: "dev-internal-token-change-me"
-    - name: "P0-5 seed dev password (dev_p05_pass!) — V5 seed DEV-ONLY"
-      match: "dev_p05_pass!"
-    - name: "D-PCR-02 seed bcrypt hash (dev_p05_pass!) — V48 seed DEV-ONLY"
-      match: "$2b$12$g9/AnrEr4.fxZoV7GPOraOoMLkysbtYnO0joHqluMPGgPpjBqQf0y"
+    # 문서·기록
+    - docs/dev-reports/**
+    - docs/qa/**
+    - .claude/memory/**
+    - docs/devops/**
+    - docs/migration/**
+    - docs/operational-validation/**
+    - docs/security/**
+    - docs/superpowers/**
+    - migration/decisions/**
+    # 적용 후 불변인 Flyway 마이그레이션과 그 짝 IT
+    - services/auth-service/src/main/resources/db/migration/V48__seed_driver_staff_dispatch_dev_accounts.sql
+    - services/auth-service/src/main/resources/db/migration/V49__repair_v5_dev_account_hashes.sql
+    - services/auth-service/src/test/java/com/samhanair/logis/auth/it/AuthFlywayV48SeedIT.java
+    - services/auth-service/src/test/java/com/samhanair/logis/auth/it/AuthFlywayV49SeedIT.java

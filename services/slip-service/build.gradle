@@ -85,7 +85,7 @@ bootJar {
 
 tasks.named('test') {
     useJUnitPlatform()
-    systemProperty 'samhan.security.gateway-attestation-enforcement', 'false'
+    systemProperty 'samhan.security.gateway-attestation-enforcement', System.getProperty('samhan.security.gateway-attestation-enforcement', 'true')
     maxParallelForks = 1
     // 컨텍스트별 주/가격/inventory 풀을 무제한으로 보유하면 공유 Testcontainer의
     // PostgreSQL 연결을 고갈시킨다. 작은 캐시로 닫힌 컨텍스트의 풀을 즉시 반환한다.

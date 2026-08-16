@@ -98,6 +98,18 @@ class ProductControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    void malformedOpaqueProductIdentifier_returns400ApiResponse() throws Exception {
+        mockMvc.perform(get("/products/not-a-valid-opaque-id")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "SALES"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+                .andExpect(jsonPath("$.message").value("요청 파라미터 형식이 올바르지 않습니다."))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("not-a-valid-opaque-id"))));
+    }
+
+    @Test
     void salesRole_post_returns403() throws Exception {
         Mockito.when(dynamicPermissionClient.check(
                         Mockito.any(UUID.class), Mockito.eq("products.admin"), Mockito.eq(PermissionAction.CREATE)))

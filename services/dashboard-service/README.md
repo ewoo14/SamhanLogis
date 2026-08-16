@@ -163,7 +163,7 @@ notification-service / groupware-service 의 기존 `UserClient` 구현을 본 a
 |---|---|---|
 | `SAMHAN_DASHBOARD_PORT` | 8094 | |
 | `SAMHAN_DASHBOARD_DB_*` | localhost:5432/dashboard_db | |
-| `SAMHAN_INTERNAL_TOKEN` | dev-internal-token-change-me | prod 부팅 거부 가드 |
+| `SAMHAN_INTERNAL_TOKEN` | CHANGE_ME_LOCAL_ONLY | prod 부팅 거부 가드 |
 | `SAMHAN_DISCOVERY_PROVIDER` | eureka | aws-cloud-map (Phase 10) |
 | `SAMHAN_INVENTORY_SERVICE_URL` | http://inventory-service:8085 | |
 | `SAMHAN_ACCOUNTING_SERVICE_URL` | http://accounting-service:8087 | |

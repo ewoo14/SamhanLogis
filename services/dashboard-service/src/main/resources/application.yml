@@ -19,7 +19,7 @@ spring:
     # default 값은 로컬 docker-compose 와의 호환을 위한 자리 표시자이며 실제 환경에서는 override 필수.
     # Phase 8 2차 chained-default — SAMHAN_DASHBOARD_DB_* 우선, LEGACY_DB_* legacy fallback (Phase 10 cutover 시점 단일화).
     url: jdbc:postgresql://${SAMHAN_DASHBOARD_DB_HOST:${LEGACY_DB_HOST:localhost}}:${SAMHAN_DASHBOARD_DB_PORT:${LEGACY_DB_PORT:5432}}/${SAMHAN_DASHBOARD_DB_NAME:${LEGACY_DB_NAME:dashboard_db}}
-    # W10-5 회고 — chained-default + samhan default fallback (env 미설정 시 connection refused 회피)
+    # 통합테스트·로컬 실행 자격은 환경변수로만 주입한다. 미설정 시 조용한 기본 자격으로 우회하지 않는다.
     username: ${SAMHAN_DASHBOARD_DB_USER:${LEGACY_DB_USER:${DB_USER}}}
     password: ${SAMHAN_DASHBOARD_DB_PASSWORD:${LEGACY_DB_PASSWORD:${DB_PASSWORD}}}
   jpa:
@@ -99,7 +99,7 @@ app:
     minio:
       enabled: ${SAMHAN_NOTICE_MINIO_ENABLED:false}
       endpoint: ${SAMHAN_NOTICE_MINIO_ENDPOINT:${MINIO_ENDPOINT:http://localhost:9000}}
-      access-key: ${SAMHAN_NOTICE_MINIO_ACCESS_KEY:${MINIO_ROOT_USER:samhan}}
+      access-key: ${SAMHAN_NOTICE_MINIO_ACCESS_KEY:${SAMHAN_S3_ACCESS_KEY}}
       secret-key: ${SAMHAN_NOTICE_MINIO_SECRET_KEY:${MINIO_ROOT_PASSWORD:}}
       bucket: ${SAMHAN_NOTICE_MINIO_BUCKET:samhan-attachments}
       presigned-expiry-seconds: ${SAMHAN_NOTICE_MINIO_PRESIGNED_EXPIRY:300}

@@ -44,7 +44,7 @@ class AccountingPermissionProjectionFreshnessIT {
     @Container
     private static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine")
             .withDatabaseName("auth_db")
-            .withUsername("samhan")
+            .withUsername(UUID.randomUUID().toString())
             .withPassword(POSTGRES_PASSWORD);
 
     private JdbcTemplate jdbcTemplate;

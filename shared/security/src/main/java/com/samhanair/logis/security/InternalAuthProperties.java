@@ -9,7 +9,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * <p>호환 properties:
  *
  * <ul>
- *   <li>{@code app.security.internal.token} — 필수, shared secret. dev 기본값 {@code dev-internal-token-change-me}
+ *   <li>{@code app.security.internal.token} — 필수, shared secret. dev placeholder {@code CHANGE_ME_LOCAL_ONLY}
  *       는 {@link InternalTokenGuard} 가 prod 프로파일 부팅 차단.
  *   <li>{@code app.security.internal.path-prefix} — default {@code /internal/}. auth-service 만 {@code /auth/internal/}.
  *   <li>{@code app.security.internal.role} — default {@code MASTER} (ROLE_MASTER 부여). auth-service 만 {@code INTERNAL}

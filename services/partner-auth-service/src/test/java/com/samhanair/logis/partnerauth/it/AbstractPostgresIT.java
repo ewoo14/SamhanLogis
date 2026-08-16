@@ -1,5 +1,6 @@
 package com.samhanair.logis.partnerauth.it;
 
+import java.util.UUID;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -14,15 +15,18 @@ import org.testcontainers.containers.PostgreSQLContainer;
  * (memory feedback_testcontainers_windows_docker.md).
  */
 @ExtendWith(AbstractPostgresIT.DockerAvailableCondition.class)
+@org.springframework.context.annotation.Import(com.samhanair.logis.security.test.GatewayAttestationMockMvcConfig.class)
 public abstract class AbstractPostgresIT {
 
-    // ggignore - Testcontainers dev-only credentials (random ephemeral container)
+    /** 통합테스트 컨테이너 자격은 매 실행 임시값이다 — 소스에 고정 자격을 박지 않는다. */
+    private static final String POSTGRES_PASSWORD = UUID.randomUUID().toString();
+
     @SuppressWarnings("resource")
     protected static final PostgreSQLContainer<?> POSTGRES =
             new PostgreSQLContainer<>("postgres:16-alpine")
                     .withDatabaseName("partner_auth_db")
-                    .withUsername("test-user")
-                    .withPassword("test-pw-ephemeral");
+                    .withUsername(UUID.randomUUID().toString())
+                    .withPassword(POSTGRES_PASSWORD);
 
     static {
         try {
