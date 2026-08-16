@@ -166,7 +166,7 @@ public class JwtAuthenticationGatewayFilterFactory
 
             Jws<Claims> jws;
             try {
-                jws = JwtTokenProvider.parse(token, props.getSecretBytes());
+                jws = JwtTokenProvider.parse(token, verificationSecret(config));
             } catch (Exception ex) {
                 return writeError(exchange, HttpStatus.UNAUTHORIZED,
                         "INVALID_TOKEN", "유효하지 않은 토큰입니다");
@@ -336,6 +336,8 @@ public class JwtAuthenticationGatewayFilterFactory
     public static class Config {
         /** When false, the filter is permissive on missing tokens. */
         private boolean required = true;
+        /** Optional route-specific JWT secret, supplied from an environment variable. */
+        private String secret;
         /** When non-empty, role must be one of these (else 403). */
         private List<Role> allowedRoles = new ArrayList<>();
         /**
@@ -348,5 +350,12 @@ public class JwtAuthenticationGatewayFilterFactory
         private List<String> allowedGroups = new ArrayList<>();
         /** Allow the signed JWT system-master claim to bypass this route's group list. */
         private boolean allowSystemMaster;
+    }
+
+    private byte[] verificationSecret(Config config) {
+        if (config.getSecret() != null && !config.getSecret().isBlank()) {
+            return config.getSecret().getBytes(StandardCharsets.UTF_8);
+        }
+        return props.getSecretBytes();
     }
 }
