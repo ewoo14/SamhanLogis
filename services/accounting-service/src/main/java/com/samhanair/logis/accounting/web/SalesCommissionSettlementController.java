@@ -2,6 +2,7 @@ package com.samhanair.logis.accounting.web;
 
 import com.samhanair.logis.accounting.service.SalesCommissionSettlementService;
 import com.samhanair.logis.accounting.web.dto.CreateSalesCommissionSettlementRequest;
+import com.samhanair.logis.accounting.web.dto.CalculateSalesCommissionSettlementRequest;
 import com.samhanair.logis.accounting.web.dto.SalesCommissionSettlementResponse;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.security.permission.PermissionAction;
@@ -70,5 +71,16 @@ public class SalesCommissionSettlementController {
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.UPDATE)
     public ApiResponse<SalesCommissionSettlementResponse> confirm(@PathVariable UUID id) {
         return ApiResponse.ok(SalesCommissionSettlementResponse.from(service.confirm(id)));
+    }
+
+    /** 레거시 R-18 계산식으로 입력을 계산하고 DRAFT snapshot에 저장한다. */
+    @Operation(summary = "영업수수료 정산 계산 및 저장")
+    @PostMapping("/{id}/calculate")
+    @RequirePermission(page = PAGE_CODE, action = PermissionAction.UPDATE)
+    public ApiResponse<SalesCommissionSettlementResponse> calculate(
+            @PathVariable UUID id,
+            @Valid @RequestBody CalculateSalesCommissionSettlementRequest request) {
+        return ApiResponse.ok(SalesCommissionSettlementResponse.from(
+                service.calculate(id, request.rateContractVersion(), request.toInput())));
     }
 }

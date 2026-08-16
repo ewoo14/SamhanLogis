@@ -42,6 +42,20 @@ export interface SalesCommissionSettlement {
   supplyAmount: string | null
   vatAmount: string | null
   rateContractVersion: number | null
+  equipmentAmount?: string | null
+  prepaidAmount?: string | null
+  installInputAmount?: string | null
+  safetyInputAmount?: string | null
+  paymentMethod?: 'CARD' | 'CASH' | string | null
+  withholdingApplied?: boolean | null
+  manualExpenseRate?: string | null
+  cardAmount?: string | null
+  salesAmount?: string | null
+  expenseAmount?: string | null
+  withholdingAmount?: string | null
+  installAmount?: string | null
+  safetyAmount?: string | null
+  subtotalAmount?: string | null
 }
 
 /** 영업수수료 정산서 목록 조회 조건. */
@@ -53,6 +67,18 @@ export interface ListSalesCommissionSettlementsOptions {
 /** 번호 없는 DRAFT 정산서 생성 요청. */
 export interface CreateSalesCommissionSettlementRequest {
   settlementDate: string
+}
+
+export interface CalculateSalesCommissionSettlementRequest {
+  total: string
+  equipment: string
+  prepaid: string
+  install: string
+  safety: string
+  paymentMethod: 'CARD' | 'CASH'
+  withholdingApplied: boolean
+  manualExpenseRate?: string | null
+  rateContractVersion: number
 }
 
 /** 영업수수료 정산서 목록을 조회한다. */
@@ -90,6 +116,17 @@ export async function confirmSalesCommissionSettlement(id: string): Promise<Sale
   const res = await apiClient.post<ApiEnvelope<SalesCommissionSettlement>>(
     `/accounting/sales-commission-settlements/${id}/confirm`,
     {},
+  )
+  return res.data.data
+}
+
+/** 입력·계산 결과를 정산서 snapshot으로 저장한다. */
+export async function calculateSalesCommissionSettlement(
+  id: string,
+  body: CalculateSalesCommissionSettlementRequest,
+): Promise<SalesCommissionSettlement> {
+  const res = await apiClient.post<ApiEnvelope<SalesCommissionSettlement>>(
+    `/accounting/sales-commission-settlements/${id}/calculate`, body,
   )
   return res.data.data
 }

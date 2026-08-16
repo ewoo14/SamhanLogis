@@ -24,10 +24,10 @@ class SalesCommissionSettlementControllerTest {
     }
 
     @Test
-    void exposesExactlyListDetailCreateAndConfirmOperations() {
+    void exposesCalculationAlongsideExistingOperations() {
         assertThat(Arrays.stream(SalesCommissionSettlementController.class.getDeclaredMethods())
                 .map(Method::getName))
-                .containsExactlyInAnyOrder("list", "getOne", "create", "confirm");
+                .containsExactlyInAnyOrder("list", "getOne", "create", "confirm", "calculate");
         assertThat(SalesCommissionSettlementController.PAGE_CODE)
                 .isNotEqualTo("accounting.reports");
     }

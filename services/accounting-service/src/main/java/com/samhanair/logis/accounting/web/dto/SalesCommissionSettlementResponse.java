@@ -16,7 +16,22 @@ public record SalesCommissionSettlementResponse(
         BigDecimal payoutAmount,
         BigDecimal supplyAmount,
         BigDecimal vatAmount,
-        Integer rateContractVersion) {
+        Integer rateContractVersion,
+        BigDecimal equipmentAmount,
+        BigDecimal prepaidAmount,
+        BigDecimal installInputAmount,
+        BigDecimal safetyInputAmount,
+        String paymentMethod,
+        Boolean withholdingApplied,
+        BigDecimal manualExpenseRate,
+        BigDecimal appliedExpenseRate,
+        BigDecimal cardAmount,
+        BigDecimal salesAmount,
+        BigDecimal expenseAmount,
+        BigDecimal withholdingAmount,
+        BigDecimal installAmount,
+        BigDecimal safetyAmount,
+        BigDecimal subtotalAmount) {
 
     /** aggregate snapshot을 API 응답으로 변환한다. */
     public static SalesCommissionSettlementResponse from(SalesCommissionSettlement settlement) {
@@ -29,6 +44,13 @@ public record SalesCommissionSettlementResponse(
                 settlement.getPayoutAmount(),
                 settlement.getSupplyAmount(),
                 settlement.getVatAmount(),
-                settlement.getRateContract() == null ? null : settlement.getRateContract().getVersionNo());
+                settlement.getRateContract() == null ? null : settlement.getRateContract().getVersionNo(),
+                settlement.getEquipmentAmount(), settlement.getPrepaidAmount(),
+                settlement.getInstallInputAmount(), settlement.getSafetyInputAmount(),
+                settlement.getPaymentMethod() == null ? null : settlement.getPaymentMethod().name(),
+                settlement.getWithholdingApplied(), settlement.getManualExpenseRate(),
+                settlement.getAppliedExpenseRate(), settlement.getCardAmount(), settlement.getSalesAmount(),
+                settlement.getExpenseAmount(), settlement.getWithholdingAmount(), settlement.getInstallAmount(),
+                settlement.getSafetyAmount(), settlement.getSubtotalAmount());
     }
 }
