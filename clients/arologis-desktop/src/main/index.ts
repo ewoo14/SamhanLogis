@@ -120,7 +120,7 @@ app.whenReady().then(() => {
   })
   createMainWindow()
   // Native 인증서 안내가 renderer QA를 가리지 않도록 테스트 실행에서만 생략한다.
-  if (process.env['AROLOGIS_E2E_SKIP_TRUST_PROMPT'] !== '1') void promptForTrustRoot(mainWindow)
+  if (!app.isPackaged && process.env['AROLOGIS_E2E_SKIP_TRUST_PROMPT'] !== '1') void promptForTrustRoot(mainWindow)
 
   app.on('activate', () => {
     // macOS 호환 표준 패턴 (본 앱은 Windows 전용).

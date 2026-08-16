@@ -2,15 +2,22 @@ import { _electron as electron, expect, test } from '@playwright/test'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { mkdirSync } from 'node:fs'
+import { resolveQaShotsDir } from './support/qa-screenshot-dir'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const APP_DIR = path.resolve(HERE, '../../arologis-desktop')
-const SHOTS = path.resolve(HERE, '../../../docs/qa/1254-notice-banner-layout/screenshots')
+const SHOTS = resolveQaShotsDir(path.resolve(HERE, '../../../docs/qa/1254-notice-banner-layout/screenshots'))
 mkdirSync(SHOTS, { recursive: true })
+
+const ELECTRON_BINARY = path.resolve(
+  APP_DIR,
+  'node_modules/electron/dist',
+  process.platform === 'win32' ? 'electron.exe' : 'electron',
+)
 
 test('PR #1254 production Electron에서 배너 도달성·모달·print·폭별 상단 조작을 실측한다', async () => {
   const app = await electron.launch({
-    executablePath: path.resolve(APP_DIR, 'node_modules/electron/dist/electron.exe'),
+    executablePath: ELECTRON_BINARY,
     args: [APP_DIR],
     env: { ...process.env, CERTIFICATE_FIXTURE: '', AROLOGIS_E2E_SKIP_TRUST_PROMPT: '1' },
   })
