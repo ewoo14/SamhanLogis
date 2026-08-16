@@ -1,8 +1,11 @@
 ---
 name: feedback_review_post_one_to_one_enforcement
 description: 리뷰 1:1 게시 엄수 — 커밋과 PR 게시를 같은 도구 블록에서 처리한다. 미루면 누적된다 (2026-07-30 개발책임자 2회 지적)
-metadata:
+metadata: 
+  node_type: memory
   type: feedback
+  originSessionId: c912e540-6b1a-48d7-a602-a64c7fa3e6ca
+  modified: 2026-08-16T04:39:47.926Z
 ---
 
 # 리뷰 1:1 게시는 커밋과 한 묶음이다 (2026-07-30 개발책임자 2회 지적)
@@ -78,4 +81,40 @@ done
 
 **Why:** 게시가 없으면 **개발책임자가 무슨 일이 있었는지 볼 수 없습니다.** PM 세션 안에만 있는 판정은 다른 PC·다음 세션에 전달되지 않고, PR 이 결정의 누적 기록이라는 성질도 깨집니다.
 
-관련: [[feedback_canonical_workflow]] · [[feedback_post_devlead_decisions_to_pr]] · [[feedback_pm_codex_progress_verification]] · [[feedback_gh_comment_utf8_pipe_mojibake]]
+## 🚨 2026-08-16 세 번째 재발 — **결과가 몰려 들어올 때 터진다**
+
+> 개발책임자: *"리뷰도 라운드마다야..."*
+
+이번 기제는 앞의 넷과 다르다. 게시를 **의도적으로 미룬 게 아니라, 결과가 동시에 도착해 밀렸다.**
+
+```text
+codex 5슬롯이 병렬로 돌면 결과가 한 번에 3~4개씩 도착한다
+PM 은 도착 순서대로  ①커밋 ②다음 라운드 발주  를 먼저 하고
+게시는 "정리해서 한 번에" 로 미룬다 — 그 사이 또 결과가 도착한다
+
+실측 이번에 밀린 것 4건
+  #1240 LUNA 워크플로 fix · #1241 LUNA Playwright fix
+  #1252 SOL R2(BLOCK)     · #1247 SOL R3(BLOCK)
+전부 커밋·푸시는 됐는데 PR 게시만 없었다
+```
+
+🔑 **커밋이 게시 욕구를 잠재운다.** `git push` 를 하면 "기록은 남았다" 는 감각이 생기는데,
+개발책임자는 커밋 로그가 아니라 **PR 코멘트**를 본다.
+
+### How to apply — 병렬 슬롯에서의 순서 고정
+
+```text
+결과 1건이 도착하면 그 자리에서
+   ① 산출물 확인(스크린샷은 직접 열어 본다)
+   ② 커밋·푸시
+   ③ 🚨 PR 게시                ← 여기까지가 "그 라운드"다
+   ④ 다음 라운드 발주
+🚫 ④를 ③보다 먼저 하지 마라. 발주가 급해 보이는 것이 바로 함정이다
+🚫 결과가 2건 이상 동시 도착해도 각각 ①~③을 끝내고 다음 것으로 넘어가라
+   "몰아서 정리" 는 언제나 밀린다
+```
+
+🚩 자가 점검 한 줄: **"방금 push 한 SHA 가 PR 코멘트에 적혀 있는가?"**
+적혀 있지 않으면 그 라운드는 아직 안 끝났다.
+
+관련: [[feedback_canonical_workflow]] · [[feedback_post_devlead_decisions_to_pr]] · [[feedback_pm_codex_progress_verification]] · [[feedback_gh_comment_utf8_pipe_mojibake]] · [[feedback_codex_parallel_throughput_collapse]]
