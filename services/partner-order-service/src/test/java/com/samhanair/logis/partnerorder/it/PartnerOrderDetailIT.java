@@ -30,6 +30,8 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -303,6 +305,36 @@ class PartnerOrderDetailIT extends AbstractPostgresIT {
                         .header("X-Is-Partner", "true")
                         .header("X-Partner-Code", "2118712345"))
                 .andExpect(status().isForbidden());
+    }
+
+    @ParameterizedTest(name = "{0}: expected HTTP {1}")
+    @CsvSource({
+            "PARTNER 자기 번호 숫자, PARTNER, 2118712345, 2118712345, true, 200",
+            "PARTNER 자기 번호 하이픈, PARTNER, 211-87-12345, 2118712345, true, 200",
+            "PARTNER 다른 번호, PARTNER, 2228812345, 2118712345, true, 403",
+            "PARTNER 앞자리 0, PARTNER, 02118712345, 2118712345, true, 403",
+            "PARTNER 유사 번호, PARTNER, 2118712346, 2118712345, true, 403",
+            "직원 VIEW + partner code, SALES, 2118712345, 2118712345, false, 200",
+            "직원 VIEW + 위조 partner 헤더, SALES, 2118712345, 2118712345, true, 200",
+            "직원 VIEW 없음, SALES, 2118712345, 2118712345, true, 403"
+    })
+    @WithMockUser(roles = {"SALES"})
+    void history_http_wiring_regression_matrix(String name, String role, String requestedBizCode,
+                                                String partnerCode, boolean isPartner,
+                                                int expectedStatus) throws Exception {
+        saveOrder("2026/05/07-matrix", "2118712345", "211-87-12345", true);
+        when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
+                .thenReturn(!"직원 VIEW 없음".equals(name));
+
+        mockMvc.perform(get("/api/v1/partner-orders/history")
+                        .param("bizCode", requestedBizCode)
+                        .param("from", "2026-01-01T00:00:00")
+                        .param("to", "2027-01-01T00:00:00")
+                        .header("X-User-Id", "PARTNER".equals(role) ? PARTNER_ACCOUNT_ID : ACCOUNT_ID)
+                        .header("X-User-Role", role)
+                        .header("X-Is-Partner", String.valueOf(isPartner))
+                        .header("X-Partner-Code", partnerCode))
+                .andExpect(status().is(expectedStatus));
     }
 
     /**

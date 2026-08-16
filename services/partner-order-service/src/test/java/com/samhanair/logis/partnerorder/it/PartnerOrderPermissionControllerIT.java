@@ -329,8 +329,8 @@ class PartnerOrderPermissionControllerIT {
     }
 
     @Test
-    @DisplayName("history: 직원 토큰에 X-Is-Partner=true를 덧붙여도 PARTNER self-service 우회하지 않는다")
-    void history_employeeWithPartnerHeader_isDeniedBeforeHistoryService() throws Exception {
+    @DisplayName("history: 직원 역할이 X-Is-Partner=true보다 우선하고 동적 VIEW를 사용한다")
+    void history_employeeWithPartnerHeader_keepsEmployeeIdentity() throws Exception {
         when(dynamicPermissionClient.check(any(UUID.class), eq("sales.partner-order.history"), eq(PermissionAction.VIEW)))
                 .thenReturn(true);
 
@@ -342,9 +342,9 @@ class PartnerOrderPermissionControllerIT {
                         .header(ROLE_HEADER, "SALES")
                         .header(IS_PARTNER_HEADER, "true")
                         .header("X-Partner-Code", "P001"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
 
-        verify(historyService, never()).findHistory(anyString(), any(), any(), any(), any());
+        verify(historyService).findHistory(anyString(), any(), any(), any(), eq("P001"));
     }
 
     @Test
