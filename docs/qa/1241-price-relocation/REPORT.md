@@ -72,10 +72,13 @@ removed=samhan-896-s2-fresh-pg-7db7047572e
 Google Sheets v4 readonly로 `싱글 구성품_단가인상`, `상업멀티 구성_단가인상`을 일회성 읽기했다. 자격 파일 내용은 출력·저장하지 않았다.
 
 - 원시 가격 유효 occurrence: 1,121행
-- 현행 active unique pair deduplicate: 1,095행
+- CSV unique pair: 1,095행
+- 실제 활성 관계와 매칭되어 UPDATE된 pair: 1,042/1,095행
+- 따라서 53행은 현재 활성 관계와 매칭되지 않으며, `1,095 active pair`라고 보고할 수 없다.
 - 싱글 pair: 909행
 - 상업 pair 중복 집계: 26 pair, 각 `default_qty=2`
 - 산출물: [sheet-bundle-component-prices.csv](sheet-bundle-component-prices.csv), [backfill-bundle-component-context-prices.sql](backfill-bundle-component-context-prices.sql)
+- SQL staging table은 CSV의 마지막 `sheet_row` 열까지 7개 열로 일치한다.
 - 공유 DB에는 INSERT/UPDATE를 실행하지 않았다.
 
 ## ⑥ AC060CS6PBH1SY 검증
@@ -117,11 +120,33 @@ BUILD SUCCESSFUL
 
 코드·테스트·격리 백필 산출물 범위는 완료했다. raw psql probe는 기존 불변 V31의 세션 경계 결함에서 중단했으며, V31을 수정하지 않고 Flyway fresh 경로 통과 증거를 사용했다. 공유 DB 실적재와 전수 검증은 지시대로 수행하지 않았다.
 
-## ⑫ 프로세스 회수
+## ⑫ LUNA 라운드 정정 — 주문 경로와 증거 무결성
+
+`BundleExpander`는 `bundle_component.context_delivery_price`를 우선하지만 주문 화면은
+`BootstrapService`가 캐시한 `/products/internal/estimate-catalog/components` 결과를 소비했다.
+직전 endpoint가 구성품 Product의 전역 `deliveryPrice`만 반환했고, FE가 이를 배분하여
+`setAllocation=true`로 전송했기 때문에 `partner-order-service`가 `616,975`/`925,050`을
+미리보기·최종확인·저장에 그대로 사용했다.
+
+수정 후 endpoint는 관계 `contextDeliveryPrice`/`contextReleasePrice`를 우선하고 NULL이면
+전역가로 fallback한다. FE의 `partUnitPrice()`도 관계 구성품을 `SINGLE_PARTS_INC` 전역
+캐시가 다시 덮어쓰지 않게 했다. 백필 뒤에는 `BootstrapService.evictAll()` 또는 재기동
+prefetch로 새 관계값을 읽는다.
+
+| 품목 | 품목표 | 미리보기 | 최종확인 | 저장값 |
+|---|---:|---:|---:|---:|
+| AC060CN6PBH1 | 606,000 | 606,000 | 606,000 | 606,000 |
+| AC060CXAPBH1 | 910,000 | 910,000 | 910,000 | 910,000 |
+
+직전 SQL staging table은 6열인데 CSV는 `sheet_row` 포함 7열이었다. SQL을 7열로 정정했다.
+CSV는 1,095 unique pair지만 실제 활성 매칭은 1,042/1,095건이며 53건은 현재 활성 관계와
+매칭되지 않는다. 따라서 `1,095 active pair`라는 직전 보고는 부정확하며 철회한다.
+
+## ⑬ 프로세스 회수
 
 이번 라운드가 기동한 fresh PostgreSQL probe 컨테이너는 `removed=...` 원문으로 회수됐다. Testcontainers는 Gradle 종료 시 자동 회수됐고, Gradle 출력도 `Daemon will be stopped`를 기록했다. 최종 이름 검색에서 Luna/1241/fresh/testcontainers 잔여 컨테이너는 0개였다. 공유 `samhan-*` 컨테이너는 건드리지 않았다.
 
-## ⑬ 최종 `git status --porcelain` 원문
+## ⑭ 최종 `git status --porcelain` 원문
 
 ```text
  M services/product-service/src/main/java/com/samhanair/logis/product/domain/BundleComponent.java

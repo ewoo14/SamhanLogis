@@ -173,6 +173,40 @@ class EstimateCatalogInternalControllerIT extends AbstractPostgresIT {
                         hasItem(hasSize(0))));
     }
 
+    @Test
+    void components_singleSet_returns_relation_delivery_price_before_global_product_price() throws Exception {
+        Product parent = seedBundleParent("IT_SINGLE_PRICE_SET", ProductCategory.SINGLE_SET,
+                EstimateCategory.SINGLE_SET);
+        Product component = seedComponentProduct("IT_SINGLE_PRICE_IDU", "관계 단가 실내기",
+                ProductCategory.SINGLE_PART, EstimateCategory.SINGLE_SET);
+        component.changePrices(new BigDecimal("935000"), new BigDecimal("616975"));
+        productRepository.save(component);
+        BundleComponent relation = BundleComponent.seed(parent.getId(), "IT_SINGLE_PRICE_IDU",
+                BigDecimal.ONE, BundleComponent.QtyMode.FOLLOW_SET,
+                BundleComponent.ComponentKind.INDOOR, null, true, null);
+        relation.changeContextPrices(new BigDecimal("606000"), new BigDecimal("606000"));
+        bundleComponentRepository.save(relation);
+        Product fallbackComponent = seedComponentProduct("IT_SINGLE_PRICE_FALLBACK", "전역 fallback 실외기",
+                ProductCategory.SINGLE_PART, EstimateCategory.SINGLE_SET);
+        fallbackComponent.changePrices(new BigDecimal("935000"), new BigDecimal("616975"));
+        productRepository.save(fallbackComponent);
+        bundleComponentRepository.save(BundleComponent.seed(parent.getId(), "IT_SINGLE_PRICE_FALLBACK",
+                BigDecimal.ONE, BundleComponent.QtyMode.FOLLOW_SET,
+                BundleComponent.ComponentKind.OUTDOOR, null, true, null));
+        productRepository.flush();
+        bundleComponentRepository.flush();
+
+        mockMvc.perform(get("/products/internal/estimate-catalog/components?category=SINGLE_SET")
+                        .header("X-Internal-Token", INTERNAL_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[?(@.componentModelCode == 'IT_SINGLE_PRICE_IDU')].deliveryPrice",
+                        hasItem(606000)))
+                .andExpect(jsonPath("$.data[?(@.componentModelCode == 'IT_SINGLE_PRICE_IDU')].releasePrice",
+                        hasItem(606000)))
+                .andExpect(jsonPath("$.data[?(@.componentModelCode == 'IT_SINGLE_PRICE_FALLBACK')].deliveryPrice",
+                        hasItem(616975)));
+    }
+
     /** price-baseline 은 exposure 없는 구성품도 modelCode + null category 로 포함한다. */
     @Test
     void priceBaseline_includesComponentWithoutExposureAsNullCategory() throws Exception {

@@ -215,13 +215,6 @@ class ProductClientTest {
         }
     }
 
-    private static String opaque(UUID value) {
-        ByteBuffer bytes = ByteBuffer.allocate(16)
-                .putLong(value.getMostSignificantBits())
-                .putLong(value.getLeastSignificantBits());
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes.array());
-    }
-
     @Test
     void lookupFixedDiscountRates는_기존_부분성공_endpoint의_percent를_파싱한다() {
         UUID productId = UUID.fromString("00000000-0000-0000-0000-000000000101");

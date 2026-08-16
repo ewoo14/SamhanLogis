@@ -2771,7 +2771,10 @@ function partUnitPrice(p){
     return 8000;
   }
   const due = document.getElementById('due')?.value || '';
-  if (incActive('singleSets', due) && SINGLE_PARTS_INC[p.model]) {
+  // 구성품 bootstrap의 price는 BundleComponent 관계 납품가 우선값이다.
+  // 관계값이 없는 레거시 세트도 price가 전역 납품가 fallback으로 채워지므로,
+  // 인상 전 전역 캐시가 관계 단가를 다시 덮어쓰지 않게 한다.
+  if (!p?.setModel && incActive('singleSets', due) && SINGLE_PARTS_INC[p.model]) {
     return SINGLE_PARTS_INC[p.model];
   }
   return priceFrom(p,{
