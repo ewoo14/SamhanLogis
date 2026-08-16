@@ -38,8 +38,6 @@ implementation 산출물이다.
    | `ESTIMATE_SERVICE_URL` | estimate-service staging URL (snapshot 임시저장 + history) |
    | `AUDIT_LOG_URL` | audit-log endpoint (logFrontEvent 대체, 예: `<host>/api/v1/audit-logs/front`) |
    | `SLIP_SERVICE_URL` | M5 slip-service staging URL |
-   | `GOOGLE_SERVICE_ACCOUNT_KEY` | Google Cloud service account JSON 파일 경로 또는 base64 (`GOOGLE_SA_KEY_JSON_BASE64`) |
-   | `SRC_SHEET_ID` | legacy 견적 spreadsheet ID |
 
 4. **DNS 연결**
    - 카페24 또는 Cloudflare DNS 콘솔에서 `quote.samhan-air.com` CNAME → Render 가 발급하는

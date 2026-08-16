@@ -1,7 +1,7 @@
 /**
  * single-material-product 슬라이스 — estimate-app(종합견적서) 세트 실 캡처.
  *
- * 실서버 :5183 (CATALOG_SOURCE=db, 실 product-service DB 시드 + 실 사양맵). mock 미사용.
+ * 실서버 :5183 (product-service DB 시드 + 실 사양맵). mock 미사용.
  * 출력: docs/qa/single-material-product/screenshots/
  *
  *   05-estimate-set-components-spec.png — 싱글중대형 구성품 사양 모달(실내기/실외기/판넬/리모컨 + 합산 사양)
