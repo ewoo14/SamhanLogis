@@ -1,0 +1,16 @@
+Starting project at C:\dev\Samhan-Public\.claude\worktrees\w1235\clients\mobile-staff
+Metro is running in CI mode, reloads are disabled. Remove CI=true to enable watch mode.
+Starting Metro Bundler
+warning: Bundler cache is empty, rebuilding (this may take a minute)
+
+TypeScript: The tsconfig.json has been updated (Use EXPO_NO_TYPESCRIPT_SETUP to skip)
+
+› Required modifications made to the tsconfig.json:
+
+  extends is now expo/tsconfig.base
+
+
+Waiting on http://localhost:28101
+Logs for your project will appear below.
+Web node_modules\expo\AppEntry.js ▓▓▓▓▓▓▓░░░░░░░░░ 47.0% (36/65)
+Web Bundled 3812ms node_modules\expo\AppEntry.js (415 modules)

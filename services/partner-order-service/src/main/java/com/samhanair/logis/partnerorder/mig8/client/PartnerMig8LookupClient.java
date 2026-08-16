@@ -1,6 +1,7 @@
 package com.samhanair.logis.partnerorder.mig8.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.samhanair.logis.partnerorder.client.OpaqueUuidDecoder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
@@ -113,6 +114,6 @@ public class PartnerMig8LookupClient {
 
     private static UUID uuid(JsonNode node, String... keys) {
         String value = text(node, keys);
-        return value == null ? null : UUID.fromString(value);
+        return value == null ? null : OpaqueUuidDecoder.decode(value);
     }
 }

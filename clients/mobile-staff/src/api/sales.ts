@@ -2,7 +2,7 @@
  * 영업 native 앱 API client — P1-4 신규 (mobile-staff sales mode).
  *
  * 출처: BE record 1:1.
- *   - `sales-service` /api/v1/sales/dashboard — 영업 대시보드 집계
+ *   - `slip-service` /mobile/sales/dashboard — 영업 대시보드 집계
  *   - `partner-service` /api/v1/partners/quick-search — 거래처 자동완성
  *   - `quotation-service` /api/v1/quotations/mobile — 견적 생성
  *   - `slip-service` /api/v1/slips/mobile-order — 주문 (파트너 주문) 생성
@@ -26,22 +26,18 @@ import { API_BASE_URL, assertApiResponseSuccess, SalesApiError } from './salesUt
 // -----------------------------------------------------------------------
 
 /**
- * 영업 대시보드 집계 — `sales-service` GET /api/v1/sales/dashboard 응답.
- * @PreAuthorize SALES / MANAGER / MASTER
+ * slip-service 모바일 대시보드 응답을 화면 모델로 정규화한 타입.
+ * BE의 기존 계약(fromDate/toDate, totalSalesAmount 등)은 다른 소비자가 사용하므로
+ * FE API 경계에서만 소비하기 쉬운 형태로 변환한다.
  */
 export interface SalesDashboardResponse {
-  /** 오늘 확정 매출 합계 (원) */
-  todaySalesAmount: number;
-  /** 전월 대비 매출 증감율 (%, 소수 1자리) */
-  salesChangeRate: number;
-  /** 미수금 총액 (원) */
-  unpaidAmount: number;
-  /** 진행 중 견적 건수 */
-  activeQuotationCount: number;
-  /** 오늘 신규 주문 건수 */
-  todayOrderCount: number;
-  /** 집계 기준일 (ISO8601 date) */
-  baseDate: string;
+  fromDate: string;
+  toDate: string;
+  totalSalesAmount: number;
+  totalOutstanding: number;
+  estimateDraftCount: number;
+  estimateSentCount: number;
+  estimateAcceptedCount: number;
 }
 
 /**
@@ -171,7 +167,7 @@ export interface PartnerOrderResponse {
  * @throws SalesApiError HTTP 오류 또는 ApiResponse.success=false 시
  */
 export async function getSalesDashboard(token: string | null): Promise<SalesDashboardResponse> {
-  const url = `${API_BASE_URL}/api/v1/sales/dashboard`;
+  const url = `${API_BASE_URL}/mobile/sales/dashboard`;
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (token) headers.Authorization = `Bearer ${token}`;
   const res = await fetch(url, { method: 'GET', headers });
@@ -180,7 +176,24 @@ export async function getSalesDashboard(token: string | null): Promise<SalesDash
   }
   const json = await res.json();
   assertApiResponseSuccess(json, '대시보드');
-  return json.data as SalesDashboardResponse;
+  const data = json.data as {
+    fromDate: string;
+    toDate: string;
+    totalSalesAmount: number;
+    totalOutstanding: number;
+    estimateDraftCount: number;
+    estimateSentCount: number;
+    estimateAcceptedCount: number;
+  };
+  return {
+    fromDate: data.fromDate,
+    toDate: data.toDate,
+    totalSalesAmount: data.totalSalesAmount,
+    totalOutstanding: data.totalOutstanding,
+    estimateDraftCount: data.estimateDraftCount,
+    estimateSentCount: data.estimateSentCount,
+    estimateAcceptedCount: data.estimateAcceptedCount,
+  };
 }
 
 /**
