@@ -76,12 +76,15 @@ public interface PartnerOrderRepository extends JpaRepository<PartnerOrder, UUID
      * <p>native query 로 {@code PartnerOrder.@SQLRestriction}을 우회한다. 이 메서드는 history
      * 경로에서만 사용하며, 일반 주문 목록·집계에는 사용하지 않는다.
      */
-    @Query(value = "SELECT * FROM partner_orders "
-            + "WHERE biz_code = :bizCode AND (confirmed_at BETWEEN :from AND :to OR EXISTS ("
-            + "SELECT 1 FROM partner_order_history h WHERE h.partner_order_id = partner_orders.id "
+    @Query(value = "SELECT o.* FROM partner_orders o "
+            + "LEFT JOIN (SELECT partner_order_id, MAX(occurred_at) AS effective_confirmed_at "
+            + "FROM partner_order_history WHERE event_type = 'CONFIRMED' AND is_deleted = FALSE "
+            + "GROUP BY partner_order_id) ce ON ce.partner_order_id = o.id "
+            + "WHERE o.biz_code = :bizCode AND (o.confirmed_at BETWEEN :from AND :to OR EXISTS ("
+            + "SELECT 1 FROM partner_order_history h WHERE h.partner_order_id = o.id "
             + "AND h.event_type = 'CONFIRMED' AND h.is_deleted = FALSE "
             + "AND h.occurred_at BETWEEN :from AND :to)) "
-            + "ORDER BY confirmed_at DESC",
+            + "ORDER BY COALESCE(o.confirmed_at, ce.effective_confirmed_at) DESC NULLS LAST, o.order_no DESC, o.id ASC",
             countQuery = "SELECT COUNT(*) FROM partner_orders "
                     + "WHERE biz_code = :bizCode AND (confirmed_at BETWEEN :from AND :to OR EXISTS ("
                     + "SELECT 1 FROM partner_order_history h WHERE h.partner_order_id = partner_orders.id "
@@ -93,12 +96,16 @@ public interface PartnerOrderRepository extends JpaRepository<PartnerOrder, UUID
             @Param("to") LocalDateTime to, Pageable pageable);
 
     /** PARTNER 발송내역 전용 조회 — 거래처 범위와 삭제행 보존을 함께 적용한다. */
-    @Query(value = "SELECT * FROM partner_orders "
-            + "WHERE partner_code = :partnerCode AND biz_code = :bizCode "
-            + "AND (confirmed_at BETWEEN :from AND :to OR EXISTS ("
-            + "SELECT 1 FROM partner_order_history h WHERE h.partner_order_id = partner_orders.id "
+    @Query(value = "SELECT o.* FROM partner_orders o "
+            + "LEFT JOIN (SELECT partner_order_id, MAX(occurred_at) AS effective_confirmed_at "
+            + "FROM partner_order_history WHERE event_type = 'CONFIRMED' AND is_deleted = FALSE "
+            + "GROUP BY partner_order_id) ce ON ce.partner_order_id = o.id "
+            + "WHERE o.partner_code = :partnerCode AND o.biz_code = :bizCode "
+            + "AND (o.confirmed_at BETWEEN :from AND :to OR EXISTS ("
+            + "SELECT 1 FROM partner_order_history h WHERE h.partner_order_id = o.id "
             + "AND h.event_type = 'CONFIRMED' AND h.is_deleted = FALSE "
-            + "AND h.occurred_at BETWEEN :from AND :to)) ORDER BY confirmed_at DESC",
+            + "AND h.occurred_at BETWEEN :from AND :to)) ORDER BY COALESCE(o.confirmed_at, ce.effective_confirmed_at) "
+            + "DESC NULLS LAST, o.order_no DESC, o.id ASC",
             countQuery = "SELECT COUNT(*) FROM partner_orders "
                     + "WHERE partner_code = :partnerCode AND biz_code = :bizCode "
                     + "AND (confirmed_at BETWEEN :from AND :to OR EXISTS ("
@@ -111,12 +118,16 @@ public interface PartnerOrderRepository extends JpaRepository<PartnerOrder, UUID
             @Param("from") LocalDateTime from, @Param("to") LocalDateTime to, Pageable pageable);
 
     /** 사업자번호 하이픈 표기 차이를 흡수하는 PARTNER history 조회. */
-    @Query(value = "SELECT * FROM partner_orders "
-            + "WHERE regexp_replace(biz_code, '[^0-9]', '', 'g') = :bizCode "
-            + "AND (confirmed_at BETWEEN :from AND :to OR EXISTS ("
-            + "SELECT 1 FROM partner_order_history h WHERE h.partner_order_id = partner_orders.id "
+    @Query(value = "SELECT o.* FROM partner_orders o "
+            + "LEFT JOIN (SELECT partner_order_id, MAX(occurred_at) AS effective_confirmed_at "
+            + "FROM partner_order_history WHERE event_type = 'CONFIRMED' AND is_deleted = FALSE "
+            + "GROUP BY partner_order_id) ce ON ce.partner_order_id = o.id "
+            + "WHERE regexp_replace(o.biz_code, '[^0-9]', '', 'g') = :bizCode "
+            + "AND (o.confirmed_at BETWEEN :from AND :to OR EXISTS ("
+            + "SELECT 1 FROM partner_order_history h WHERE h.partner_order_id = o.id "
             + "AND h.event_type = 'CONFIRMED' AND h.is_deleted = FALSE "
-            + "AND h.occurred_at BETWEEN :from AND :to)) ORDER BY confirmed_at DESC",
+            + "AND h.occurred_at BETWEEN :from AND :to)) ORDER BY COALESCE(o.confirmed_at, ce.effective_confirmed_at) "
+            + "DESC NULLS LAST, o.order_no DESC, o.id ASC",
             countQuery = "SELECT COUNT(*) FROM partner_orders "
                     + "WHERE regexp_replace(biz_code, '[^0-9]', '', 'g') = :bizCode "
                     + "AND (confirmed_at BETWEEN :from AND :to OR EXISTS ("
@@ -130,13 +141,15 @@ public interface PartnerOrderRepository extends JpaRepository<PartnerOrder, UUID
 
     /** confirmed_at 결측 레거시 주문도 CONFIRMED 이벤트로 발송내역에 포함한다. */
     @Query(value = "SELECT o.* FROM partner_orders o "
+            + "LEFT JOIN (SELECT partner_order_id, MAX(occurred_at) AS effective_confirmed_at "
+            + "FROM partner_order_history WHERE event_type = 'CONFIRMED' AND is_deleted = FALSE "
+            + "GROUP BY partner_order_id) ce ON ce.partner_order_id = o.id "
             + "WHERE regexp_replace(o.biz_code, '[^0-9]', '', 'g') = :bizCode "
             + "AND (o.confirmed_at BETWEEN :from AND :to OR EXISTS ("
             + "SELECT 1 FROM partner_order_history h WHERE h.partner_order_id = o.id "
             + "AND h.event_type = 'CONFIRMED' AND h.is_deleted = FALSE "
             + "AND h.occurred_at BETWEEN :from AND :to)) "
-            + "ORDER BY COALESCE(o.confirmed_at, (SELECT MAX(h.occurred_at) FROM partner_order_history h "
-            + "WHERE h.partner_order_id = o.id AND h.event_type = 'CONFIRMED' AND h.is_deleted = FALSE)) DESC",
+            + "ORDER BY COALESCE(o.confirmed_at, ce.effective_confirmed_at) DESC NULLS LAST, o.order_no DESC, o.id ASC",
             countQuery = "SELECT COUNT(*) FROM partner_orders o "
                     + "WHERE regexp_replace(o.biz_code, '[^0-9]', '', 'g') = :bizCode "
                     + "AND (o.confirmed_at BETWEEN :from AND :to OR EXISTS ("
@@ -149,13 +162,17 @@ public interface PartnerOrderRepository extends JpaRepository<PartnerOrder, UUID
             @Param("to") LocalDateTime to, Pageable pageable);
 
     /** 거래처코드/사업자번호의 저장 표기 차이를 함께 흡수하는 PARTNER history 조회. */
-    @Query(value = "SELECT * FROM partner_orders "
-            + "WHERE regexp_replace(lower(partner_code), '[^a-z0-9]', '', 'g') = :partnerCode "
-            + "AND regexp_replace(biz_code, '[^0-9]', '', 'g') = :bizCode "
-            + "AND (confirmed_at BETWEEN :from AND :to OR EXISTS ("
-            + "SELECT 1 FROM partner_order_history h WHERE h.partner_order_id = partner_orders.id "
+    @Query(value = "SELECT o.* FROM partner_orders o "
+            + "LEFT JOIN (SELECT partner_order_id, MAX(occurred_at) AS effective_confirmed_at "
+            + "FROM partner_order_history WHERE event_type = 'CONFIRMED' AND is_deleted = FALSE "
+            + "GROUP BY partner_order_id) ce ON ce.partner_order_id = o.id "
+            + "WHERE regexp_replace(lower(o.partner_code), '[^a-z0-9]', '', 'g') = :partnerCode "
+            + "AND regexp_replace(o.biz_code, '[^0-9]', '', 'g') = :bizCode "
+            + "AND (o.confirmed_at BETWEEN :from AND :to OR EXISTS ("
+            + "SELECT 1 FROM partner_order_history h WHERE h.partner_order_id = o.id "
             + "AND h.event_type = 'CONFIRMED' AND h.is_deleted = FALSE "
-            + "AND h.occurred_at BETWEEN :from AND :to)) ORDER BY confirmed_at DESC",
+            + "AND h.occurred_at BETWEEN :from AND :to)) ORDER BY COALESCE(o.confirmed_at, ce.effective_confirmed_at) "
+            + "DESC NULLS LAST, o.order_no DESC, o.id ASC",
             countQuery = "SELECT COUNT(*) FROM partner_orders "
                     + "WHERE regexp_replace(lower(partner_code), '[^a-z0-9]', '', 'g') = :partnerCode "
                     + "AND regexp_replace(biz_code, '[^0-9]', '', 'g') = :bizCode "
@@ -168,16 +185,13 @@ public interface PartnerOrderRepository extends JpaRepository<PartnerOrder, UUID
             @Param("partnerCode") String partnerCode, @Param("bizCode") String bizCode,
             @Param("from") LocalDateTime from, @Param("to") LocalDateTime to, Pageable pageable);
 
-    /** PARTNER 가 다른 거래처 사업자번호로 history 조회를 시도했는지 식별한다. */
-    boolean existsByBizCodeAndPartnerCodeNot(String bizCode, String partnerCode);
-
-    /** 정규화된 두 식별자 축으로 타 거래처 주문 존재 여부를 확인한다. */
+    /** 정규화된 거래처 코드와 사업자번호의 실제 소유 조합 존재 여부를 확인한다. */
     @Query(value = "SELECT EXISTS (SELECT 1 FROM partner_orders "
-            + "WHERE regexp_replace(biz_code, '[^0-9]', '', 'g') = :bizCode "
-            + "AND regexp_replace(lower(partner_code), '[^a-z0-9]', '', 'g') <> :partnerCode)",
+            + "WHERE regexp_replace(lower(partner_code), '[^a-z0-9]', '', 'g') = :partnerCode "
+            + "AND regexp_replace(biz_code, '[^0-9]', '', 'g') = :bizCode)",
             nativeQuery = true)
-    boolean existsByNormalizedBizCodeAndNormalizedPartnerCodeNot(
-            @Param("bizCode") String bizCode, @Param("partnerCode") String partnerCode);
+    boolean existsByNormalizedPartnerCodeAndNormalizedBizCode(
+            @Param("partnerCode") String partnerCode, @Param("bizCode") String bizCode);
 
     /** Idempotency-Key 로 기존 주문 조회 (재호출 시 중복 차단). */
     Optional<PartnerOrder> findByIdempotencyKey(String idempotencyKey);

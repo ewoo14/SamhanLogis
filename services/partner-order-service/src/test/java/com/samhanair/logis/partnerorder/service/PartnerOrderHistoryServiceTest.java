@@ -1,6 +1,7 @@
 package com.samhanair.logis.partnerorder.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -27,6 +28,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
 
 @ExtendWith(MockitoExtension.class)
 class PartnerOrderHistoryServiceTest {
@@ -89,8 +91,8 @@ class PartnerOrderHistoryServiceTest {
     void partnerScopedHistory_includesDeletedOrderOnlyThroughHistorySpecificQuery() {
         Pageable pageable = PageRequest.of(0, 20);
         when(partnerSelfScopeGuard.partnerScopeOrNull("P-001")).thenReturn("P-001");
-        when(orderRepository.existsByNormalizedBizCodeAndNormalizedPartnerCodeNot("1234567890", "p001"))
-                .thenReturn(false);
+        when(orderRepository.existsByNormalizedPartnerCodeAndNormalizedBizCode("p001", "1234567890"))
+                .thenReturn(true);
         PartnerOrder deletedOrder = order("2026/08/16-2", true, BigDecimal.TEN);
         when(orderRepository.findAllHistoryIncludingDeletedByNormalizedPartnerCodeAndNormalizedBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(
                 eq("p001"), eq("1234567890"), any(), any(), eq(pageable)))
@@ -121,6 +123,23 @@ class PartnerOrderHistoryServiceTest {
                 .isEqualTo(true);
         verify(orderRepository, never()).findAllHistoryIncludingDeletedByBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(
                 any(), any(), any(), any());
+    }
+
+    @Test
+    void partnerScopedHistory_rejectsUnknownOrOtherBusinessNumberWithSameAccessDenied() {
+        Pageable pageable = PageRequest.of(0, 20);
+        when(partnerSelfScopeGuard.partnerScopeOrNull("P-001")).thenReturn("P-001");
+        when(orderRepository.existsByNormalizedPartnerCodeAndNormalizedBizCode("p001", "02176310279"))
+                .thenReturn(false);
+
+        assertThatThrownBy(() -> service.findHistory(
+                "02176310279", LocalDateTime.MIN, LocalDateTime.MAX, pageable, "P-001"))
+                .isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(() -> service.findHistory(
+                "2176310278", LocalDateTime.MIN, LocalDateTime.MAX, pageable, "P-001"))
+                .isInstanceOf(AccessDeniedException.class);
+        verify(orderRepository, never()).findAllHistoryIncludingDeletedByNormalizedPartnerCodeAndNormalizedBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(
+                any(), any(), any(), any(), any());
     }
 
     @Test

@@ -76,8 +76,8 @@ public class PartnerOrderHistoryService {
                                 normalizedBizCode, from, to, pageable)
                         .map(this::toHistoryResponse);
             }
-            if (orderRepository.existsByNormalizedBizCodeAndNormalizedPartnerCodeNot(
-                    normalizedBizCode, normalizedPartnerScope)) {
+            if (!orderRepository.existsByNormalizedPartnerCodeAndNormalizedBizCode(
+                    normalizedPartnerScope, normalizedBizCode)) {
                 throw new org.springframework.security.access.AccessDeniedException(
                         "본인 거래처 주문 이력만 조회할 수 있습니다.");
             }
