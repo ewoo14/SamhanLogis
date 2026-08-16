@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, type ReactNode } from 'react'
+import { type ReactNode } from 'react'
 import { Badge } from '../Badge'
 import { Button } from '../Button'
 import { Card } from '../Card'
@@ -81,104 +81,7 @@ export function AppUpdateNotice({
 
 /** 여러 업데이트 알림을 한 묶음으로 고정해도 알림 사이 간격과 본문 좌표를 보존한다. */
 export function AppUpdateNoticeStack({ children }: AppUpdateNoticeStackProps): JSX.Element {
-  const stackRef = useRef<HTMLDivElement>(null)
-
-  useLayoutEffect(() => {
-    const stack = stackRef.current
-    if (!stack) return
-
-    const updatePosition = () => {
-      const spacing = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--space-4')) || 16
-      const interactive = Array.from(document.querySelectorAll<HTMLElement>('a, button, input'))
-        .filter((element) => !element.closest('[data-app-update-notice-stack]'))
-        .map((element) => ({ element, rect: element.getBoundingClientRect() }))
-        .filter(({ rect }) => rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < window.innerHeight)
-      const headerControls = interactive
-        .filter(({ element }) => !element.closest('tbody tr'))
-        .map(({ rect }) => rect)
-      const minimumStackHeight = 40
-      const calculatedTop = Math.max(spacing, ...headerControls.map((rect) => rect.bottom + spacing))
-      const top = Math.min(calculatedTop, Math.max(spacing, window.innerHeight - spacing - minimumStackHeight))
-      stack.style.setProperty('--app-update-notice-top', `${top}px`)
-    }
-
-    let frame = 0
-    const schedulePosition = () => {
-      cancelAnimationFrame(frame)
-      frame = requestAnimationFrame(() => requestAnimationFrame(updatePosition))
-    }
-    updatePosition()
-    const observer = new MutationObserver(schedulePosition)
-    observer.observe(document.body, { childList: true, subtree: true })
-    window.addEventListener('resize', schedulePosition)
-    const handleWheel = (event: WheelEvent) => {
-      const rect = stack.getBoundingClientRect()
-      if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) return
-      const maxScrollTop = Math.max(0, stack.scrollHeight - stack.clientHeight)
-      const canScrollDown = event.deltaY > 0 && stack.scrollTop < maxScrollTop
-      const canScrollUp = event.deltaY < 0 && stack.scrollTop > 0
-      if (!canScrollDown && !canScrollUp) {
-        const previousPointerEvents = stack.style.pointerEvents
-        stack.style.pointerEvents = 'none'
-        const underlying = document.elementFromPoint(event.clientX, event.clientY)
-        stack.style.pointerEvents = previousPointerEvents
-        let scroller = underlying instanceof HTMLElement ? underlying : null
-        while (scroller && scroller !== stack) {
-          const style = getComputedStyle(scroller)
-          if (scroller.scrollHeight > scroller.clientHeight && /(auto|scroll)/.test(style.overflowY)) break
-          scroller = scroller.parentElement
-        }
-        if (!scroller || scroller === stack) {
-          scroller = Array.from(document.querySelectorAll<HTMLElement>('main, [role="main"]'))
-            .find((candidate) => candidate.scrollHeight > candidate.clientHeight) ?? null
-        }
-        if (scroller && scroller !== stack) {
-          scroller.scrollTop += event.deltaY
-          event.preventDefault()
-        }
-        return
-      }
-      event.preventDefault()
-      stack.scrollTop = Math.min(maxScrollTop, Math.max(0, stack.scrollTop + event.deltaY))
-    }
-    const handleScrollbarClick = (event: MouseEvent) => {
-      const target = event.target instanceof Element ? event.target : null
-      if (target?.closest('button, a, input, select')) return
-      const rect = stack.getBoundingClientRect()
-      const scrollbarWidth = 12
-      const inScrollbar = event.clientX >= rect.right - scrollbarWidth && event.clientX <= rect.right
-        && event.clientY >= rect.top && event.clientY <= rect.bottom
-      if (!inScrollbar || stack.scrollHeight <= stack.clientHeight) return
-      event.preventDefault()
-      event.stopImmediatePropagation()
-      const ratio = Math.max(0, Math.min(1, (event.clientY - rect.top) / Math.max(1, rect.height)))
-      stack.scrollTop = ratio * (stack.scrollHeight - stack.clientHeight)
-    }
-    window.addEventListener('wheel', handleWheel, { capture: true, passive: false })
-    window.addEventListener('click', handleScrollbarClick, { capture: true })
-    return () => {
-      observer.disconnect()
-      cancelAnimationFrame(frame)
-      window.removeEventListener('resize', schedulePosition)
-      window.removeEventListener('wheel', handleWheel, { capture: true })
-      window.removeEventListener('click', handleScrollbarClick, { capture: true })
-    }
-  }, [])
-
-  return (
-    <div
-      ref={stackRef}
-      className={styles.stack}
-      role="region"
-      aria-label="업데이트 알림"
-      tabIndex={0}
-      data-app-update-notice-stack
-      data-scrollable="true"
-      data-print-exclude="app-update-notice-stack"
-    >
-      {children}
-    </div>
-  )
+  return <div className={styles.stack} data-app-update-notice-stack data-print-exclude="app-update-notice-stack">{children}</div>
 }
 
 export default AppUpdateNotice
