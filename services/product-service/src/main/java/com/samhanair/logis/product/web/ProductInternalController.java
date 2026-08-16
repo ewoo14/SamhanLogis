@@ -26,6 +26,7 @@ import com.samhanair.logis.product.web.dto.LookupByModelNamesRequest;
 import com.samhanair.logis.product.web.dto.LookupByCodeRequest;
 import com.samhanair.logis.product.web.dto.LookupRequest;
 import com.samhanair.logis.product.web.dto.ProductSummaryResponse;
+import com.samhanair.logis.product.web.dto.ProductClassificationLookupResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
@@ -111,6 +112,13 @@ public class ProductInternalController {
     public ApiResponse<List<ProductSummaryResponse>> lookupByModelCodes(
             @Valid @RequestBody LookupByModelCodesRequest request) {
         return ApiResponse.ok(productService.lookupByModelCodes(request.modelCodes()));
+    }
+
+    /** 주문서웹 confirm 전용 분류 snapshot 조회. */
+    @PostMapping("/lookup-classifications-by-model-codes")
+    public ApiResponse<List<ProductClassificationLookupResponse>> lookupClassificationsByModelCodes(
+            @Valid @RequestBody LookupByModelCodesRequest request) {
+        return ApiResponse.ok(productService.lookupClassificationsByModelCodes(request.modelCodes()));
     }
 
     /**

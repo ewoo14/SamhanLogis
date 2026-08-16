@@ -14,6 +14,7 @@ import static org.mockito.Mockito.never;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.partnerorder.client.DcConfigClient;
 import com.samhanair.logis.partnerorder.client.ProductClient;
+import com.samhanair.logis.partnerorder.client.ProductClassification;
 import com.samhanair.logis.partnerorder.client.ProductSummary;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.realtime.PartnerOrderBoardChangePublisher;
@@ -161,6 +162,8 @@ class PartnerOrderConfirmServiceTest {
         when(orderRepository.findByIdempotencyKey("PO-CONF-P1-1")).thenReturn(Optional.empty());
         when(partnerIdentityResolver.requirePartnerId("P1", "B1")).thenReturn(partnerId);
         when(productClient.lookupByModelCodes(List.of("HM-1"))).thenReturn(List.of(product));
+        when(productClient.lookupClassificationsByModelCodes(List.of("HM-1"))).thenReturn(List.of(
+                new ProductClassification("HM-1", "HOME_MULTI", "실내기", "1-Way 인피니트")));
         when(productClient.lookupFixedDiscountRates(List.of(productId))).thenReturn(Map.of());
         when(dcConfigClient.calculatePrices(eq("P1"), anyList()))
                 .thenReturn(Map.of("0", new BigDecimal("70")));
@@ -231,6 +234,8 @@ class PartnerOrderConfirmServiceTest {
         when(orderRepository.findByIdempotencyKey("PO-CONF-P-QA-40-1")).thenReturn(Optional.empty());
         when(partnerIdentityResolver.requirePartnerId("P-QA-40", "B1")).thenReturn(partnerId);
         when(productClient.lookupByModelCodes(List.of("QA-HVAC-001"))).thenReturn(List.of(product));
+        when(productClient.lookupClassificationsByModelCodes(List.of("QA-HVAC-001"))).thenReturn(List.of(
+                new ProductClassification("QA-HVAC-001", "COMMERCIAL_MULTI", "실외기", "표준형")));
         when(productClient.lookupFixedDiscountRates(List.of(productId))).thenReturn(Map.of());
         when(dcConfigClient.calculateDetailed(eq("P-QA-40"), anyList()))
                 .thenReturn(new DcConfigClient.CalculationResult(
