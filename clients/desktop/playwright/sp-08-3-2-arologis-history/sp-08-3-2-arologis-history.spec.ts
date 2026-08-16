@@ -37,20 +37,17 @@ test.describe('SP-08-3-2 Arologis dispatch surface contract', () => {
     expect(reconcile).toContain('dispatch-reconcile-history')
   })
 
-  test('S4 pre-classify is now a read-only received-group view', () => {
+  test('pre-classify keeps the dedicated region and provincial classification view', () => {
     const route = read('clients/arologis-desktop/src/renderer/routes/dispatches/PreClassifyPage.tsx')
-    const page = read('clients/arologis-desktop/src/renderer/routes/dispatches/ReceivedGroupsPage.tsx')
-    const api = read('clients/arologis-desktop/src/renderer/api/receivedDispatchGroups.ts')
 
-    expect(route).toContain('ReceivedGroupsPage as ArologisPreClassifyPage')
-    expect(page).toContain('arologis-received-groups-page')
-    expect(page).toContain('DataTable')
-    expect(page).toContain('수신 배차 그룹')
-    expect(page).toContain('수정하거나 재분류할 수 없습니다')
-    expect(api).toContain("'/admin/arologis/dispatch-groups'")
-    expect(api).toContain('dispatchDate')
-    expect(page).not.toContain('HistoryTab')
-    expect(page).not.toContain('restoreBanner')
+    expect(route).toContain('getPreClassify')
+    expect(route).toContain('getRegional')
+    expect(route).toContain('arologis-preclassify-tab-region')
+    expect(route).toContain('arologis-preclassify-tab-regional')
+    expect(route).toContain('arologis-preclassify-search')
+    expect(route).toContain('해당 기간에 출고전표가 없습니다.')
+    expect(route).toContain('해당 일자에 출고전표가 없습니다.')
+    expect(route).not.toContain('ReceivedGroupsPage as ArologisPreClassifyPage')
   })
 
   test('received-group output does not expose UUID literals or Notion runtime calls', () => {

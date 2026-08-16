@@ -92,6 +92,8 @@
 
 - [🚨 금액은 단계마다 갈라지면 안 된다 — 미리보기·최종확인·저장값 단일 원천](feedback_amount_must_be_single_source_across_steps.md)
 
+- [🚨 GUI 라이브QA 는 개발책임자의 화면을 빼앗는다 — 허락받고 돌리고 라운드마다 프로세스 회수](feedback_gui_live_qa_steals_the_desktop.md)
+
 # 커밋/PR/문서 규약
 - [한국어 의무 — 커밋/PR/Issue/보고](feedback_korean_commits.md)
 - [🚨🚨 내가 커밋한 QA 하네스가 CI 를…](feedback_qa_harness_commit_breaks_ci.md)
