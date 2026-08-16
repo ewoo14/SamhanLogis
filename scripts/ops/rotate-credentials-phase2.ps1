@@ -1,4 +1,4 @@
-# 자격 회전 2단계 — 인프라 공유 비밀번호
+﻿# 자격 회전 2단계 — 인프라 공유 비밀번호
 #
 # 대상 1개 값 (6개 키가 공유)
 #   DB_PASSWORD = POSTGRES_PASSWORD = RABBIT_PASSWORD
@@ -31,9 +31,14 @@ if (-not $oldPw) { throw 'POSTGRES_PASSWORD 없음 — 중단' }
 "OLD_SHARED_PW_SHA8=$(Get-Sha8 $oldPw)"
 
 # 새 비밀번호 — 영숫자만 (URL/커넥션 문자열/YAML 안전)
+# Get-Random 은 암호학적 난수가 아니다 — RandomNumberGenerator 로 뽑는다
 $chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+$rb = New-Object byte[] 40
+# 🚨 RandomNumberGenerator::Fill 은 .NET Core 2.1+ 전용 — PowerShell 5.1 에는 없다
+$rng = New-Object System.Security.Cryptography.RNGCryptoServiceProvider
+try { $rng.GetBytes($rb) } finally { $rng.Dispose() }
 $sb = New-Object System.Text.StringBuilder
-1..40 | ForEach-Object { [void]$sb.Append($chars[(Get-Random -Maximum $chars.Length)]) }
+foreach ($x in $rb) { [void]$sb.Append($chars[$x % $chars.Length]) }
 $newPw = $sb.ToString()
 "NEW_SHARED_PW_SHA8=$(Get-Sha8 $newPw)"
 
@@ -63,7 +68,9 @@ $out = foreach ($l in $lines) {
   foreach ($k in $pwKeys) { if ($l -like "$k=*") { "$k=$newPw"; $m = $true; break } }
   if (-not $m) { $l }
 }
-Set-Content -LiteralPath $envPath -Value $out -Encoding UTF8
+# 🚨 원본은 BOM 없음 + LF 단독 — phase1 과 동일 이유로 직접 쓴다
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+[System.IO.File]::WriteAllText($envPath, (($out -join "`n") + "`n"), $utf8NoBom)
 $after = Get-Content -LiteralPath $envPath -Encoding UTF8
 foreach ($k in $pwKeys) { "{0,-26} {1}" -f $k, (Get-Sha8 (Get-EnvVal $after $k)) }
 
