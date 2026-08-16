@@ -18,8 +18,31 @@ const STATUS_LABEL: Record<string, string> = {
 
 const amountLabel = (value: string | null): string => {
   if (value === null || value === undefined) return '—'
-  const number = Number(value)
-  return Number.isFinite(number) ? `₩${number.toLocaleString('ko-KR')}` : value
+  const text = String(value).trim()
+  if (!/^-?\d+(?:\.\d+)?$/.test(text)) return text
+  const [rawInteger = '0', fraction] = text.split('.')
+  const sign = rawInteger.startsWith('-') ? '-' : ''
+  const integer = rawInteger.replace(/^-/, '').replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+  return `₩${sign}${integer}${fraction === undefined ? '' : `.${fraction}`}`
+}
+
+const MONEY_KEYS = ['total', 'equipment', 'prepaid', 'install', 'safety'] as const
+const MONEY_PATTERN = /^-?\d{1,18}(?:\.\d{1,6})?$/
+
+const normalizeMoney = (value: string): { value: string; error: string | null } => {
+  if (value.trim() === '') return { value: '0', error: null }
+  if (!MONEY_PATTERN.test(value)) {
+    return { value, error: '금액 형식은 숫자만 입력할 수 있으며 정수부는 18자리까지입니다.' }
+  }
+  return { value, error: null }
+}
+
+const normalizeExpenseRate = (value: string): { value: string; error: string | null } => {
+  if (value.trim() === '') return { value: '', error: null }
+  if (!/^\d{1,3}(?:\.\d{1,6})?$/.test(value) || Number(value) > 100) {
+    return { value, error: '제경비율은 0~100 사이의 숫자(%)로 입력해야 합니다.' }
+  }
+  return { value: String(Number(value) / 100), error: null }
 }
 
 export function SalesCommissionSettlementDetailPage() {
@@ -50,6 +73,8 @@ export function SalesCommissionSettlementDetailPage() {
     total: '0', equipment: '0', prepaid: '0', install: '0', safety: '0',
     paymentMethod: 'CARD', withholdingApplied: true, manualExpenseRate: null, rateContractVersion: 1,
   })
+  const [expenseMode, setExpenseMode] = useState<'default' | 'manual'>('default')
+  const [inputError, setInputError] = useState<string | null>(null)
   const [settlementState, setSettlement] = useState<SalesCommissionSettlement | null>(null)
   useEffect(() => {
     if (!loadedSettlement) return
@@ -61,16 +86,53 @@ export function SalesCommissionSettlementDetailPage() {
       withholdingApplied: loadedSettlement.withholdingApplied ?? true,
       manualExpenseRate: loadedSettlement.manualExpenseRate ?? null, rateContractVersion: loadedSettlement.rateContractVersion ?? 1,
     })
+    setExpenseMode(loadedSettlement.manualExpenseRate == null ? 'default' : 'manual')
   }, [loadedSettlement])
   const calculateMutation = useMutation({
-    mutationFn: () => calculateSalesCommissionSettlement(id, form),
+    mutationFn: (next: CalculateSalesCommissionSettlementRequest = form) => calculateSalesCommissionSettlement(id, next),
     onSuccess: async (saved) => {
       setSettlement(saved)
       await queryClient.invalidateQueries({ queryKey: ['accounting', 'sales-commission-settlement', id] })
     },
   })
-  const setField = (key: keyof CalculateSalesCommissionSettlementRequest, value: string | boolean) =>
-    setForm((current) => ({ ...current, [key]: value }))
+  const setField = (key: keyof CalculateSalesCommissionSettlementRequest, value: string | boolean) => {
+    const next = { ...form, [key]: value } as CalculateSalesCommissionSettlementRequest
+    let normalizedError: string | null = null
+    if ((MONEY_KEYS as readonly string[]).includes(key) && typeof value === 'string') {
+      const normalized = normalizeMoney(value)
+      normalizedError = normalized.error
+      setInputError(normalizedError)
+      next[key as typeof MONEY_KEYS[number]] = normalized.value
+    }
+    if (key === 'manualExpenseRate' && typeof value === 'string') {
+      const normalized = normalizeExpenseRate(value)
+      normalizedError = normalized.error
+      setInputError(normalizedError)
+      next.manualExpenseRate = normalized.value
+    }
+    setForm(next)
+    if (!normalizedError && isDraft && id) calculateMutation.mutate(next)
+  }
+
+  const setExpenseModeAndCalculate = (mode: 'default' | 'manual') => {
+    setExpenseMode(mode)
+    const next = { ...form, manualExpenseRate: mode === 'default' ? null : (form.manualExpenseRate ?? '') }
+    setForm(next)
+    if (isDraft) calculateMutation.mutate(next)
+  }
+
+  const calculate = () => {
+    const normalized: Partial<CalculateSalesCommissionSettlementRequest> = {}
+    for (const key of MONEY_KEYS) {
+      const result = normalizeMoney(form[key])
+      if (result.error) { setInputError(result.error); return }
+      normalized[key] = result.value
+    }
+    const next = { ...form, ...normalized } as CalculateSalesCommissionSettlementRequest
+    setForm(next)
+    setInputError(null)
+    calculateMutation.mutate(next)
+  }
 
   if (query.isLoading) {
     return <div style={{ display: 'grid', placeItems: 'center', minHeight: 240 }}><Spinner size="lg" label="정산서 불러오는 중" /></div>
@@ -129,12 +191,15 @@ export function SalesCommissionSettlementDetailPage() {
         <h4>정산 계산</h4>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
           {(['total', 'equipment', 'prepaid', 'install', 'safety'] as const).map((key) => (
-            <label key={key} style={{ display: 'grid', gap: 4 }}><span>{{ total: '총 결제금액', equipment: '장비대', prepaid: '선지급', install: '설치비', safety: '안전관리비' }[key]}</span><input value={form[key]} onChange={(e) => setField(key, e.target.value)} inputMode="decimal" /></label>
+            <label key={key} style={{ display: 'grid', gap: 4 }}><span>{{ total: '총 결제금액', equipment: '장비대', prepaid: '선지급', install: '설치비', safety: '안전관리비' }[key]}</span><input aria-label={{ total: '총 결제금액', equipment: '장비대', prepaid: '선지급', install: '설치비', safety: '안전관리비' }[key]} value={form[key]} onChange={(e) => setField(key, e.target.value)} inputMode="decimal" /></label>
           ))}
+          <label style={{ display: 'grid', gap: 4 }}><span>제경비율</span><div><Button type="button" variant={expenseMode === 'default' ? 'primary' : 'ghost'} onClick={() => setExpenseModeAndCalculate('default')}>8%</Button><Button type="button" variant={expenseMode === 'manual' ? 'primary' : 'ghost'} onClick={() => setExpenseModeAndCalculate('manual')}>수기</Button></div></label>
+          {expenseMode === 'manual' ? <label style={{ display: 'grid', gap: 4 }}><span>수기 제경비율</span><input aria-label="수기 제경비율" value={form.manualExpenseRate == null || form.manualExpenseRate === '' ? '' : String(Number(form.manualExpenseRate) * 100)} onChange={(e) => setField('manualExpenseRate', e.target.value)} inputMode="decimal" placeholder="%" /></label> : null}
           <label style={{ display: 'grid', gap: 4 }}><span>결제방식</span><select value={form.paymentMethod} onChange={(e) => setField('paymentMethod', e.target.value)}><option value="CARD">카드결제</option><option value="CASH">현금결제</option></select></label>
           <label style={{ display: 'grid', gap: 4 }}><span>원천징수</span><select value={String(form.withholdingApplied)} onChange={(e) => setField('withholdingApplied', e.target.value === 'true')}><option value="true">적용</option><option value="false">미적용</option></select></label>
         </div>
-        <Button type="button" variant="primary" onClick={() => calculateMutation.mutate()} loading={calculateMutation.isPending} disabled={!isDraft} data-testid="sales-commission-settlement-calculate">계산 및 저장</Button>
+        <Button type="button" variant="primary" onClick={calculate} loading={calculateMutation.isPending} disabled={!isDraft} data-testid="sales-commission-settlement-calculate">계산 및 저장</Button>
+        {inputError ? <div role="alert" className="error-banner">{inputError}</div> : null}
         {calculateMutation.isError ? <div role="alert" className="error-banner">정산 계산 저장에 실패했습니다.</div> : null}
       </section>
 
