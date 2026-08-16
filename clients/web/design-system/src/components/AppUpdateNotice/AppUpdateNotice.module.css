@@ -18,8 +18,9 @@
 }
 
 .notice > * { pointer-events: none; }
-.notice .actions,
-.notice .actions * { pointer-events: auto; }
+.notice .actions { pointer-events: none; }
+.notice .actions > button,
+.notice .actions > a { pointer-events: auto; }
 
 .stack {
   position: fixed;
@@ -43,6 +44,11 @@
   width: min(100% - var(--space-8), 920px);
   margin: 0 auto;
   box-sizing: border-box;
+}
+
+/* 1024px 창에서는 세 장 stack의 높이가 본문 제목/상단 조작 영역과 겹치지 않도록 한다. */
+@media (max-width: 1100px) {
+  .stack { inset-block-start: 400px; }
 }
 
 .severity-network { --notice-accent: var(--color-brand-500); }
@@ -82,4 +88,10 @@
 
 @media (prefers-reduced-motion: reduce) {
   .notice * { transition: none !important; }
+}
+
+/* 인쇄 경로는 전역 클래스가 누락되거나 CSS Module 순서가 달라도 배너를 제외한다. */
+@media print {
+  .notice,
+  .stack { display: none !important; }
 }

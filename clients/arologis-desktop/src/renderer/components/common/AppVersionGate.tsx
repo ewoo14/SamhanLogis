@@ -189,7 +189,7 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
   ) : null
 
   const versionPolicyNotice = versionCheckFailure ? (
-    <aside role="status" data-testid="app-version-policy-error" className="no-print">
+    <aside role="status" data-testid="app-version-policy-error" data-print-exclude="app-version-policy-error" className="no-print">
       {versionCheckFailure}
     </aside>
   ) : null
@@ -217,7 +217,12 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
     return (
       <>
         {updateNoticeStack}
-        <section role="alertdialog" data-testid="app-version-blocking-modal" aria-modal="true">
+        <section
+          role="alertdialog"
+          data-testid="app-version-blocking-modal"
+          aria-modal="true"
+          style={{ position: 'relative', zIndex: 1000 }}
+        >
           <h2>긴급 업데이트</h2>
           <p>현재 버전 {CURRENT_VERSION}은 더 이상 사용할 수 없습니다.</p>
           <p>최신 버전: {versionInfo.latestVersion}</p>
@@ -230,7 +235,7 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
   }
 
   const notice = promptState.kind === 'minor' || promptState.kind === 'recommend' ? (
-    <aside role="status" data-testid="app-version-minor-banner" className="no-print">
+    <aside role="status" data-testid="app-version-minor-banner" data-print-exclude="app-version-minor-banner" className="no-print">
       <span>새 아로로지스 데스크톱 버전 {promptState.versionInfo.latestVersion}이 있습니다. 다운로드가 끝나면 자동으로 설치하고 앱을 다시 시작합니다.</span>
       <button type="button" onClick={dismiss}>안내 닫기</button>
     </aside>
