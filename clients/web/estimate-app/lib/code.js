@@ -2444,9 +2444,13 @@ async function saveOrderToNotion(_info, _items, _slipNo) {
  * SamhanLogis: 발송내역 전용 GET /api/v1/partner-orders/history. 삭제행을 포함하는
  * 예외는 이 조회 경로에서만 사용한다.
  */
-async function getNotionHistory(startDate, endDate, _dateField, bizCode, identityHeaders) {
+async function getNotionHistory(startDate, endDate, _dateField, bizCode, options) {
   const historyBizCode = String(bizCode || '').trim();
   if (!historyBizCode) return [];
+  // RPC 는 이름 있는 옵션으로 전달한다. 기존 직접 호출의 headers 객체도 호환한다.
+  const identityHeaders = options && options.identityHeaders
+    ? options.identityHeaders
+    : options;
   const data = await _msGet(
     `${BASE_URL}/api/v1/partner-orders/history`,
     { bizCode: historyBizCode, from: `${startDate}T00:00:00`, to: `${endDate}T23:59:59` },

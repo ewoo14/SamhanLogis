@@ -5,7 +5,38 @@ jest.mock('axios', () => ({
 }));
 
 const code = require('../lib/code');
+const express = require('express');
+const http = require('http');
+const rpcRouter = require('../routes/rpc');
+const { cookieHeader } = require('../lib/auth-context');
 
+function postRpc(fnName, body, headers = {}) {
+  const app = express();
+  app.use(express.json());
+  app.use('/rpc', rpcRouter);
+  const server = http.createServer(app);
+  return new Promise((resolve, reject) => {
+    server.listen(0, '127.0.0.1', () => {
+      const { port } = server.address();
+      const request = http.request({
+        hostname: '127.0.0.1',
+        port,
+        path: `/rpc/${fnName}`,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...headers },
+      }, (response) => {
+        let raw = '';
+        response.setEncoding('utf8');
+        response.on('data', (chunk) => { raw += chunk; });
+        response.on('end', () => {
+          server.close(() => resolve({ status: response.statusCode, body: JSON.parse(raw) }));
+        });
+      });
+      request.on('error', (error) => server.close(() => reject(error)));
+      request.end(JSON.stringify(body));
+    });
+  });
+}
 describe('견적 저장본 조회 결과 계약', () => {
   beforeEach(() => mockSnapshotGet.mockReset());
 
@@ -24,6 +55,66 @@ describe('견적 저장본 조회 결과 계약', () => {
     mockSnapshotGet.mockResolvedValue({ status: 200, data: { success: true, data: rows } });
 
     await expect(code.getQuoteHistory('2026-08-09', '2026-08-15')).resolves.toEqual(rows);
+  });
+});
+
+describe('종합견적서 발송내역 로그인 식별자 연결', () => {
+  const historyCall = () => mockSnapshotGet.mock.calls.at(-1);
+
+  beforeEach(() => {
+    mockSnapshotGet.mockImplementation(async (_url, config) => {
+      const headers = config?.headers || {};
+      if (!headers.authorization || !headers['x-user-id']) {
+        return { status: 401, data: { message: '인증 필요' } };
+      }
+      if (headers['x-is-partner'] === 'true') {
+        return { status: 403, data: { message: '[SP-PO-1] 동적 권한 deny — page=sales.partner-order.history action=VIEW' } };
+      }
+      return { status: 200, data: { success: true, data: { content: [{ slipNo: 'H-1' }] } } };
+    });
+  });
+
+  test('RPC 배선은 직원 인증을 upstream에 전달하고 attestation 계약명을 보존한다', async () => {
+    const response = await postRpc('getNotionHistory', {
+      args: ['2000-01-01', '2100-01-01', '출고일', '211-87-12345'],
+    }, {
+      Cookie: cookieHeader('employee@example.com'),
+      Authorization: 'Bearer employee-jwt',
+      'X-User-Id': 'employee-001',
+      'X-Is-Partner': 'false',
+      'X-Partner-Code': '2118712345',
+      'X-Samhan-Gateway-Attestation': 'gateway-attestation',
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ ok: true, result: [{ slipNo: 'H-1', date: '', custName: '' }] });
+    expect(historyCall()[1].headers).toEqual(expect.objectContaining({
+      authorization: 'Bearer employee-jwt',
+      'x-user-id': 'employee-001',
+      'x-is-partner': 'false',
+      'x-partner-code': '2118712345',
+      'x-samhan-gateway-attestation': 'gateway-attestation',
+    }));
+    expect(historyCall()[1].headers).not.toHaveProperty('cookie');
+    expect(historyCall()[1].headers).not.toHaveProperty('x-gateway-attestation');
+  });
+
+  test('일반 RPC에는 identity 헤더를 전달하지 않는다', async () => {
+    mockSnapshotGet.mockResolvedValue({ status: 200, data: { success: true, data: [] } });
+
+    const response = await postRpc('getQuoteHistory', {
+      args: ['2000-01-01', '2100-01-01'],
+    }, {
+      Cookie: cookieHeader('employee@example.com'),
+      Authorization: 'Bearer employee-jwt',
+      'X-User-Id': 'employee-001',
+      'X-Samhan-Gateway-Attestation': 'gateway-attestation',
+    });
+
+    expect(response.status).toBe(200);
+    expect(mockSnapshotGet.mock.calls.at(-1)[1].headers).toEqual({
+      'X-Internal-Token': expect.any(String),
+    });
   });
 });
 
