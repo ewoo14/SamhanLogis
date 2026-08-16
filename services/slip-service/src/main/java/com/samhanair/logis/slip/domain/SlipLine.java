@@ -2,6 +2,7 @@ package com.samhanair.logis.slip.domain;
 
 import com.samhanair.logis.common.entity.BaseEntity;
 import com.samhanair.logis.common.financial.VatAmountCalculator;
+import com.samhanair.logis.common.financial.VatInclusiveUnitAmountCalculator;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions;
@@ -251,13 +252,13 @@ public class SlipLine extends BaseEntity {
      *
      * <p>사용자 입력 단가는 <b>부가세 포함</b>. 라인 단위로 공급가액/부가세를 분리:
      * <ul>
+     *   <li>VAT 포함 단가를 먼저 원 단위 HALF_UP 반올림</li>
+     *   <li>단가별 공급가액/부가세를 분리한 뒤 각각 수량을 곱함</li>
      *   <li>합계(VAT포함) = {@code 수량 × unitPriceWithVat}</li>
-     *   <li>공급가액(supplyAmount) = {@code 합계 ÷ 1.1} 원 단위 절사</li>
-     *   <li>부가세(vatAmount) = {@code 합계 − 공급가액}</li>
      *   <li>unitPrice(공급 단가, 저장용 비권위) = {@code 공급가액 ÷ 수량}</li>
      *   <li>lineTotal = 공급가액(VAT 미포함 라인합, 기존 의미 유지)</li>
      * </ul>
-     * 합계/공급가액/부가세는 <b>라인 단위 권위값</b>으로 저장(per-unit 재계산 drift 방지).
+     * 합계/공급가액/부가세는 <b>단가 기준 누적 권위값</b>으로 저장(per-line 분리 drift 방지).
      *
      * @param unitPriceWithVat 부가세 포함 단가 (per-unit, 0 이상)
      */
@@ -278,20 +279,18 @@ public class SlipLine extends BaseEntity {
         validateUnitPrice(unitPriceWithVat);
         // 한국 원화 송장 표준(eCount): 합계(VAT포함)·공급가액·부가세는 모두 원 단위(정수) 반올림.
         // FE(SlipFormPage/LineRow 의 Math.round)와 동일 granularity 로 일치시킨다(P2 정합).
-        BigDecimal lineInclVat = unitPriceWithVat.multiply(BigDecimal.valueOf(quantity))
-                .setScale(0, RoundingMode.HALF_UP);
-        VatAmountCalculator.Split vatSplit = VatAmountCalculator.splitVatInclusive(lineInclVat,
-                RoundingMode.HALF_UP);
-        BigDecimal supply = vatSplit.supplyAmount();
-        BigDecimal vat = vatSplit.vatAmount();
-        BigDecimal supplyUnit = supply.divide(BigDecimal.valueOf(quantity), 2, RoundingMode.HALF_UP);
+        VatInclusiveUnitAmountCalculator.Breakdown amounts =
+                VatInclusiveUnitAmountCalculator.calculate(unitPriceWithVat, quantity);
+        BigDecimal supply = amounts.supplyAmount();
+        BigDecimal vat = amounts.vatAmount();
+        BigDecimal supplyUnit = amounts.supplyPerUnit();
         // 공급 단가로 일반 생성 후 라인 단위 권위값으로 덮어쓴다.
         SlipLine line = new SlipLine(slip, productId, productName, modelName, specification,
                 quantity, supplyUnit, note, sourceOrderLineId, categoryKey);
         line.lineTotal = supply;
         line.supplyAmount = supply;
         line.vatAmount = vat;
-        line.unitPriceWithVat = unitPriceWithVat.setScale(2, RoundingMode.HALF_UP);
+        line.unitPriceWithVat = amounts.unitPriceWithVat();
         // #937 재수렴 6차 A안 — 사용자가 입력한 값은 VAT 포함 단가다(파라미터 자체가 그 계약).
         line.unitPriceDomain = UnitPriceDomain.VAT_INCLUSIVE;
         // MED-4(#824 R2) — R1 은 이 경로(2026-06-09 라인단위 eCount 전환 이후 기본 입력 방식)에
@@ -532,17 +531,14 @@ public class SlipLine extends BaseEntity {
 
     /** 일마감 금액 전용 경로에서 VAT 포함 단가와 권위 금액을 함께 갱신한다. */
     public void changeUnitPriceWithVat(BigDecimal newUnitPriceWithVat) {
-        validateUnitPrice(newUnitPriceWithVat);
-        BigDecimal lineInclVat = newUnitPriceWithVat.multiply(BigDecimal.valueOf(this.quantity))
-                .setScale(0, RoundingMode.HALF_UP);
-        VatAmountCalculator.Split vatSplit = VatAmountCalculator.splitVatInclusive(
-                lineInclVat, RoundingMode.HALF_UP);
-        this.lineTotal = vatSplit.supplyAmount();
-        this.supplyAmount = vatSplit.supplyAmount();
-        this.vatAmount = vatSplit.vatAmount();
+        VatInclusiveUnitAmountCalculator.Breakdown amounts =
+                VatInclusiveUnitAmountCalculator.calculate(newUnitPriceWithVat, this.quantity);
+        this.lineTotal = amounts.supplyAmount();
+        this.supplyAmount = amounts.supplyAmount();
+        this.vatAmount = amounts.vatAmount();
         this.unitPrice = this.supplyAmount.divide(BigDecimal.valueOf(this.quantity), 2,
                 RoundingMode.HALF_UP);
-        this.unitPriceWithVat = newUnitPriceWithVat.setScale(2, RoundingMode.HALF_UP);
+        this.unitPriceWithVat = amounts.unitPriceWithVat();
         this.unitPriceDomain = UnitPriceDomain.VAT_INCLUSIVE;
         validateStorableAmounts();
     }

@@ -3,6 +3,7 @@ package com.samhanair.logis.slip.service;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.slip.client.AccountingPostedAtClient;
@@ -66,6 +67,7 @@ class DailyClosingAmountUpdateServiceTest {
         SlipLine line = mock(SlipLine.class);
         UUID lineId = request.lines().get(0).lineId();
         when(line.getId()).thenReturn(lineId);
+        when(line.getQuantity()).thenReturn(1);
         when(line.getUnitPriceWithVat()).thenReturn(new BigDecimal("10000"));
         when(slip.getLines()).thenReturn(java.util.List.of(line));
         when(slips.saveAndFlush(slip)).thenReturn(slip);
@@ -75,6 +77,39 @@ class DailyClosingAmountUpdateServiceTest {
                 mock(SlipRevisionService.class));
 
         service.update(SLIP_ID, request, UUID.randomUUID(), "마스터");
+    }
+
+    @Test
+    void DELIVERED와_COMPLETED도_회계전표가_없으면_금액_수정을_허용한다() {
+        SlipRepository slips = mock(SlipRepository.class);
+        AccountingPostedAtClient accounting = mock(AccountingPostedAtClient.class);
+        SlipClosedDateGuard closedDateGuard = mock(SlipClosedDateGuard.class);
+        SlipAuditLogService audit = mock(SlipAuditLogService.class);
+        SlipRevisionService revision = mock(SlipRevisionService.class);
+        Slip slip = mock(Slip.class);
+        SlipLine line = mock(SlipLine.class);
+        DailyClosingAmountUpdateRequest request = request();
+
+        when(slips.findById(SLIP_ID)).thenReturn(Optional.of(slip));
+        when(slip.getSlipNo()).thenReturn("2026/08/14-status");
+        when(slip.getSlipType()).thenReturn(SlipType.OUTBOUND);
+        when(slip.getSlipDate()).thenReturn(LocalDate.of(2026, 8, 14));
+        when(slip.getCreatedAt()).thenReturn(VERSION);
+        when(slip.getLines()).thenReturn(java.util.List.of(line));
+        when(line.getId()).thenReturn(request.lines().get(0).lineId());
+        when(line.getQuantity()).thenReturn(1);
+        when(line.getUnitPriceWithVat()).thenReturn(new BigDecimal("10000"));
+        when(accounting.hasAccountingSlip("2026/08/14-status")).thenReturn(false);
+        when(slips.saveAndFlush(slip)).thenReturn(slip);
+
+        DailyClosingAmountUpdateService service = new DailyClosingAmountUpdateService(
+                slips, accounting, closedDateGuard, audit, revision);
+        for (SlipStatus status : new SlipStatus[] { SlipStatus.DELIVERED, SlipStatus.COMPLETED }) {
+            when(slip.getStatus()).thenReturn(status);
+            service.update(SLIP_ID, request, UUID.randomUUID(), "마스터");
+        }
+
+        verify(line, org.mockito.Mockito.times(2)).changeUnitPriceWithVat(new BigDecimal("11000"));
     }
 
     private DailyClosingAmountUpdateRequest request() {
