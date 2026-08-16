@@ -22,12 +22,10 @@
 - [🚨🚨 mock hard gate 가 실 A…](feedback_mock_gate_leaks_to_real_api.md)
 - [🚨🚨 "Browser 런타임 []" 은 틀…](feedback_live_qa_use_playwright_not_browser_runtime.md)
 - [🚨 QA "전부 PASS" 는 결함 0 이…](feedback_qa_pass_is_not_defect_zero.md)
-- [🚨🚨 만든 것과 사용자가 닿는 것은 다르다 — 단위테스트 GREEN 이어도](feedback_built_it_but_user_cannot_reach_it.md)
 - [🚨🚨 기존 테스트를 새 동작에 맞추면 회귀…](feedback_test_adapted_to_new_behavior_hides_regression.md)
 - [🚨🚨 fix 브리핑에 "잃으면 안 되는 것…](feedback_fix_briefing_must_state_what_not_to_lose.md)
 - [🚨 fix 는 양방향 RED 로 — 한쪽만…](feedback_bidirectional_red_for_fix.md)
 - [🚨 QA 브리핑 맨 앞에 환경 확인 절 —…](feedback_qa_environment_verification_first.md)
-- [🚨 "로그인 화면에서 막혔다"=결함 아니라 renderer 미기동](feedback_live_qa_needs_renderer_running_first.md)
 - [🚨🚨 라운드 기본값은 SOL 이다 — OP…](feedback_sol_stage_starvation.md)
 - [🚨 하네스 설계 정본 — 결함 0 이 궁극…](feedback_harness_defect_zero_design.md)
 - [🚨 Codex 5-agent=mcp 직접(…](feedback_codex_rescue_unreliable_use_mcp.md)
@@ -42,7 +40,6 @@
 - [🚨 불변식처럼 보이는 수단 지시 — PM…](feedback_pm_means_instruction_creates_defect.md)
 - [🚨 PM 슬라이스 effort 조절·엣지…](feedback_pm_regulate_slice_effort.md)
 - [🚨 PM 직접실행 최소화·Codex 토큰…](feedback_pm_delegate_to_codex_conserve_tokens.md)
-- [🚨 설계가 뒤집히면 도는 codex 스레드부터…](feedback_stop_superseded_codex_threads.md)
 - [🚨 병렬 라운드 중 `git add -A`…](feedback_git_add_all_swallows_concurrent_round.md)
 - [🚨 머지·종료된 워크트리는 바로 정리 (2…](feedback_cleanup_merged_worktrees_immediately.md)
 - [🚨 산출물 옮길 때 `git diff --…](feedback_pm_copy_untracked_files.md)
@@ -50,7 +47,6 @@
 - [🚨🚨 조인 키로 쓰는 코드 컬럼이 비어 있…](feedback_join_key_column_empty_uuid_populated.md)
 - [🚨🚨 fix 는 결함이 아니라 정상 경로를…](feedback_fix_blocks_normal_path.md)
 - [🚨 머지 충돌 해소는 fix 다 — git…](feedback_merge_conflict_resolution_is_a_fix.md)
-- [🚨 병렬 트랙은 워크트리에 main 을 자주 머지하라](feedback_merge_main_into_worktree_regularly.md)
 - [🚨 새 데이터로 도는 QA 는 기존 행 호…](feedback_fresh_data_qa_misses_legacy_rows.md)
 - [🚨 머지 전 재수렴 의무·CI green≠…](feedback_reconvergence_before_merge.md)
 - [기획 spec 기존 결정 교차검증](feedback_spec_cross_check_prior_decisions.md)
@@ -70,7 +66,6 @@
 - [🚨🚨 "어느 쪽이 맞나" 를 올리기 전에…](feedback_conflict_is_mostly_one_sided_blank.md)
 - [무결성도메인 정책 선확인](feedback_integrity_domain_policy_preconfirm.md)
 - [개발책임자 결정은 PR에 누적 기록](feedback_post_devlead_decisions_to_pr.md)
-- [🚨 라운드는 커밋이 아니라 게시로 끝난다…](feedback_round_ends_only_when_posted.md)
 - [🚨🚨 리뷰 1:1 게시 엄수 — 커밋과 게…](feedback_review_post_one_to_one_enforcement.md)
 - [PM-Codex 진행 검증·10분 보고](feedback_pm_codex_progress_verification.md)
 - [🚨🚨 이슈 생성 금지 (2026-08-07…](feedback_issue_registration_delegated_to_pm.md)
@@ -95,9 +90,14 @@
 
 - [🚨 electron postinstall 실패는 인프라…](feedback_electron_postinstall_ci_flake.md)
 
+- [🚨 금액은 단계마다 갈라지면 안 된다 — 미리보기·최종확인·저장값 단일 원천](feedback_amount_must_be_single_source_across_steps.md)
+
+- [🚨 GUI 라이브QA 는 개발책임자의 화면을 빼앗는다 — 허락받고 돌리고 라운드마다 프로세스 회수](feedback_gui_live_qa_steals_the_desktop.md)
+
+- [🚨 종합견적서는 직원 전용 · 주문서웹이 거래처용 — 인증 경로가 다르다](feedback_estimate_app_is_staff_only.md)
+
 # 커밋/PR/문서 규약
 - [한국어 의무 — 커밋/PR/Issue/보고](feedback_korean_commits.md)
-- [🚨 QA 하네스 커밋 전 저장소 가드를 먼저…](feedback_qa_harness_must_pass_repo_guards.md)
 - [🚨🚨 내가 커밋한 QA 하네스가 CI 를…](feedback_qa_harness_commit_breaks_ci.md)
 - [🚨 QA 스샷=SendUserFile+PR…](feedback_pr_screenshot_sha_pinned_urls.md)
 - [스크린샷 항상 사용자 인라인 첨부](feedback_qa_screenshots_inline_to_user.md)
@@ -119,7 +119,6 @@
 - [Monitor 자동 사용](feedback_monitor_no_permission.md)
 
 - [🚨 CI 실패 스텝이 `Set up job…](feedback_ci_setup_job_failure_is_github_outage.md)
-- [🚨 CI cancelled 는 매달린 실패일 수 있다 — 재실행 전 로그](feedback_cancelled_ci_job_can_be_a_disguised_failure.md)
 
 - [🚨 "배포본 나이를 재라" 는 백엔드 전용…](feedback_client_bundle_is_also_a_deployment.md)
 
@@ -128,7 +127,6 @@
 - [🚨 낡은 배포본은 "없는 기능"처럼 보인다…](feedback_stale_deployment_looks_like_defect.md)
 - [🚨 머지 안 된 마이그레이션이 다른 트랙…](feedback_unmerged_migration_blocks_other_tracks.md)
 - [🚨🚨 백엔드 트랙은 직렬화 — 병렬 트랙이…](feedback_parallel_backend_tracks_share_docker_stack.md)
-- [🚨 compose 단위 기동이 eureka·gateway 를 끌고 재생성한다](feedback_compose_up_recreates_parent_containers.md)
 - [🚨 `git worktree add` 는…](feedback_git_worktree_cwd_use_dash_c.md)
 - [🚨 새 테스트마다 "이 단정이 Linux…](feedback_new_test_needs_linux_skip_guard.md)
 - [🚨 새 워크트리에는 gitignore 된…](feedback_worktree_missing_gitignored_inputs.md)
@@ -145,7 +143,6 @@
 - [order-app CI=tsc typech…](feedback_order_app_typecheck_not_vitest.md)
 - [Playwright 로컬 버전 skew](feedback_playwright_local_version_skew.md)
 - [rename file: junction 함정](feedback_rename_filedep_junction.md)
-- [🚨 `.cjs` named import 는 빌드는 되고 Vite dev 만 죽는다](feedback_cjs_named_import_breaks_vite_dev.md)
 - [Electron 패키지 함정](feedback_electron_packaging_gotchas.md)
 - [Testcontainers Windows…](feedback_testcontainers_windows_docker.md)
 - [로컬 스택+데스크톱 실QA 함정](project_local_stack_qa_gotchas.md)
