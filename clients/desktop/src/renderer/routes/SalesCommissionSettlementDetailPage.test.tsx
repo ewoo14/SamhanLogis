@@ -124,4 +124,26 @@ describe('SalesCommissionSettlementDetailPage 복귀 계약', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('18자리')
     expect(mocks.calculate).not.toHaveBeenCalled()
   })
+
+  it('느린 이전 계산 응답은 최신 입력 결과를 덮어쓰지 않는다', async () => {
+    mocks.get.mockResolvedValue(calculated)
+    let resolveFirst!: (value: typeof calculated) => void
+    let resolveSecond!: (value: typeof calculated) => void
+    mocks.calculate
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve }))
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveSecond = resolve }))
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(<QueryClientProvider client={queryClient}><MemoryRouter initialEntries={['/accounting/sales-commission-settlements/id']}><Routes><Route path="/accounting/sales-commission-settlements/:id" element={<SalesCommissionSettlementDetailPage />} /></Routes></MemoryRouter></QueryClientProvider>)
+
+    const input = await screen.findByLabelText('총 결제금액')
+    fireEvent.change(input, { target: { value: '1' } })
+    fireEvent.change(input, { target: { value: '12' } })
+    await waitFor(() => expect(mocks.calculate).toHaveBeenCalledTimes(2))
+    resolveSecond({ ...calculated, totalAmount: '12', payoutAmount: '12' })
+    await waitFor(() => expect(screen.getAllByText('₩12').length).toBeGreaterThanOrEqual(1))
+    resolveFirst({ ...calculated, totalAmount: '1', payoutAmount: '1' })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(screen.getByLabelText('총 결제금액')).toHaveValue('12')
+    expect(screen.getAllByText('₩12').length).toBeGreaterThanOrEqual(1)
+  })
 })

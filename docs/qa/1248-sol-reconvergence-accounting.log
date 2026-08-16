@@ -1,0 +1,73 @@
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.3.5)
+
+2026-08-17T00:33:37.210+09:00  INFO 124848 --- [accounting-service] [           main] c.s.l.a.AccountingServiceApplication     : Starting AccountingServiceApplication v0.1.0-SNAPSHOT using Java 17.0.18 with PID 124848 (C:\dev\Samhan-Public\.claude\worktrees\w1237\services\accounting-service\build\libs\accounting-service.jar started by user in C:\dev\Samhan-Public\.claude\worktrees\w1237)
+2026-08-17T00:33:37.213+09:00  INFO 124848 --- [accounting-service] [           main] c.s.l.a.AccountingServiceApplication     : No active profile set, falling back to 1 default profile: "default"
+2026-08-17T00:33:39.061+09:00  INFO 124848 --- [accounting-service] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-08-17T00:33:39.329+09:00  INFO 124848 --- [accounting-service] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 259 ms. Found 43 JPA repository interfaces.
+2026-08-17T00:33:39.972+09:00  INFO 124848 --- [accounting-service] [           main] o.s.cloud.context.scope.GenericScope     : BeanFactory id=149f2c92-8ca4-3d7b-b9c9-06498dba0b92
+2026-08-17T00:33:40.791+09:00  WARN 124848 --- [accounting-service] [           main] trationDelegate$BeanPostProcessorChecker : Bean 'org.springframework.cloud.client.loadbalancer.LoadBalancerAutoConfiguration$DeferringLoadBalancerInterceptorConfig' of type [org.springframework.cloud.client.loadbalancer.LoadBalancerAutoConfiguration$DeferringLoadBalancerInterceptorConfig] is not eligible for getting processed by all BeanPostProcessors (for example: not eligible for auto-proxying). The currently created BeanPostProcessor [lbRestClientPostProcessor] is declared through a non-static factory method on that class; consider declaring it as static instead.
+2026-08-17T00:33:40.795+09:00  WARN 124848 --- [accounting-service] [           main] trationDelegate$BeanPostProcessorChecker : Bean 'deferringLoadBalancerInterceptor' of type [org.springframework.cloud.client.loadbalancer.DeferringLoadBalancerInterceptor] is not eligible for getting processed by all BeanPostProcessors (for example: not eligible for auto-proxying). Is this bean getting eagerly injected/applied to a currently created BeanPostProcessor [lbRestClientPostProcessor]? Check the corresponding BeanPostProcessor declaration and its dependencies/advisors. If this bean does not have to be post-processed, declare it with ROLE_INFRASTRUCTURE.
+2026-08-17T00:33:41.585+09:00  INFO 124848 --- [accounting-service] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 29487 (http)
+2026-08-17T00:33:41.623+09:00  INFO 124848 --- [accounting-service] [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-08-17T00:33:41.624+09:00  INFO 124848 --- [accounting-service] [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.31]
+2026-08-17T00:33:41.694+09:00  INFO 124848 --- [accounting-service] [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-08-17T00:33:41.697+09:00  INFO 124848 --- [accounting-service] [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 4437 ms
+2026-08-17T00:33:42.423+09:00  INFO 124848 --- [accounting-service] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-08-17T00:33:42.694+09:00  INFO 124848 --- [accounting-service] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection org.postgresql.jdbc.PgConnection@1fb00a6d
+2026-08-17T00:33:42.698+09:00  INFO 124848 --- [accounting-service] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-08-17T00:33:42.739+09:00  INFO 124848 --- [accounting-service] [           main] org.flywaydb.core.FlywayExecutor         : Database: jdbc:postgresql://127.0.0.1:50600/accounting_db (PostgreSQL 16.14)
+2026-08-17T00:33:42.832+09:00  INFO 124848 --- [accounting-service] [           main] o.f.core.internal.command.DbValidate     : Successfully validated 77 migrations (execution time 00:00.070s)
+2026-08-17T00:33:42.863+09:00  INFO 124848 --- [accounting-service] [           main] o.f.core.internal.command.DbMigrate      : Current version of schema "public": 103
+2026-08-17T00:33:42.872+09:00  INFO 124848 --- [accounting-service] [           main] o.f.core.internal.command.DbMigrate      : Schema "public" is up to date. No migration necessary.
+2026-08-17T00:33:43.013+09:00  INFO 124848 --- [accounting-service] [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-08-17T00:33:43.066+09:00  INFO 124848 --- [accounting-service] [           main] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.5.3.Final
+2026-08-17T00:33:43.097+09:00  INFO 124848 --- [accounting-service] [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-08-17T00:33:43.341+09:00  INFO 124848 --- [accounting-service] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-08-17T00:33:43.379+09:00  WARN 124848 --- [accounting-service] [           main] org.hibernate.orm.deprecation            : HHH90000025: PostgreSQLDialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2026-08-17T00:33:45.206+09:00  INFO 124848 --- [accounting-service] [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-08-17T00:33:45.263+09:00  INFO 124848 --- [accounting-service] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-08-17T00:33:45.578+09:00  INFO 124848 --- [accounting-service] [           main] o.s.d.j.r.query.QueryEnhancerFactory     : Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-08-17T00:33:47.394+09:00  INFO 124848 --- [accounting-service] [           main] o.s.boot.web.servlet.RegistrationBean    : Filter headerAuthenticationFilterRegistration was not registered (disabled)
+2026-08-17T00:33:47.395+09:00  INFO 124848 --- [accounting-service] [           main] o.s.boot.web.servlet.RegistrationBean    : Filter publicIdentityHeaderSanitizingFilterRegistration was not registered (disabled)
+2026-08-17T00:33:50.002+09:00  WARN 124848 --- [accounting-service] [           main] .s.s.UserDetailsServiceAutoConfiguration : 
+
+Using generated security password: 84caaadd-215e-4272-9313-a8e66ea7aca0
+
+This generated password is for development use only. Your security configuration must be updated before running your application in production.
+
+2026-08-17T00:33:50.016+09:00  INFO 124848 --- [accounting-service] [           main] r$InitializeUserDetailsManagerConfigurer : Global AuthenticationManager configured with UserDetailsService bean with name inMemoryUserDetailsManager
+2026-08-17T00:33:51.922+09:00  INFO 124848 --- [accounting-service] [           main] o.s.cloud.commons.util.InetUtils         : Cannot determine local hostname
+2026-08-17T00:33:52.015+09:00  INFO 124848 --- [accounting-service] [           main] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 3 endpoints beneath base path '/actuator'
+2026-08-17T00:33:53.996+09:00  INFO 124848 --- [accounting-service] [           main] o.s.cloud.commons.util.InetUtils         : Cannot determine local hostname
+2026-08-17T00:33:54.011+09:00  INFO 124848 --- [accounting-service] [           main] DiscoveryClientOptionalArgsConfiguration : Eureka HTTP Client uses RestTemplate.
+2026-08-17T00:33:54.058+09:00  WARN 124848 --- [accounting-service] [           main] iguration$LoadBalancerCaffeineWarnLogger : Spring Cloud LoadBalancer is currently working with the default cache. While this cache implementation is useful for development and tests, it's recommended to use Caffeine cache in production.You can switch to using Caffeine cache, by adding it and org.springframework.cache.caffeine.CaffeineCacheManager to the classpath.
+2026-08-17T00:33:54.111+09:00  INFO 124848 --- [accounting-service] [           main] o.s.c.n.eureka.InstanceInfoFactory       : Setting initial instance status as: STARTING
+2026-08-17T00:33:54.134+09:00  INFO 124848 --- [accounting-service] [           main] com.netflix.discovery.DiscoveryClient    : Initializing Eureka in region us-east-1
+2026-08-17T00:33:54.138+09:00  INFO 124848 --- [accounting-service] [           main] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T00:33:54.144+09:00  INFO 124848 --- [accounting-service] [           main] com.netflix.discovery.DiscoveryClient    : Disable delta property : false
+2026-08-17T00:33:54.144+09:00  INFO 124848 --- [accounting-service] [           main] com.netflix.discovery.DiscoveryClient    : Single vip registry refresh property : null
+2026-08-17T00:33:54.144+09:00  INFO 124848 --- [accounting-service] [           main] com.netflix.discovery.DiscoveryClient    : Force full registry fetch : false
+2026-08-17T00:33:54.145+09:00  INFO 124848 --- [accounting-service] [           main] com.netflix.discovery.DiscoveryClient    : Application is null : false
+2026-08-17T00:33:54.145+09:00  INFO 124848 --- [accounting-service] [           main] com.netflix.discovery.DiscoveryClient    : Registered Applications size is zero : true
+2026-08-17T00:33:54.145+09:00  INFO 124848 --- [accounting-service] [           main] com.netflix.discovery.DiscoveryClient    : Application version is -1: true
+2026-08-17T00:33:54.145+09:00  INFO 124848 --- [accounting-service] [           main] com.netflix.discovery.DiscoveryClient    : Getting all instance registry info from the eureka server
+2026-08-17T00:33:54.294+09:00  INFO 124848 --- [accounting-service] [           main] com.netflix.discovery.DiscoveryClient    : The response status is 200
+2026-08-17T00:33:54.297+09:00  INFO 124848 --- [accounting-service] [           main] com.netflix.discovery.DiscoveryClient    : Not registering with Eureka server per configuration
+2026-08-17T00:33:54.298+09:00  INFO 124848 --- [accounting-service] [           main] com.netflix.discovery.DiscoveryClient    : Discovery Client initialized at timestamp 1786894434297 with initial instances count: 16
+2026-08-17T00:33:54.303+09:00  INFO 124848 --- [accounting-service] [           main] o.s.c.n.e.s.EurekaServiceRegistry        : Registering application ACCOUNTING-SERVICE with eureka with status UP
+2026-08-17T00:33:54.328+09:00  INFO 124848 --- [accounting-service] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 29487 (http) with context path '/'
+2026-08-17T00:33:54.329+09:00  INFO 124848 --- [accounting-service] [           main] .s.c.n.e.s.EurekaAutoServiceRegistration : Updating port to 29487
+2026-08-17T00:33:54.952+09:00  INFO 124848 --- [accounting-service] [io-29487-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-08-17T00:33:54.953+09:00  INFO 124848 --- [accounting-service] [io-29487-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-08-17T00:33:54.954+09:00  INFO 124848 --- [accounting-service] [io-29487-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 1 ms
+2026-08-17T00:33:55.749+09:00  INFO 124848 --- [accounting-service] [           main] o.s.cloud.commons.util.InetUtils         : Cannot determine local hostname
+2026-08-17T00:33:55.765+09:00  INFO 124848 --- [accounting-service] [           main] c.s.l.a.AccountingServiceApplication     : Started AccountingServiceApplication in 20.397 seconds (process running for 21.049)
+2026-08-17T00:36:40.576+09:00  WARN 124848 --- [accounting-service] [io-29487-exec-5] c.s.l.s.p.DefaultDynamicPermissionClient : [SP-PO-1] auth-service 계정 권한 조회 실패 (fallback=false) ? accountId=a0000000-0000-0000-0000-000000000003 pageCode=accounting.sales-commission-settlement action=CREATE error=I/O error on GET request for "http://auth-service/auth/internal/permissions/check": d15168e4ca21

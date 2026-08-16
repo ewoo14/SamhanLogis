@@ -6,7 +6,7 @@ import type { CalculateSalesCommissionSettlementRequest, SalesCommissionSettleme
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { getReturnTo } from '../utils/returnContract'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 const PAGE_CODE = 'accounting.sales-commission-settlement'
 const LIST_PATH = '/accounting/sales-commission-settlements'
@@ -76,6 +76,7 @@ export function SalesCommissionSettlementDetailPage() {
   const [expenseMode, setExpenseMode] = useState<'default' | 'manual'>('default')
   const [inputError, setInputError] = useState<string | null>(null)
   const [settlementState, setSettlement] = useState<SalesCommissionSettlement | null>(null)
+  const calculationRequestSequence = useRef(0)
   useEffect(() => {
     if (!loadedSettlement) return
     setSettlement(loadedSettlement)
@@ -88,13 +89,22 @@ export function SalesCommissionSettlementDetailPage() {
     })
     setExpenseMode(loadedSettlement.manualExpenseRate == null ? 'default' : 'manual')
   }, [loadedSettlement])
+  type CalculationMutationVariables = {
+    next: CalculateSalesCommissionSettlementRequest
+    sequence: number
+  }
   const calculateMutation = useMutation({
-    mutationFn: (next: CalculateSalesCommissionSettlementRequest = form) => calculateSalesCommissionSettlement(id, next),
-    onSuccess: async (saved) => {
+    mutationFn: ({ next }: CalculationMutationVariables) => calculateSalesCommissionSettlement(id, next),
+    onSuccess: async (saved, variables) => {
+      if (variables.sequence !== calculationRequestSequence.current) return
       setSettlement(saved)
       await queryClient.invalidateQueries({ queryKey: ['accounting', 'sales-commission-settlement', id] })
     },
   })
+  const submitCalculation = (next: CalculateSalesCommissionSettlementRequest) => {
+    const sequence = ++calculationRequestSequence.current
+    calculateMutation.mutate({ next, sequence })
+  }
   const setField = (key: keyof CalculateSalesCommissionSettlementRequest, value: string | boolean) => {
     const next = { ...form, [key]: value } as CalculateSalesCommissionSettlementRequest
     let normalizedError: string | null = null
@@ -111,14 +121,14 @@ export function SalesCommissionSettlementDetailPage() {
       next.manualExpenseRate = normalized.value
     }
     setForm(next)
-    if (!normalizedError && isDraft && id) calculateMutation.mutate(next)
+    if (!normalizedError && isDraft && id) submitCalculation(next)
   }
 
   const setExpenseModeAndCalculate = (mode: 'default' | 'manual') => {
     setExpenseMode(mode)
     const next = { ...form, manualExpenseRate: mode === 'default' ? null : (form.manualExpenseRate ?? '') }
     setForm(next)
-    if (isDraft) calculateMutation.mutate(next)
+    if (isDraft) submitCalculation(next)
   }
 
   const calculate = () => {
@@ -131,7 +141,7 @@ export function SalesCommissionSettlementDetailPage() {
     const next = { ...form, ...normalized } as CalculateSalesCommissionSettlementRequest
     setForm(next)
     setInputError(null)
-    calculateMutation.mutate(next)
+    submitCalculation(next)
   }
 
   if (query.isLoading) {

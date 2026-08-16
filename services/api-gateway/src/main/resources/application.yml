@@ -231,9 +231,9 @@ spring:
           predicates:
             - Path=/auth/admin/menu-catalog
           filters:
-            - name: JwtAuthentication
-              args:
-                secret: ${SAMHAN_AROLOGIS_JWT_SECRET:}
+            # Samhan Public 직원 메뉴 catalog는 일반 auth-service JWT를 사용한다.
+            # Arologis 전용 secret을 지정하면 정상 MANAGER 직원 토큰이 gateway에서 401이 된다.
+            - JwtAuthentication
 
         - id: auth-service-admin-authenticated
           uri: lb://auth-service

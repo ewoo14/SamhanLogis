@@ -2,6 +2,8 @@ package com.samhanair.logis.accounting.web.dto;
 
 import com.samhanair.logis.accounting.domain.SalesCommissionSettlement;
 import com.samhanair.logis.accounting.domain.SalesCommissionSettlementStatus;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
@@ -12,26 +14,26 @@ public record SalesCommissionSettlementResponse(
         String documentNo,
         LocalDate settlementDate,
         SalesCommissionSettlementStatus status,
-        BigDecimal totalAmount,
-        BigDecimal payoutAmount,
-        BigDecimal supplyAmount,
-        BigDecimal vatAmount,
+        @JsonSerialize(using = ToStringSerializer.class) BigDecimal totalAmount,
+        @JsonSerialize(using = ToStringSerializer.class) BigDecimal payoutAmount,
+        @JsonSerialize(using = ToStringSerializer.class) BigDecimal supplyAmount,
+        @JsonSerialize(using = ToStringSerializer.class) BigDecimal vatAmount,
         Integer rateContractVersion,
-        BigDecimal equipmentAmount,
-        BigDecimal prepaidAmount,
-        BigDecimal installInputAmount,
-        BigDecimal safetyInputAmount,
+        @JsonSerialize(using = ToStringSerializer.class) BigDecimal equipmentAmount,
+        @JsonSerialize(using = ToStringSerializer.class) BigDecimal prepaidAmount,
+        @JsonSerialize(using = ToStringSerializer.class) BigDecimal installInputAmount,
+        @JsonSerialize(using = ToStringSerializer.class) BigDecimal safetyInputAmount,
         String paymentMethod,
         Boolean withholdingApplied,
-        BigDecimal manualExpenseRate,
-        BigDecimal appliedExpenseRate,
-        BigDecimal cardAmount,
-        BigDecimal salesAmount,
-        BigDecimal expenseAmount,
-        BigDecimal withholdingAmount,
-        BigDecimal installAmount,
-        BigDecimal safetyAmount,
-        BigDecimal subtotalAmount) {
+        @JsonSerialize(using = ToStringSerializer.class) BigDecimal manualExpenseRate,
+        @JsonSerialize(using = ToStringSerializer.class) BigDecimal appliedExpenseRate,
+        @JsonSerialize(using = ToStringSerializer.class) BigDecimal cardAmount,
+        @JsonSerialize(using = ToStringSerializer.class) BigDecimal salesAmount,
+        @JsonSerialize(using = ToStringSerializer.class) BigDecimal expenseAmount,
+        @JsonSerialize(using = ToStringSerializer.class) BigDecimal withholdingAmount,
+        @JsonSerialize(using = ToStringSerializer.class) BigDecimal installAmount,
+        @JsonSerialize(using = ToStringSerializer.class) BigDecimal safetyAmount,
+        @JsonSerialize(using = ToStringSerializer.class) BigDecimal subtotalAmount) {
 
     /** aggregate snapshot을 API 응답으로 변환한다. */
     public static SalesCommissionSettlementResponse from(SalesCommissionSettlement settlement) {
