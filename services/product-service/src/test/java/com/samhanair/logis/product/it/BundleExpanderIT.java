@@ -585,6 +585,44 @@ class BundleExpanderIT extends AbstractPostgresIT {
                 .isEqualByComparingTo("1000000");
     }
 
+    @Test
+    void 관계_단가가_있으면_전역_제품단가가_아닌_세트문맥_단가를_쓴다() {
+        Category cat = categoryRepository.save(Category.create("RELATION-PRICE", "test", null, 18));
+        Product parent = bundleSet("AC060CS6PBH1SY", "360 CST UV", cat, new BigDecimal("1660000"));
+        product("AC060CN6PBH1", "실내기", cat, ProductCategory.SINGLE_PART, new BigDecimal("935000"));
+        product("AC060CXAPBH1", "실외기", cat, ProductCategory.SINGLE_PART, new BigDecimal("1331000"));
+        product("PC6NUNK1NW", "판넬", cat, ProductCategory.SINGLE_PART, new BigDecimal("189200"));
+        product("AR-EH05", "리모컨", cat, ProductCategory.SINGLE_PART, new BigDecimal("33000"));
+        BundleComponent indoor = relationComp(parent, "AC060CN6PBH1", BundleComponent.ComponentKind.INDOOR, "606000", "935000");
+        BundleComponent outdoor = relationComp(parent, "AC060CXAPBH1", BundleComponent.ComponentKind.OUTDOOR, "910000", "1331000");
+        BundleComponent panel = relationComp(parent, "PC6NUNK1NW", BundleComponent.ComponentKind.PANEL, "128000", "189200");
+        BundleComponent remote = relationComp(parent, "AR-EH05", BundleComponent.ComponentKind.REMOTE, "16000", "33000");
+        flush();
+
+        var lines = expander.expand("AC060CS6PBH1SY", BigDecimal.ONE);
+
+        assertThat(unit(lines, indoor.getComponentProductCode())).isEqualByComparingTo("606000");
+        assertThat(unit(lines, outdoor.getComponentProductCode())).isEqualByComparingTo("910000");
+        assertThat(unit(lines, panel.getComponentProductCode())).isEqualByComparingTo("128000");
+        assertThat(unit(lines, remote.getComponentProductCode())).isEqualByComparingTo("16000");
+    }
+
+    @Test
+    void 관계_단가가_없으면_기존_전역_제품단가로_동작한다() {
+        Category cat = categoryRepository.save(Category.create("GLOBAL-PRICE-FALLBACK", "test", null, 19));
+        Product parent = bundleSet("FALLBACK_SET", "가정용 에어컨", cat, new BigDecimal("1000000"));
+        product("FALLBACK_IN", "실내기", cat, ProductCategory.SINGLE_PART, new BigDecimal("300000"));
+        product("FALLBACK_OUT", "실외기", cat, ProductCategory.SINGLE_PART, new BigDecimal("700000"));
+        comp(parent, "FALLBACK_IN", BundleComponent.ComponentKind.INDOOR);
+        comp(parent, "FALLBACK_OUT", BundleComponent.ComponentKind.OUTDOOR);
+        flush();
+
+        var lines = expander.expand("FALLBACK_SET", BigDecimal.ONE);
+
+        assertThat(unit(lines, "FALLBACK_IN")).isEqualByComparingTo("600000");
+        assertThat(unit(lines, "FALLBACK_OUT")).isEqualByComparingTo("400000");
+    }
+
     // ── helpers ─────────────────────────────────────────────
     private Product bundleSet(String code, String name, Category cat, BigDecimal price) {
         Product p = Product.seedFromSheet(name, code, cat, price, price,
@@ -609,6 +647,14 @@ class BundleExpanderIT extends AbstractPostgresIT {
     private void comp(Product parent, String code, BundleComponent.ComponentKind kind) {
         componentRepository.save(BundleComponent.seed(parent.getId(), code, BigDecimal.ONE,
                 BundleComponent.QtyMode.FOLLOW_SET, kind, null, true, null));
+    }
+
+    private BundleComponent relationComp(Product parent, String code, BundleComponent.ComponentKind kind,
+                                         String deliveryPrice, String releasePrice) {
+        BundleComponent component = BundleComponent.seed(parent.getId(), code, BigDecimal.ONE,
+                BundleComponent.QtyMode.FOLLOW_SET, kind, "기본", true, null);
+        component.changeContextPrices(new BigDecimal(releasePrice), new BigDecimal(deliveryPrice));
+        return componentRepository.save(component);
     }
 
     private void comp(Product parent, String code, BundleComponent.ComponentKind kind, String variant,

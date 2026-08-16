@@ -115,12 +115,13 @@ public class BundleExpander {
             String name = cp != null ? cp.getName() : c.getComponentProductCode();
             String modelName = cp != null ? cp.getModelName() : null;
             java.util.UUID pid = cp != null ? cp.getId() : null;
-            BigDecimal price = cp != null ? nz(cp.getDeliveryPrice()) : BigDecimal.ZERO;
+            BigDecimal price = relationPrice(c, cp, parent.getProductCategory());
             BigDecimal qty = c.getQtyMode() == BundleComponent.QtyMode.FOLLOW_SET
                     ? setQty.multiply(c.getDefaultQty())
                     : c.getDefaultQty();
             parts.add(new Part(c.getComponentProductCode(), pid, name, modelName, c.getComponentKind(),
                     c.getComponentVariant(), Boolean.TRUE.equals(c.getIsDefault()), price, qty,
+                    c.getContextDeliveryPrice(),
                     specOf(c.getSpecText()), cp != null ? cp.getPanelType() : null,
                     cp != null ? cp.getRemoteType() : null));
         }
@@ -129,7 +130,7 @@ public class BundleExpander {
         // explodeCommSets_ 처럼 필터/재배분 없이 전 구성품 개별 단가 유지.
         boolean isSingleSet = parent.getProductCategory() == ProductCategory.SINGLE_SET;
         List<Part> picked = isSingleSet ? pickedFilter(parts, opts) : parts;
-        if (isSingleSet) {
+        if (isSingleSet && !hasCompleteContextDeliveryPrices(picked)) {
             redistribute(picked, parent, setUnit, opts.setUnitOverride() != null);
         }
 
@@ -140,6 +141,22 @@ public class BundleExpander {
                     p.specification));
         }
         return result;
+    }
+
+    /** 세트 관계 단가 우선, 미입력 행만 전역 제품 납품가로 fallback한다. */
+    private BigDecimal relationPrice(BundleComponent component, Product product, ProductCategory parentCategory) {
+        if (parentCategory == ProductCategory.COMMERCIAL_MULTI
+                && component.getContextReleasePrice() != null) {
+            return component.getContextReleasePrice();
+        }
+        if (component.getContextDeliveryPrice() != null) {
+            return component.getContextDeliveryPrice();
+        }
+        return product != null ? nz(product.getDeliveryPrice()) : BigDecimal.ZERO;
+    }
+
+    private boolean hasCompleteContextDeliveryPrices(List<Part> parts) {
+        return !parts.isEmpty() && parts.stream().allMatch(p -> p.contextDeliveryPrice != null);
     }
 
     // ── 옵션 선별(picked) — legacy explodeSetParts 4684~4720 ─────────────────────
@@ -535,13 +552,15 @@ public class BundleExpander {
         final boolean isDefault;
         BigDecimal price;
         final BigDecimal qty;
+        final BigDecimal contextDeliveryPrice;
         final String specification;
         final String panelType;
         final String remoteType;
 
         Part(String modelCode, java.util.UUID productId, String name, String modelName,
              BundleComponent.ComponentKind kind, String variant,
-             boolean isDefault, BigDecimal price, BigDecimal qty, String specification,
+             boolean isDefault, BigDecimal price, BigDecimal qty, BigDecimal contextDeliveryPrice,
+             String specification,
              String panelType, String remoteType) {
             this.modelCode = modelCode;
             this.productId = productId;
@@ -552,6 +571,7 @@ public class BundleExpander {
             this.isDefault = isDefault;
             this.price = price == null ? BigDecimal.ZERO : price;
             this.qty = qty;
+            this.contextDeliveryPrice = contextDeliveryPrice;
             this.specification = specification;
             this.panelType = panelType;
             this.remoteType = remoteType;
