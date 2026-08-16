@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { resolveQaShotsDir } from '../../../../scripts/lib/qa-shots-dir.mjs';
+import { resolveQaShotsDir } from '../../utils/screenshot';
 
 const repoRoot = path.resolve(process.cwd(), '../..');
 const screenshotDir = resolveQaShotsDir(path.join(repoRoot, 'docs/qa/ow-r13/screenshots'));

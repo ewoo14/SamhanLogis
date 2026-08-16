@@ -157,7 +157,7 @@ function isWithinPhysical(parentDir: string, candidateDir: string): boolean {
  * @param committedDir 기존 커밋 캡처가 있는(또는 있을) 절대경로
  * @returns 이번 실행에서 실제로 스크린샷을 써야 할 절대경로(디렉토리는 이미 생성됨)
  */
-function resolveQaShotsDir(committedDir: string, options: { protect?: boolean } = {}): string {
+export function resolveQaShotsDir(committedDir: string, options: { protect?: boolean } = {}): string {
   const override = process.env['QA_SHOTS_DIR'];
   const trimmed = override && override.trim().length > 0 ? override.trim() : undefined;
   const dir =
