@@ -1,9 +1,10 @@
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
+import { resolveQaShotsDir } from '../../../../scripts/lib/qa-shots-dir.mjs';
 
 const repoRoot = path.resolve(process.cwd(), '../..');
-const screenshotDir = path.join(repoRoot, 'docs/qa/ow-r13/screenshots');
+const screenshotDir = resolveQaShotsDir(path.join(repoRoot, 'docs/qa/ow-r13/screenshots'));
 
 const bootstrap = {
   singleSets: [
@@ -52,15 +53,6 @@ async function mockOrderApp(page: any) {
   });
 }
 
-async function renderDetailedMockPreview(page: any, rows: Array<{ name: string; model: string; qty: number; price: number }>) {
-  await page.evaluate((items) => {
-    const body = document.querySelector('#previewBody') as HTMLElement;
-    body.innerHTML = items.map((item) => `<tr class="child"><td>${item.name}</td><td>${item.model}</td><td>EA</td><td>${item.qty}</td><td>${item.price.toLocaleString()}</td><td>${(item.qty * item.price).toLocaleString()}</td></tr>`).join('');
-    const dialog = document.querySelector('#dlgPreview') as HTMLDialogElement;
-    if (!dialog.open) dialog.showModal();
-  }, rows);
-}
-
 test.describe('OW-R13 금액 표시 parity 증거', () => {
   test.beforeEach(async ({ page }) => {
     await mockOrderApp(page);
@@ -69,12 +61,14 @@ test.describe('OW-R13 금액 표시 parity 증거', () => {
 
   test('AR06D1150HZS 납기 기준일 전후 상세행', async ({ page }) => {
     await openSingle(page);
-    await page.locator('input[data-sid="ar-set"]').fill('1');
+    await page.locator('input[data-sid="ar-set"]').evaluate((node: HTMLInputElement) => {
+      node.value = '1';
+      node.dispatchEvent(new Event('input', { bubbles: true }));
+      node.dispatchEvent(new Event('change', { bubbles: true }));
+    });
     await page.locator('#due').evaluate((node: HTMLInputElement) => { node.value = '2026-08-20'; node.dispatchEvent(new Event('change', { bubbles: true })); });
-    await renderDetailedMockPreview(page, [
-      { name: '● 실내기', model: 'AR-INDOOR', qty: 1, price: 148000 },
-      { name: '● 실외기', model: 'AR-OUTDOOR', qty: 1, price: 222000 },
-    ]);
+    await page.evaluate(() => (window as any).onSingleQtyInput('ar-set', 1, true));
+    await page.locator('#btnPreview').evaluate((node: HTMLElement) => node.click());
     await expect(page.locator('#dlgPreview')).toBeVisible();
     await expect(page.locator('#previewBody')).toContainText('148,000');
     await expect(page.locator('#previewBody')).toContainText('222,000');
@@ -83,14 +77,14 @@ test.describe('OW-R13 금액 표시 parity 증거', () => {
 
   test('AC060CS6PBH1SY 세트 배분 상세행', async ({ page }) => {
     await openSingle(page);
-    await page.locator('input[data-sid="ac-set"]').fill('1');
+    await page.locator('input[data-sid="ac-set"]').evaluate((node: HTMLInputElement) => {
+      node.value = '1';
+      node.dispatchEvent(new Event('input', { bubbles: true }));
+      node.dispatchEvent(new Event('change', { bubbles: true }));
+    });
     await page.locator('#due').evaluate((node: HTMLInputElement) => { node.value = '2026-08-20'; node.dispatchEvent(new Event('change', { bubbles: true })); });
-    await renderDetailedMockPreview(page, [
-      { name: '● 실내기', model: 'AC-INDOOR', qty: 1, price: 588975 },
-      { name: '● 실외기', model: 'AC-OUTDOOR', qty: 1, price: 883050 },
-      { name: '● 판넬', model: 'AC-PANEL', qty: 1, price: 104060 },
-      { name: '● 리모컨', model: 'AC-REMOTE', qty: 1, price: 13915 },
-    ]);
+    await page.evaluate(() => (window as any).onSingleQtyInput('ac-set', 1, true));
+    await page.locator('#btnPreview').evaluate((node: HTMLElement) => node.click());
     await expect(page.locator('#dlgPreview')).toBeVisible();
     await expect(page.locator('#previewBody')).toContainText('588,975');
     await expect(page.locator('#previewBody')).toContainText('883,050');

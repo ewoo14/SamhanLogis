@@ -175,7 +175,8 @@ public class PartnerOrderConfirmService {
             ProductSummary p = calculatedLine.product();
             BigDecimal priceVat = calculatedLine.finalPrice();
             BigDecimal legacyPrice = legacyUnitPrice(legacySnapshot, i);
-            if (legacyPrice != null && legacyPrice.signum() > 0) {
+            if (line.setAllocation() && "singleSets".equals(line.categoryKey())
+                    && legacyPrice != null && legacyPrice.signum() > 0) {
                 priceVat = legacyPrice;
             }
             if (priceVat == null || priceVat.signum() <= 0) {

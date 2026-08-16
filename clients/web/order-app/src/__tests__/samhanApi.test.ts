@@ -456,7 +456,6 @@ describe('samhanApi.call', () => {
             modelCode: 'HM-1',
             categoryKey: 'homemulti',
             quantity: 2,
-            unitPrice: 12345,
             remark: null,
           },
         ],
@@ -585,14 +584,14 @@ describe('samhanApi.call', () => {
     });
 
     const result = await samhanApi.call('pricePreview', [
-      [{ section: 'HOME', model: 'ERV-001', qty: 1, price: 1000000 }],
+          [{ section: 'HOME', model: 'ERV-001', qty: 1, price: 1000000 }],
       { bizno: 'P-001' },
     ]);
 
     expect(mocks.post).toHaveBeenCalledWith(
       '/partner-orders/price-preview',
       {
-        lines: [{ modelCode: 'ERV-001', categoryKey: 'homemulti', quantity: 1, unitPrice: 1000000, remark: null }],
+        lines: [{ modelCode: 'ERV-001', categoryKey: 'homemulti', quantity: 1, remark: null }],
       },
       { headers: { 'X-Partner-Code': 'P-001' } },
     );
@@ -610,7 +609,7 @@ describe('samhanApi.call', () => {
     });
 
     await samhanApi.call('pricePreview', [
-      [{ section: 'SINGLE', model: 'INDOOR-1', qty: 1, price: 588975 }],
+      [{ section: 'SINGLE', model: 'INDOOR-1', qty: 1, price: 588975, setAllocation: true }],
       { bizno: 'P-001' },
     ]);
 
@@ -619,7 +618,7 @@ describe('samhanApi.call', () => {
       {
         lines: [{
           modelCode: 'INDOOR-1', categoryKey: 'singleSets', quantity: 1,
-          unitPrice: 588975, remark: null,
+          unitPrice: 588975, setAllocation: true, remark: null,
         }],
       },
       { headers: { 'X-Partner-Code': 'P-001' } },

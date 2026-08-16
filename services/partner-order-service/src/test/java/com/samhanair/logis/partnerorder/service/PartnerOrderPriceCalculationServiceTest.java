@@ -1,6 +1,7 @@
 package com.samhanair.logis.partnerorder.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -71,13 +72,54 @@ class PartnerOrderPriceCalculationServiceTest {
 
         PartnerOrderPriceCalculationService.Calculation result = service.calculate(
                 "P-SET-001", new ConfirmRequest(List.of(
-                        new ConfirmLineRequest(null, "INDOOR-1", "singleSets", 1,
-                                new BigDecimal("588975"), null))));
+                new ConfirmLineRequest(null, "INDOOR-1", "singleSets", 1,
+                                new BigDecimal("588975"), null, true))));
 
         assertThat(result.available()).isTrue();
         assertThat(result.lines().get(0).listPrice()).isEqualByComparingTo("588975");
         assertThat(result.lines().get(0).finalPrice()).isEqualByComparingTo("588975");
         assertThat(result.totalFinalAmount()).isEqualByComparingTo("588975");
+    }
+
+    @Test
+    void 단품_클라이언트_단가는_서버_최종가를_덮을_수_없다() {
+        UUID productId = UUID.randomUUID();
+        ProductSummary product = new ProductSummary(
+                productId, "단품", "SINGLE-1", UUID.randomUUID(), new BigDecimal("100000"), "ACTIVE",
+                "SINGLE-1", "SINGLE", "singleSets", null, "NONE", "000000",
+                new BigDecimal("100000"), new BigDecimal("100000"), true, "HVAC");
+        when(productClient.lookupByModelCodes(List.of("SINGLE-1"))).thenReturn(List.of(product));
+        when(dcConfigClient.calculateDetailed(any(), any())).thenReturn(
+                new DcConfigClient.CalculationResult(
+                        java.util.Map.of("0", new DcConfigClient.CalculatedLine(
+                                new BigDecimal("90000"), new BigDecimal("0.10"))), true));
+
+        PartnerOrderPriceCalculationService.Calculation result = service.calculate(
+                "P-001", new ConfirmRequest(List.of(
+                        new ConfirmLineRequest(null, "SINGLE-1", "singleSets", 1,
+                                new BigDecimal("1"), null))));
+
+        assertThat(result.lines().get(0).finalPrice()).isEqualByComparingTo("90000");
+    }
+
+    @Test
+    void 미리보기는_확정과_동일하게_저장불가한_합계를_거부한다() {
+        UUID productId = UUID.randomUUID();
+        ProductSummary product = new ProductSummary(
+                productId, "거대 단품", "HUGE-1", UUID.randomUUID(), new BigDecimal("1"), "ACTIVE",
+                "HUGE-1", "SINGLE", "homemulti", null, "NONE", "000000",
+                new BigDecimal("1"), new BigDecimal("1"), true, "HVAC");
+        when(productClient.lookupByModelCodes(List.of("HUGE-1"))).thenReturn(List.of(product));
+        when(dcConfigClient.calculateDetailed(any(), any())).thenReturn(
+                new DcConfigClient.CalculationResult(
+                        java.util.Map.of("0", new DcConfigClient.CalculatedLine(
+                                new BigDecimal("9999999999999"), null)), true));
+
+        assertThatThrownBy(() -> service.calculate(
+                "P-001", new ConfirmRequest(List.of(
+                        new ConfirmLineRequest(null, "HUGE-1", "homemulti", 2, null)))))
+                .isInstanceOf(com.samhanair.logis.common.exception.BusinessException.class)
+                .hasMessageContaining("정수부 13자리까지 저장할 수 있습니다");
     }
 
     @Test

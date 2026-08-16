@@ -6664,6 +6664,7 @@ function buildSendRows(){
           model: it.model,
           qty: it.qty,
           price: it.price,
+          setAllocation: true,
           fixedDc
         });
       });
@@ -6713,6 +6714,7 @@ function buildSendRows(){
         unit: it.unit || 'EA',
         qty: it.qty,
         price: it.price,
+        setAllocation: true,
         has360: flags.has360,
         has4way: flags.has4way,
         hasStand: flags.hasStand,

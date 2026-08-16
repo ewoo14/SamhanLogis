@@ -200,6 +200,7 @@ type LegacyOrderItem = {
   model?: unknown
   qty?: unknown
   price?: unknown
+  setAllocation?: unknown
   remarks?: unknown
 }
 
@@ -241,7 +242,8 @@ function confirmLines(itemsArg: unknown): Array<{
       modelCode,
       categoryKey,
       quantity,
-      ...(Number.isFinite(unitPrice) && unitPrice > 0 ? { unitPrice } : {}),
+      ...(item.setAllocation === true && Number.isFinite(unitPrice) && unitPrice > 0
+        ? { unitPrice, setAllocation: true } : {}),
       remark,
     }
   })
