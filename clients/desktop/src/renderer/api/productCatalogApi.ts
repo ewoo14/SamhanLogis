@@ -301,6 +301,8 @@ export interface BundleComponentItem {
   allocationWeight: number | null
   /** FIXED 금액 (null 가능) */
   fixedAllocationAmount: string | number | null
+  /** 세트 자동 배분 반올림 단위 */
+  allocationRoundUnit: string | number | null
 }
 
 /**
@@ -329,6 +331,8 @@ export interface BundleComponentInput {
   allocationMode?: 'AUTO' | 'FIXED' | null
   allocationWeight?: number | null
   fixedAllocationAmount?: string | number | null
+  /** 세트 자동 배분 반올림 단위 */
+  allocationRoundUnit?: string | number | null
 }
 
 /**
