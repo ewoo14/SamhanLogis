@@ -16,6 +16,7 @@ public record DailyClosingRowResponse(
         int seqNo,
         String warehouseName,
         String productName,
+        String modelName,
         int quantity,
         BigDecimal unitPriceWithVat,
         BigDecimal supplyAmount,
@@ -46,7 +47,7 @@ public record DailyClosingRowResponse(
             BigDecimal discountRate, BigDecimal grandTotal, Confirmation confirmation,
             String confirmationReason, LocalDateTime accountingPostedAt,
             BigDecimal dcAmount, SlipStatus sourceStatus) {
-        this(dcCondition, slipDate, seqNo, warehouseName, productName, quantity,
+        this(dcCondition, slipDate, seqNo, warehouseName, productName, null, quantity,
                 unitPriceWithVat, supplyAmount, vatAmount, total, partnerName, partnerCode,
                 productPrice, discountRate, grandTotal, confirmation, confirmationReason,
                 accountingPostedAt, dcAmount, sourceStatus, null, null,
@@ -93,6 +94,7 @@ public record DailyClosingRowResponse(
                 slip.getSeqNo(),
                 null,
                 line.getProductName(),
+                line.getModelName(),
                 line.getQuantity(),
                 unitPriceWithVat,
                 supply,
@@ -117,7 +119,7 @@ public record DailyClosingRowResponse(
 
     /** 마감일 잠금 결과를 조회 응답에 반영한다. */
     public DailyClosingRowResponse withAmountEditability(boolean editable, String reason) {
-        return new DailyClosingRowResponse(dcCondition, slipDate, seqNo, warehouseName, productName,
+        return new DailyClosingRowResponse(dcCondition, slipDate, seqNo, warehouseName, productName, modelName,
                 quantity, unitPriceWithVat, supplyAmount, vatAmount, total, partnerName, partnerCode,
                 productPrice, discountRate, grandTotal, confirmation, confirmationReason,
                 accountingPostedAt, dcAmount, sourceStatus, slipId, lineId, updatedAt,
