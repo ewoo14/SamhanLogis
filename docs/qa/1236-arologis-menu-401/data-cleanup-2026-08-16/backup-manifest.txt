@@ -1,0 +1,4 @@
+﻿Backup timestamp: 2026-08-16T13:00:32.0796354+09:00
+Target predicate: slips.id=1d7a99d1-8eac-4838-99bc-4e8971349107 AND slips.source_id=WEB-CODEX-20260816-074710 AND slips.slip_no=2026/08/16-1 AND slips.partner_name ~ '[?]{2,}'
+Parent backup: parent-slips.jsonl (all columns via to_jsonb)
+Child backup: children.jsonl (all columns via to_jsonb; matched by target slip_id/converted_slip_id/source_id)

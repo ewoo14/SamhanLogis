@@ -114,6 +114,7 @@ services:
       SERVER_PORT: "8080"
       EUREKA_URL: http://eureka-server:8761/eureka/
       SAMHAN_JWT_SECRET: "${SAMHAN_JWT_SECRET:?SAMHAN_JWT_SECRET_required}"
+      SAMHAN_AROLOGIS_JWT_SECRET: "${SAMHAN_AROLOGIS_JWT_SECRET:?SAMHAN_AROLOGIS_JWT_SECRET_required}"
       # Compose 합성은 환경 자격의 존재 여부와 무관하게 가능해야 한다.
       # 값이 비어 있으면 api-gateway의 런타임 필터가 attestation을 주입하지 않아
       # downstream 서비스가 fail-closed(401)로 차단한다. 자격 기본값은 두지 않는다.
