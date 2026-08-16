@@ -143,7 +143,6 @@ BundleExpanderR13Test > ac060cs6pbh1sy_set_allocation_matches_gas_and_remainder(
 Playwright는 반드시 `clients/desktop`에서 실행했다. 실행 명령은 다음과 같다.
 
 ```text
-$env:SAMHAN_QA_INTERNAL_TOKEN='round-fix-probe'
 $env:PLAYWRIGHT_SKIP_WEB_SERVER='1'
 $env:AUDIT_BASE_URL='http://127.0.0.1:5175'
 npx playwright test playwright/1166-order40-sol-review3-real-qa/1166-order40-sol-review3-real-qa.spec.ts --config=playwright.real-qa.config.ts --reporter=line

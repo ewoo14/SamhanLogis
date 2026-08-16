@@ -46,6 +46,7 @@ public class ProductLookupSheetSyncService {
     private static final Logger log = LoggerFactory.getLogger(ProductLookupSheetSyncService.class);
 
     /** legacy lookup 시트 ID. ProductMaster sync 와 같은 workbook 을 사용한다. */
+    @Value("${google.sheets.sheet-id:1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ}")
     private String sheetId;
 
     private static final String MATERIAL_TAB = "싱글 자재가격";
