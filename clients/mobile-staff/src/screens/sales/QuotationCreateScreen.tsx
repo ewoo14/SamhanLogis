@@ -72,9 +72,15 @@ export default function QuotationCreateScreen({ token, onBack }: Props): JSX.Ele
 
   // ---- 거래처 선택 ----
   const handleSelectCustomer = useCallback((customer: CustomerSummary) => {
+    if (selectedCustomer && selectedCustomer.id !== customer.id) {
+      setLines([newLine()]);
+      setValidDays('30');
+      setMemo('');
+      setResult(null);
+    }
     setSelectedCustomer(customer);
     setStep('lines');
-  }, []);
+  }, [selectedCustomer]);
 
   // ---- 라인 조작 ----
   const updateLine = useCallback((id: string, field: keyof LineForm, value: string) => {

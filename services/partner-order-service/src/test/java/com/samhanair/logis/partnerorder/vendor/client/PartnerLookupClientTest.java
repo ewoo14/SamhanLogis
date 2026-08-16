@@ -85,6 +85,19 @@ class PartnerLookupClientTest {
     }
 
     @Test
+    void findByPartnerCode_acceptsOpaquePartnerId() {
+        server.expect(requestTo(LOOKUP_ENDPOINT))
+                .andRespond(withSuccess("""
+                        {"success":true,"data":{"partnerId":"AAAAAAAAAAAAAAAAAAAAAA",
+                        "partnerCode":"P-2026-0001","name":"테스트","bizNo":"111-22-33333"}}
+                        """, MediaType.APPLICATION_JSON));
+
+        assertThat(client.findByPartnerCode(PARTNER_CODE)).get().satisfies(result ->
+                assertThat(result.partnerId()).isEqualTo(UUID.fromString("00000000-0000-0000-0000-000000000000")));
+        server.verify();
+    }
+
+    @Test
     void findByPartnerCode_404면_empty를_반환한다() {
         server.expect(requestTo(LOOKUP_ENDPOINT))
                 .andExpect(method(HttpMethod.GET))

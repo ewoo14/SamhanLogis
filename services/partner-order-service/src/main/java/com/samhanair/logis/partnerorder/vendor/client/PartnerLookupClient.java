@@ -2,6 +2,7 @@ package com.samhanair.logis.partnerorder.vendor.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.samhanair.logis.partnerorder.client.OpaqueUuidDecoder;
 import com.samhanair.logis.security.InternalAuthProperties;
 import java.time.Duration;
 import java.util.Optional;
@@ -202,7 +203,7 @@ public class PartnerLookupClient {
             JsonNode n = node.get(k);
             if (n != null && !n.isNull() && !n.asText().isBlank()) {
                 try {
-                    return UUID.fromString(n.asText());
+                    return OpaqueUuidDecoder.decode(n.asText());
                 } catch (IllegalArgumentException ignore) {
                     return null;
                 }

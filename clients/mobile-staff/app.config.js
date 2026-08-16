@@ -29,6 +29,25 @@ const { resolveBuildAppVersion } = require('../../scripts/app-build-version.cjs'
 const BUILD_ENV  = process.env.BUILD_ENV  || 'development';
 const APP_DEVELOPMENT_VERSION = resolveBuildAppVersion({ variable: 'EXPO_PUBLIC_APP_VERSION' });
 const APP_VARIANT = process.env.APP_VARIANT || 'staff';
+const SALES_ACCESS_TOKEN = process.env.EXPO_PUBLIC_SALES_ACCESS_TOKEN?.trim();
+
+/**
+ * sales native 인증은 아직 로그인/secure storage 경계가 없으므로 개발 환경에서만
+ * 주입 토큰을 허용한다. preview/production에 남으면 Expo가 값을 Metro 번들에
+ * 평문 치환하므로, export/EAS 설정 단계에서 릴리스를 중단한다.
+ */
+const EXPLICIT_DEVELOPMENT_BUILD =
+  typeof process.env.BUILD_ENV === 'string'
+  && process.env.BUILD_ENV.trim().toLowerCase() === 'development';
+
+// EXPO_PUBLIC_* 값은 variant와 무관하게 Metro 번들 후보가 된다. 따라서 release에서
+// 토큰을 허용할 유일한 경우를 명시적인 development 입력으로 제한한다.
+if (!EXPLICIT_DEVELOPMENT_BUILD && SALES_ACCESS_TOKEN) {
+  throw new Error(
+    'EXPO_PUBLIC_SALES_ACCESS_TOKEN은 sales 릴리스 빌드에 설정할 수 없습니다. '
+      + '로그인/secure storage 인증 경계가 준비되기 전에는 BUILD_ENV=development에서만 사용하세요.',
+  );
+}
 
 /** EAS Build 시 CI 가 EXPO_BUILD_NUMBER=<n> 을 주입한다. 로컬 기본값 = 1. */
 const BUILD_NUMBER = process.env.EXPO_BUILD_NUMBER || '1';
