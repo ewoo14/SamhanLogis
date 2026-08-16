@@ -1,5 +1,8 @@
 const { chromium } = require('../../../qa/playwright/node_modules/playwright');
 const path = require('path');
+const { resolveQaShotsDir } = require('../../../scripts/lib/qa-shots-dir.cjs');
+
+const OUT = resolveQaShotsDir(__dirname);
 
 (async () => {
   const browser = await chromium.launch({ headless: true });
@@ -32,7 +35,7 @@ const path = require('path');
       console.log('AFTER_LOGIN_INPUTS', await page.locator('input').evaluateAll(nodes => nodes.map(n => ({id:n.id,placeholder:n.placeholder,value:n.type === 'password' ? '[비공개]' : n.value,hidden:n.offsetParent===null})).filter(x => !x.hidden).slice(0,80)));
       console.log('AFTER_LOGIN_BUTTONS', await page.locator('button').evaluateAll(nodes => nodes.map(n => ({id:n.id,text:n.innerText.trim(),hidden:n.offsetParent===null})).filter(x => !x.hidden).slice(0,120)));
     }
-    await page.screenshot({ path: path.join(__dirname, 'screenshots', '00-initial.png'), fullPage: true });
+    await page.screenshot({ path: path.join(OUT, '00-initial.png'), fullPage: true });
     console.log('TITLE', await page.title());
     console.log('BODY', (await page.locator('body').innerText()).slice(0, 12000));
     console.log('INPUTS', await page.locator('input').evaluateAll(nodes => nodes.map(n => ({id:n.id,name:n.name,type:n.type,placeholder:n.placeholder,value:n.type === 'password' ? '[비공개]' : n.value,hidden:n.offsetParent===null})).filter(x => !x.hidden)));

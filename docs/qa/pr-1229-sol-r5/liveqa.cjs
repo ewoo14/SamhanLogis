@@ -1,8 +1,9 @@
 const { chromium } = require('../../../qa/playwright/node_modules/playwright');
 const path = require('path');
+const { resolveQaShotsDir } = require('../../../scripts/lib/qa-shots-dir.cjs');
 
 const BASE = 'http://127.0.0.1:25128/';
-const OUT = path.join(__dirname, 'screenshots');
+const OUT = resolveQaShotsDir(__dirname);
 
 async function visibleSummary(page, label) {
   console.log(label + '_BODY', (await page.locator('body').innerText()).slice(0, 15000));

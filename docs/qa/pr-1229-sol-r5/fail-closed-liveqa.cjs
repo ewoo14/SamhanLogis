@@ -1,5 +1,8 @@
 const { chromium } = require('../../../qa/playwright/node_modules/playwright');
 const path = require('path');
+const { resolveQaShotsDir } = require('../../../scripts/lib/qa-shots-dir.cjs');
+
+const OUT = resolveQaShotsDir(__dirname);
 
 (async () => {
   const browser = await chromium.launch({ headless: true });
@@ -29,7 +32,7 @@ const path = require('path');
     await page.locator('#btnPreview').click();
     await page.locator('#dlgPreview').waitFor({ state: 'visible' });
     await page.waitForTimeout(1200);
-    await page.locator('#dlgPreview .modal').screenshot({ path: path.join(__dirname, 'screenshots', '03-price-preview-503-fail-closed.png') });
+    await page.locator('#dlgPreview .modal').screenshot({ path: path.join(OUT, '03-price-preview-503-fail-closed.png') });
     console.log(JSON.stringify({
       previewResponse,
       screenRows: await page.locator('#previewBody tr').count(),
