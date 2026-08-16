@@ -27,13 +27,18 @@ public record HistoryResponse(
     }
 
     public static HistoryResponse from(PartnerOrder order) {
+        return from(order, order.getConfirmedAt());
+    }
+
+    /** confirmed_at 결측 레거시 주문은 CONFIRMED 이벤트 시각을 발송시각으로 사용한다. */
+    public static HistoryResponse from(PartnerOrder order, LocalDateTime effectiveOutDate) {
         return new HistoryResponse(
                 order.getOrderNo(),
                 order.getSlipNo(),
                 order.getStatus().name(),
                 order.getSlipPublishStatus().name(),
                 order.getTotalAmount(),
-                order.getConfirmedAt(),
+                effectiveOutDate,
                 order.getCreatedAt(),
                 order.getDeliveryAddress(),
                 order.getMemo(),

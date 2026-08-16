@@ -65,6 +65,27 @@ class PartnerOrderHistoryServiceTest {
     }
 
     @Test
+    void history_includesLegacyOrderWhenConfirmedEventExistsButConfirmedAtIsNull() {
+        PartnerOrder legacyOrder = order("2026/05/31-1", true, BigDecimal.TEN);
+        when(legacyOrder.getConfirmedAt()).thenReturn(null);
+        Pageable pageable = PageRequest.of(0, 20);
+        when(partnerSelfScopeGuard.partnerScopeOrNull("2118712345")).thenReturn("2118712345");
+        when(orderRepository.findAllHistoryIncludingDeletedByNormalizedBizCodeAndConfirmedEventOrderByEffectiveDateDesc(
+                eq("2118712345"), any(), any(), eq(pageable)))
+                .thenReturn(new PageImpl<>(List.of(legacyOrder), pageable, 1));
+
+        Page<HistoryResponse> result = service.findHistory(
+                "211-87-12345", LocalDateTime.MIN, LocalDateTime.MAX, pageable, "2118712345");
+
+        assertThat(result.getTotalElements()).isEqualTo(1);
+        assertThat(result.getContent()).singleElement()
+                .extracting(HistoryResponse::isDeleted)
+                .isEqualTo(true);
+        verify(orderRepository, never()).findAllByBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(
+                any(), any(), any(), any());
+    }
+
+    @Test
     void partnerScopedHistory_includesDeletedOrderOnlyThroughHistorySpecificQuery() {
         Pageable pageable = PageRequest.of(0, 20);
         when(partnerSelfScopeGuard.partnerScopeOrNull("P-001")).thenReturn("P-001");
@@ -89,7 +110,7 @@ class PartnerOrderHistoryServiceTest {
         Pageable pageable = PageRequest.of(0, 20);
         when(partnerSelfScopeGuard.partnerScopeOrNull("2118712345")).thenReturn("2118712345");
         PartnerOrder deletedOrder = order("2026/08/16-3", true, BigDecimal.TEN);
-        when(orderRepository.findAllHistoryIncludingDeletedByNormalizedBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(
+        when(orderRepository.findAllHistoryIncludingDeletedByNormalizedBizCodeAndConfirmedEventOrderByEffectiveDateDesc(
                 eq("2118712345"), any(), any(), eq(pageable)))
                 .thenReturn(new PageImpl<>(List.of(deletedOrder), pageable, 1));
 

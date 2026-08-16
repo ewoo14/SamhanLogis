@@ -19,6 +19,18 @@ import org.springframework.stereotype.Repository;
 public interface PartnerOrderRepository extends JpaRepository<PartnerOrder, UUID>,
         JpaSpecificationExecutor<PartnerOrder> {
 
+    interface ConfirmedEventDate {
+        UUID getOrderId();
+        LocalDateTime getOccurredAt();
+    }
+
+    /** legacy event-only 주문의 발송시각을 응답에 복원한다. */
+    @Query(value = "SELECT h.partner_order_id AS orderId, MAX(h.occurred_at) AS occurredAt "
+            + "FROM partner_order_history h WHERE h.partner_order_id IN (:orderIds) "
+            + "AND h.event_type = 'CONFIRMED' AND h.is_deleted = FALSE "
+            + "GROUP BY h.partner_order_id", nativeQuery = true)
+    List<ConfirmedEventDate> findLatestConfirmedEventDates(@Param("orderIds") List<UUID> orderIds);
+
     /** 장기미발주 판정용 마지막 주문 확정 시각 — auth 사업자번호로 biz_code를 조회한다. */
     @Query("select max(o.confirmedAt) from PartnerOrder o "
             + "where function('replace', o.bizCode, '-', '') = :businessNumber "
@@ -65,10 +77,16 @@ public interface PartnerOrderRepository extends JpaRepository<PartnerOrder, UUID
      * 경로에서만 사용하며, 일반 주문 목록·집계에는 사용하지 않는다.
      */
     @Query(value = "SELECT * FROM partner_orders "
-            + "WHERE biz_code = :bizCode AND confirmed_at BETWEEN :from AND :to "
+            + "WHERE biz_code = :bizCode AND (confirmed_at BETWEEN :from AND :to OR EXISTS ("
+            + "SELECT 1 FROM partner_order_history h WHERE h.partner_order_id = partner_orders.id "
+            + "AND h.event_type = 'CONFIRMED' AND h.is_deleted = FALSE "
+            + "AND h.occurred_at BETWEEN :from AND :to)) "
             + "ORDER BY confirmed_at DESC",
             countQuery = "SELECT COUNT(*) FROM partner_orders "
-                    + "WHERE biz_code = :bizCode AND confirmed_at BETWEEN :from AND :to",
+                    + "WHERE biz_code = :bizCode AND (confirmed_at BETWEEN :from AND :to OR EXISTS ("
+                    + "SELECT 1 FROM partner_order_history h WHERE h.partner_order_id = partner_orders.id "
+                    + "AND h.event_type = 'CONFIRMED' AND h.is_deleted = FALSE "
+                    + "AND h.occurred_at BETWEEN :from AND :to))",
             nativeQuery = true)
     Page<PartnerOrder> findAllHistoryIncludingDeletedByBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(
             @Param("bizCode") String bizCode, @Param("from") LocalDateTime from,
@@ -77,10 +95,16 @@ public interface PartnerOrderRepository extends JpaRepository<PartnerOrder, UUID
     /** PARTNER 발송내역 전용 조회 — 거래처 범위와 삭제행 보존을 함께 적용한다. */
     @Query(value = "SELECT * FROM partner_orders "
             + "WHERE partner_code = :partnerCode AND biz_code = :bizCode "
-            + "AND confirmed_at BETWEEN :from AND :to ORDER BY confirmed_at DESC",
+            + "AND (confirmed_at BETWEEN :from AND :to OR EXISTS ("
+            + "SELECT 1 FROM partner_order_history h WHERE h.partner_order_id = partner_orders.id "
+            + "AND h.event_type = 'CONFIRMED' AND h.is_deleted = FALSE "
+            + "AND h.occurred_at BETWEEN :from AND :to)) ORDER BY confirmed_at DESC",
             countQuery = "SELECT COUNT(*) FROM partner_orders "
                     + "WHERE partner_code = :partnerCode AND biz_code = :bizCode "
-                    + "AND confirmed_at BETWEEN :from AND :to",
+                    + "AND (confirmed_at BETWEEN :from AND :to OR EXISTS ("
+                    + "SELECT 1 FROM partner_order_history h WHERE h.partner_order_id = partner_orders.id "
+                    + "AND h.event_type = 'CONFIRMED' AND h.is_deleted = FALSE "
+                    + "AND h.occurred_at BETWEEN :from AND :to))",
             nativeQuery = true)
     Page<PartnerOrder> findAllHistoryIncludingDeletedByPartnerCodeAndBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(
             @Param("partnerCode") String partnerCode, @Param("bizCode") String bizCode,
@@ -89,12 +113,38 @@ public interface PartnerOrderRepository extends JpaRepository<PartnerOrder, UUID
     /** 사업자번호 하이픈 표기 차이를 흡수하는 PARTNER history 조회. */
     @Query(value = "SELECT * FROM partner_orders "
             + "WHERE regexp_replace(biz_code, '[^0-9]', '', 'g') = :bizCode "
-            + "AND confirmed_at BETWEEN :from AND :to ORDER BY confirmed_at DESC",
+            + "AND (confirmed_at BETWEEN :from AND :to OR EXISTS ("
+            + "SELECT 1 FROM partner_order_history h WHERE h.partner_order_id = partner_orders.id "
+            + "AND h.event_type = 'CONFIRMED' AND h.is_deleted = FALSE "
+            + "AND h.occurred_at BETWEEN :from AND :to)) ORDER BY confirmed_at DESC",
             countQuery = "SELECT COUNT(*) FROM partner_orders "
                     + "WHERE regexp_replace(biz_code, '[^0-9]', '', 'g') = :bizCode "
-                    + "AND confirmed_at BETWEEN :from AND :to",
+                    + "AND (confirmed_at BETWEEN :from AND :to OR EXISTS ("
+                    + "SELECT 1 FROM partner_order_history h WHERE h.partner_order_id = partner_orders.id "
+                    + "AND h.event_type = 'CONFIRMED' AND h.is_deleted = FALSE "
+                    + "AND h.occurred_at BETWEEN :from AND :to))",
             nativeQuery = true)
     Page<PartnerOrder> findAllHistoryIncludingDeletedByNormalizedBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(
+            @Param("bizCode") String bizCode, @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to, Pageable pageable);
+
+    /** confirmed_at 결측 레거시 주문도 CONFIRMED 이벤트로 발송내역에 포함한다. */
+    @Query(value = "SELECT o.* FROM partner_orders o "
+            + "WHERE regexp_replace(o.biz_code, '[^0-9]', '', 'g') = :bizCode "
+            + "AND (o.confirmed_at BETWEEN :from AND :to OR EXISTS ("
+            + "SELECT 1 FROM partner_order_history h WHERE h.partner_order_id = o.id "
+            + "AND h.event_type = 'CONFIRMED' AND h.is_deleted = FALSE "
+            + "AND h.occurred_at BETWEEN :from AND :to)) "
+            + "ORDER BY COALESCE(o.confirmed_at, (SELECT MAX(h.occurred_at) FROM partner_order_history h "
+            + "WHERE h.partner_order_id = o.id AND h.event_type = 'CONFIRMED' AND h.is_deleted = FALSE)) DESC",
+            countQuery = "SELECT COUNT(*) FROM partner_orders o "
+                    + "WHERE regexp_replace(o.biz_code, '[^0-9]', '', 'g') = :bizCode "
+                    + "AND (o.confirmed_at BETWEEN :from AND :to OR EXISTS ("
+                    + "SELECT 1 FROM partner_order_history h WHERE h.partner_order_id = o.id "
+                    + "AND h.event_type = 'CONFIRMED' AND h.is_deleted = FALSE "
+                    + "AND h.occurred_at BETWEEN :from AND :to))",
+            nativeQuery = true)
+    Page<PartnerOrder> findAllHistoryIncludingDeletedByNormalizedBizCodeAndConfirmedEventOrderByEffectiveDateDesc(
             @Param("bizCode") String bizCode, @Param("from") LocalDateTime from,
             @Param("to") LocalDateTime to, Pageable pageable);
 
@@ -102,11 +152,17 @@ public interface PartnerOrderRepository extends JpaRepository<PartnerOrder, UUID
     @Query(value = "SELECT * FROM partner_orders "
             + "WHERE regexp_replace(lower(partner_code), '[^a-z0-9]', '', 'g') = :partnerCode "
             + "AND regexp_replace(biz_code, '[^0-9]', '', 'g') = :bizCode "
-            + "AND confirmed_at BETWEEN :from AND :to ORDER BY confirmed_at DESC",
+            + "AND (confirmed_at BETWEEN :from AND :to OR EXISTS ("
+            + "SELECT 1 FROM partner_order_history h WHERE h.partner_order_id = partner_orders.id "
+            + "AND h.event_type = 'CONFIRMED' AND h.is_deleted = FALSE "
+            + "AND h.occurred_at BETWEEN :from AND :to)) ORDER BY confirmed_at DESC",
             countQuery = "SELECT COUNT(*) FROM partner_orders "
                     + "WHERE regexp_replace(lower(partner_code), '[^a-z0-9]', '', 'g') = :partnerCode "
                     + "AND regexp_replace(biz_code, '[^0-9]', '', 'g') = :bizCode "
-                    + "AND confirmed_at BETWEEN :from AND :to",
+                    + "AND (confirmed_at BETWEEN :from AND :to OR EXISTS ("
+                    + "SELECT 1 FROM partner_order_history h WHERE h.partner_order_id = partner_orders.id "
+                    + "AND h.event_type = 'CONFIRMED' AND h.is_deleted = FALSE "
+                    + "AND h.occurred_at BETWEEN :from AND :to))",
             nativeQuery = true)
     Page<PartnerOrder> findAllHistoryIncludingDeletedByNormalizedPartnerCodeAndNormalizedBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(
             @Param("partnerCode") String partnerCode, @Param("bizCode") String bizCode,

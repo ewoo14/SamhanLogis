@@ -2,9 +2,11 @@ package com.samhanair.logis.partnerorder.service;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
 import com.samhanair.logis.partnerorder.web.dto.HistoryResponse;
 import java.time.LocalDateTime;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -70,9 +72,9 @@ public class PartnerOrderHistoryService {
                             "본인 거래처 주문 이력만 조회할 수 있습니다.");
                 }
                 return orderRepository
-                        .findAllHistoryIncludingDeletedByNormalizedBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(
+                        .findAllHistoryIncludingDeletedByNormalizedBizCodeAndConfirmedEventOrderByEffectiveDateDesc(
                                 normalizedBizCode, from, to, pageable)
-                        .map(HistoryResponse::from);
+                        .map(this::toHistoryResponse);
             }
             if (orderRepository.existsByNormalizedBizCodeAndNormalizedPartnerCodeNot(
                     normalizedBizCode, normalizedPartnerScope)) {
@@ -82,12 +84,24 @@ public class PartnerOrderHistoryService {
             return orderRepository
                     .findAllHistoryIncludingDeletedByNormalizedPartnerCodeAndNormalizedBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(
                             normalizedPartnerScope, normalizedBizCode, from, to, pageable)
-                    .map(HistoryResponse::from);
+                    .map(this::toHistoryResponse);
         }
         return orderRepository
                 .findAllHistoryIncludingDeletedByBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(
                         bizCode, from, to, pageable)
-                .map(HistoryResponse::from);
+                .map(this::toHistoryResponse);
+    }
+
+    private HistoryResponse toHistoryResponse(PartnerOrder order) {
+        LocalDateTime outDate = order.getConfirmedAt();
+        if (outDate == null && order.getId() != null) {
+            List<PartnerOrderRepository.ConfirmedEventDate> dates =
+                    orderRepository.findLatestConfirmedEventDates(List.of(order.getId()));
+            if (!dates.isEmpty()) {
+                outDate = dates.get(0).getOccurredAt();
+            }
+        }
+        return HistoryResponse.from(order, outDate);
     }
 
     private String normalizeBizCode(String value) {
