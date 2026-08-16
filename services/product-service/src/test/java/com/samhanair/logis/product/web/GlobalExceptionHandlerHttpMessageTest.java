@@ -8,16 +8,22 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.product.domain.Product;
 import com.samhanair.logis.product.service.ProductService;
+import java.math.BigDecimal;
 import java.sql.SQLException;
 import java.time.LocalDate;
+import java.util.Map;
 import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
@@ -25,7 +31,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 class GlobalExceptionHandlerHttpMessageTest {
 
     private final MockMvc mockMvc = MockMvcBuilders
-            .standaloneSetup(new ProductController(mock(ProductService.class)))
+            .standaloneSetup(new ProductController(mock(ProductService.class)), new DomainIllegalArgumentProbeController())
             .setControllerAdvice(new GlobalExceptionHandler())
             .build();
 
@@ -98,5 +104,28 @@ class GlobalExceptionHandlerHttpMessageTest {
                 .doesNotContain("from")
                 .doesNotContain("NOT_A_DATE")
                 .doesNotContain("LocalDate");
+    }
+
+    /** 실제 도메인 Product.create의 일반 IllegalArgumentException은 500으로 남겨 둔다. */
+    @Test
+    void domainIllegalArgumentOutsideOpaqueDeserializer_stays500() throws Exception {
+        MvcResult result = mockMvc.perform(post("/test/domain-illegal-argument")).andReturn();
+        String body = result.getResponse().getContentAsString();
+        System.out.println("[ILLEGAL-ARG-RAW] status=" + result.getResponse().getStatus() + " body=" + body);
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(500);
+        assertThat(body).contains("\"code\":\"INTERNAL_ERROR\"")
+                .doesNotContain("ISO 4217")
+                .doesNotContain("TOOLONG");
+    }
+
+    @RestController
+    static class DomainIllegalArgumentProbeController {
+
+        @PostMapping("/test/domain-illegal-argument")
+        void probe() {
+            Product.create("probe", "probe", null, BigDecimal.ZERO, BigDecimal.ZERO,
+                    "TOOLONG", Map.of(), null);
+        }
     }
 }

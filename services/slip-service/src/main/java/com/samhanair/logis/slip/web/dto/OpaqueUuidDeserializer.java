@@ -11,6 +11,13 @@ import java.util.UUID;
 /** 목록 응답의 opaque token 또는 기존 UUID를 HTTP 입력용 내부 UUID로 복원한다. */
 public final class OpaqueUuidDeserializer extends JsonDeserializer<UUID> {
 
+    /** opaque path 식별자 형식이 잘못된 경우에만 사용하는 입력 예외. */
+    public static final class InvalidOpaqueUuidException extends IllegalArgumentException {
+        public InvalidOpaqueUuidException() {
+            super("요청 파라미터 형식이 올바르지 않습니다.");
+        }
+    }
+
     public OpaqueUuidDeserializer() {
     }
 
@@ -26,7 +33,7 @@ public final class OpaqueUuidDeserializer extends JsonDeserializer<UUID> {
 
     public static UUID decode(String value) {
         if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException("유효하지 않은 전표 식별자입니다.");
+            throw new InvalidOpaqueUuidException();
         }
         try {
             return UUID.fromString(value);
@@ -34,12 +41,12 @@ public final class OpaqueUuidDeserializer extends JsonDeserializer<UUID> {
             try {
                 byte[] bytes = Base64.getUrlDecoder().decode(value);
                 if (bytes.length != 16) {
-                    throw new IllegalArgumentException("유효하지 않은 전표 식별자입니다.");
+                    throw new InvalidOpaqueUuidException();
                 }
                 ByteBuffer buffer = ByteBuffer.wrap(bytes);
                 return new UUID(buffer.getLong(), buffer.getLong());
             } catch (IllegalArgumentException ex) {
-                throw new IllegalArgumentException("유효하지 않은 전표 식별자입니다.", ex);
+                throw new InvalidOpaqueUuidException();
             }
         }
     }
