@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { AppUpdateNotice, Button } from '@samhan/design-system'
+import { AppUpdateNotice, AppUpdateNoticeStack, Button } from '@samhan/design-system'
 import {
   fetchDesktopVersionStatus,
   resolveBuildAppVersion,
@@ -198,19 +198,25 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
     <AppUpdateNotice
       severity="disabled"
       title="자동 업데이트가 꺼져 있습니다"
-      description="사내 업데이트를 계속 받으려면 신뢰 루트 설치가 필요합니다. 설치가 끝날 때까지 앱은 그대로 사용할 수 있습니다."
+      description="사내 업데이트를 계속 받으려면 보안인증서 설치가 필요합니다. 설치가 끝날 때까지 앱은 그대로 사용할 수 있습니다."
       testId="app-trust-root-disabled"
-      actions={<Button type="button" variant="secondary" size="sm" onClick={() => void refreshTrustRootStatusAfterInstall()}>신뢰 루트 설치</Button>}
+      actions={<Button type="button" variant="secondary" size="sm" onClick={() => void refreshTrustRootStatusAfterInstall()}>보안인증서 설치</Button>}
     />
   ) : null
+
+  const updateNoticeStack = (
+    <AppUpdateNoticeStack>
+      {versionPolicyNotice}
+      {trustRootNotice}
+      {statusNotice}
+    </AppUpdateNoticeStack>
+  )
 
   if (promptState.kind === 'blocking') {
     const { versionInfo } = promptState
     return (
       <>
-        {versionPolicyNotice}
-        {trustRootNotice}
-        {statusNotice}
+        {updateNoticeStack}
         <section role="alertdialog" data-testid="app-version-blocking-modal" aria-modal="true">
           <h2>긴급 업데이트</h2>
           <p>현재 버전 {CURRENT_VERSION}은 더 이상 사용할 수 없습니다.</p>
@@ -232,9 +238,7 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
 
   return (
     <>
-      {versionPolicyNotice}
-      {trustRootNotice}
-      {statusNotice}
+      {updateNoticeStack}
       {notice}
       {children}
     </>

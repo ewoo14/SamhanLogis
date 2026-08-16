@@ -1,16 +1,48 @@
 .notice {
   --notice-accent: var(--color-brand-500);
-  position: relative;
+  position: fixed;
+  inset-block-start: var(--space-4);
+  inset-inline: 0;
+  z-index: 999;
   display: grid;
   gap: var(--space-2);
   width: min(100% - var(--space-8), 920px);
   box-sizing: border-box;
-  margin: var(--space-3) auto;
+  margin: 0 auto;
+  pointer-events: none;
   border-color: var(--color-neutral-200);
   border-inline-start: 4px solid var(--notice-accent);
   background: var(--color-neutral-0);
   color: var(--color-neutral-800);
   font-family: var(--font-family-sans);
+}
+
+.notice > * { pointer-events: none; }
+.notice .actions,
+.notice .actions * { pointer-events: auto; }
+
+.stack {
+  position: fixed;
+  inset-block-start: var(--space-4);
+  inset-inline: 0;
+  z-index: 999;
+  display: grid;
+  gap: var(--space-3);
+  pointer-events: none;
+}
+
+.stack .notice {
+  position: relative;
+  inset: auto;
+  z-index: auto;
+  width: min(100% - var(--space-8), 920px);
+  margin: 0 auto;
+}
+
+.stack > aside {
+  width: min(100% - var(--space-8), 920px);
+  margin: 0 auto;
+  box-sizing: border-box;
 }
 
 .severity-network { --notice-accent: var(--color-brand-500); }
