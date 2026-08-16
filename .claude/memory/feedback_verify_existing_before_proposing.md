@@ -126,3 +126,77 @@ PM 질문   "배차·DPS 는 레거시가 외부 파일을 기준으로 대조�
 
 🚩 **분류·요약 산출물은 전제를 보증하지 않는다.** Ⓐ/Ⓑ/Ⓒ 로 나눈 표는 "판단이 필요하다"
 까지만 말한다. **무엇을 판단해야 하는지는 PM 이 실측으로 세워야 한다.**
+
+---
+
+## 🚨🚨 2026-08-17 네 번째 — **구현·마이그레이션·결정까지 끝낸 뒤에 드러났다**
+
+> 개발책임자: *"원래 그걸 목적으로 만든거고 구현해왔는데 좀 과거 내역 확인해봐"*
+> *"아이고 구현 전에 과거 기록 정찰도 워크플로우에 넣어야겠다. 이러면 안되지"*
+
+앞의 세 절은 전부 **질문 단계**에서 샜다. 이번은 다르다 — **묻고, 결정받고, 스키마를 만들고, 데이터를 백필한 뒤에** 이미 있는 것이 드러났다. 가장 비싼 형태다.
+
+```text
+PM 이 태운 것
+  SOL 조사 라운드 1 · 스키마 선택지 4개를 개발책임자께 질문 · 결정 1회 수령
+  V44 마이그레이션 (bundle_component 에 context_release_price · context_delivery_price)
+  BundleExpander dual-read 구현 · 시트 백필 1,042 pair · 검증 라운드 2회
+
+그런데 이미 있었다
+  BundleComponent.java
+    enum AllocationMode { AUTO, FIXED }
+    enum ComponentKind  { INDOOR, OUTDOOR, PANEL, REMOTE, MATERIAL, ACCESSORY, FOOT }
+    allocationMode · allocationWeight · fixedAllocationAmount
+  #1093 CLOSED  세트 구성품 가격 모델 — 고정가/자동+비중 · 반올림 단위
+  #1143 CLOSED  세트 구성품 비중·반올림 단위를 데이터로
+  #1111 CLOSED  편집 소관을 기초품목으로 이동 (견적품목은 세트 검색·납품가만)
+
+거래처 할인도 마찬가지였다
+  dc-config-service (포트 8089) — DcConfig · DcRule · PriceCalculationLog
+  source enum 에 NOTION_DB 가 이미 있다
+  POST /api/v1/internal/price-calculations ← estimate · partner-order 가 호출
+  #874 CLOSED · 623bf96af 에서 한 번 깨졌다 고친 이력까지 있다
+```
+
+### 🔑 왜 안 걸렸나 — **필드를 봤는데 의미를 몰랐다**
+
+조사자는 `bundle_component` 스키마를 실제로 읽었다. `fixedAllocationAmount` 도 봤다. 그런데 **"고정 배분 금액"이라고만 읽었지 그게 "세트 문맥 단가"라는 걸 몰랐다.** 그 의미는 코드가 아니라 **이슈 #1093 의 제목**에 있었다.
+
+```text
+❌ 스키마를 읽었다 = 그 필드가 무엇을 위해 만들어졌는지 안다
+✅ 필드의 의미는 그것을 만든 이슈·결정에 있다
+```
+
+그래서 조사 결론이 *"관계에 단가 컬럼을 추가해야 한다"* 로 나왔다 — **이미 그 컬럼인데.**
+
+### How to apply — 발주 브리핑에 **의무 절**로 넣는다
+
+정찰·조사·구현 브리핑 어느 것이든, 도메인을 건드리면 이 절이 없으면 **브리핑이 미완성**이다.
+
+```text
+## 0-1. 과거 기록 정찰 (먼저 하고 결과를 보고서 1절에 적어라)
+
+1  gh issue list --state all --limit 400 --search "<도메인어>"
+   🚨 CLOSED 가 곧 구현이다. OPEN 만 보면 완결된 기능이 통째로 안 보인다
+2  git log --all --grep="<도메인어>" -i --oneline
+3  .claude/memory/project_*.md 에서 그 도메인 파일
+4  건드릴 엔티티·테이블의 필드를 하나씩 짚고
+   🚨 "이 필드는 어느 이슈가 왜 만들었나" 를 답하라
+   답이 안 나오는 필드가 있으면 그 이슈부터 찾아라
+5  services/<도메인>-service/README.md 가 있으면 읽어라
+   (이 저장소는 서비스별 README 에 엔티티·엔드포인트·가드를 적어 둔다)
+
+⟹ 위 다섯을 하고도 "없다" 면 그때 만든다.
+   하나라도 걸리면 질문이 바뀐다 — "만들까요?" 가 아니라
+   "이미 있는 것이 왜 이 값을 못 내는가?" 다
+```
+
+🚨 **PM 이 스키마 선택지를 만들기 전에 이 절을 먼저 돌린다.** 이번 사고에서 PM 은 선택지 4개(관계 테이블 확장 / 품목 분리 / override 테이블 / 가격 이력 확장)를 만들어 개발책임자께 물었다. **네 개 다 이미 있는 모델을 모르고 만든 것**이라 어느 것을 골라도 중복이었다.
+
+🔑 **증상이 "값이 틀렸다" 면 모델부터 의심하지 마라.** 이번 진짜 원인은 한 줄이었다.
+```js
+// ProductFormPage.tsx:947
+// 금액은 서버가 신규 구성품의 deliveryPrice로 확정하므로 여기서는 null을 보낸다.
+fixedAllocationAmount: null,
+```
+모델은 맞았고 **그 칸에 전역 단가가 자동으로 채워진 것**이 결함이었다. 모델을 새로 만드는 대신 이 한 줄을 봤어야 한다.

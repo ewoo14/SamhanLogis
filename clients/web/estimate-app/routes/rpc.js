@@ -23,6 +23,32 @@ const { readCookie } = require('../lib/auth-context');
 
 const router = express.Router();
 
+const IDENTITY_HEADERS = [
+  'authorization', 'x-user-id', 'x-user-groups', 'x-user-name',
+  'x-user-department', 'x-is-system-master', 'x-is-partner', 'x-partner-code',
+  'x-samhan-gateway-attestation',
+];
+
+function readIdentityHeaders(headers) {
+  return IDENTITY_HEADERS.reduce((out, name) => {
+    const value = headers && headers[name];
+    if (typeof value === 'string' && value) out[name] = value;
+    return out;
+  }, {});
+}
+
+function invokeRpc(fnName, fn, args, req, authenticatedEmail) {
+  if (fnName === 'saveQuoteSnapshot') {
+    return fn(args[0], authenticatedEmail);
+  }
+  if (fnName === 'getNotionHistory') {
+    const [startDate, endDate, dateField, bizCode] = args;
+    const identityHeaders = readIdentityHeaders(req.headers);
+    return fn(startDate, endDate, dateField, bizCode, { identityHeaders });
+  }
+  return fn(...args);
+}
+
 router.post('/:fnName', async (req, res) => {
   const fnName = req.params.fnName;
   const args = Array.isArray(req.body && req.body.args) ? req.body.args : [];
@@ -37,13 +63,12 @@ router.post('/:fnName', async (req, res) => {
   }
 
   try {
-    const identityBound = new Set(['saveQuoteSnapshot']);
+    const identityBound = new Set(['saveQuoteSnapshot', 'getNotionHistory']);
     const authenticatedEmail = identityBound.has(fnName) ? readCookie(req.headers.cookie) : null;
     if (identityBound.has(fnName) && !authenticatedEmail) {
       return res.status(401).json({ ok: false, error: '인증된 사용자 세션이 필요합니다' });
     }
-    const callArgs = authenticatedEmail ? [...args, authenticatedEmail] : args;
-    const result = await Promise.resolve(fn.apply(null, callArgs));
+    const result = await Promise.resolve(invokeRpc(fnName, fn, args, req, authenticatedEmail));
     return res.json({ ok: true, result });
   } catch (err) {
     console.error(`[rpc] ${fnName} 에러:`, err);
