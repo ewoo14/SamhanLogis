@@ -96,6 +96,8 @@
 
 - [🚨 종합견적서는 직원 전용 · 주문서웹이 거래처용 — 인증 경로가 다르다](feedback_estimate_app_is_staff_only.md)
 
+- [🚨 스크린샷은 행 수를 세라 — stub 은 한글도 정상이다](feedback_screenshot_row_count_must_match_data.md)
+
 # 커밋/PR/문서 규약
 - [한국어 의무 — 커밋/PR/Issue/보고](feedback_korean_commits.md)
 - [🚨🚨 내가 커밋한 QA 하네스가 CI 를…](feedback_qa_harness_commit_breaks_ci.md)
