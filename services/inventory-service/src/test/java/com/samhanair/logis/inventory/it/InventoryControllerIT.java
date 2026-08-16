@@ -81,6 +81,19 @@ class InventoryControllerIT extends AbstractPostgresIT {
 
     private UUID hqWarehouseId;
 
+    @Test
+    void malformedConverterWarehouseIdentifier_returns400ApiResponse() throws Exception {
+        mockMvc.perform(get("/inventory/warehouses/not-a-valid-opaque-id")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MASTER"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+                .andExpect(jsonPath("$.message").value("요청 파라미터 형식이 올바르지 않습니다."))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("not-a-valid-opaque-id"))));
+    }
+
     @BeforeEach
     void setUp() {
         Mockito.lenient().when(dynamicPermissionClient.canView(Mockito.anyString(), Mockito.anyString()))

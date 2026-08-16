@@ -111,6 +111,17 @@ class AppNoticeControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("GET /app/notices/{id}는 지원되지 않는 메서드이므로 405 ApiResponse를 반환한다")
+    void getOnNoticeMutationPath_returns405ApiResponse() throws Exception {
+        mockMvc.perform(withActor(get("/app/notices/arbitrary-text")))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.code").value("METHOD_NOT_ALLOWED"))
+                .andExpect(jsonPath("$.message").value("허용되지 않은 HTTP 메서드입니다."))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("arbitrary-text"))));
+    }
+
+    @Test
     @DisplayName("admin CRUD는 dev.popup-notice 권한으로 등록/수정/소프트삭제한다")
     void adminCrud_usesPopupNoticePageCodeAndSoftDeletes() throws Exception {
         String createBody = """
