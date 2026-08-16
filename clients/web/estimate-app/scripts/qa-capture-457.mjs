@@ -1,7 +1,7 @@
 /**
  * PR #457 — 견적 품목 노출 구분(usageScope) + 시트 순서 보존(display_order) 실 UI 캡처.
  *
- * 전제: node server.js 가 CATALOG_SOURCE=db 로 :5183 가동 중
+ * 전제: node server.js 가 product-service DB 원천으로 :5183 가동 중
  *       (실 product-service 8084 컨테이너 → display_order/usageScope 적용된 카탈로그).
  * 출력: docs/qa/product-exposure-display-order/*.png
  *
