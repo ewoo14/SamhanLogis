@@ -261,7 +261,6 @@ test('PR 1250 SOL 적대검증 라운드1 금액 네 단계와 차단을 실측�
     route: `${BASE_URL}/#/accounting/daily-closings`,
     uniqueElements: ['daily-closing-nav', 'daily-closing-table', 'daily-closing-save-all'],
     loginRole: String(login['role'] ?? ''),
-    isolatedJarSha256: '8663192f2cbced143e51e594f2833edb86d9271dd6b8a94a65334cb570e52943',
     rows: {
       backendAll: sourceRows.length,
       backendPreIssued,

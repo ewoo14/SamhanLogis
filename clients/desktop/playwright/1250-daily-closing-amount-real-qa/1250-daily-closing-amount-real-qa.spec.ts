@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -8,8 +9,7 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const baseUrl = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5173'
 const apiBase = process.env['API_BASE'] ?? 'http://127.0.0.1:8080'
 const slipDate = process.env['DAILY_CLOSING_QA_DATE'] ?? '2026-08-14'
-const shots = path.resolve(here, '../../../../docs/qa/1250-daily-closing-amount-real-qa')
-fs.mkdirSync(shots, { recursive: true })
+const shots = resolveQaShotsDir(path.resolve(here, '../../../../docs/qa/1250-daily-closing-amount-real-qa'))
 
 test('1250 일마감 금액 계약 라이브 화면을 읽기 전용으로 검증한다', async ({ page }) => {
   const login = await page.request.post(`${apiBase}/auth/login`, {
