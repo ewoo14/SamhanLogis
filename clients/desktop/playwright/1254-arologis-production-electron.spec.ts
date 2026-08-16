@@ -39,13 +39,12 @@ test('PR #1254 production Electron에서 배너 도달성·모달·print·폭별
     await page.getByTestId('login-id-input').fill('qa')
     await page.getByTestId('login-password-input').fill('qa-password')
     await page.getByTestId('login-submit').click()
-    await page.waitForTimeout(1000)
-    console.log(`[AUTH-DEBUG] url=${page.url()} body=${(await page.locator('body').innerText()).slice(0, 200)}`)
+    await expect(page).toHaveURL(/#\/dispatches\/manual/, { timeout: 10000 })
     await page.evaluate(async () => {
       await window.arologisAuth.setToken({ accessToken: 'qa-local-only', refreshToken: 'qa-local-refresh', userId: '00000000-0000-0000-0000-000000010001', role: 'AROLOGIS_MASTER', loginId: 'qa', fullName: '적대검증자', expiresAt: '2099-01-01T00:00:00Z' })
     })
     await page.reload({ waitUntil: 'domcontentloaded' })
-    await page.waitForTimeout(1000)
+    await expect(page.getByText('아로로지스')).toBeVisible({ timeout: 10000 })
     await page.evaluate(() => { window.location.hash = '#/dispatches/unassigned' })
     await expect(page.getByTestId('arologis-unassigned-date')).toBeVisible({ timeout: 15000 })
     await app.evaluate(({ BrowserWindow }) => {
@@ -55,10 +54,9 @@ test('PR #1254 production Electron에서 배너 도달성·모달·print·폭별
     await expect(page.getByTestId('app-auto-update-status')).toBeVisible()
 
     const metrics: Array<Record<string, unknown>> = []
-    for (const width of [1024, 1280, 1920]) {
+    for (const width of [600, 768, 1024, 1280, 1440, 1920]) {
       await page.setViewportSize({ width, height: 900 })
       await page.emulateMedia({ media: 'screen' })
-      await page.waitForTimeout(500)
       const input = page.getByTestId('arologis-unassigned-date')
       // Electron의 native date picker는 headless BrowserWindow를 닫을 수 있어 실제 입력 포커스 도달을 단정한다.
       await input.focus()
@@ -69,6 +67,17 @@ test('PR #1254 production Electron에서 배너 도달성·모달·print·폭별
         const h1 = document.querySelector<HTMLElement>('h3')
         const actions = notice?.querySelector<HTMLElement>('[class*="actions"]')
         const button = actions?.querySelector<HTMLElement>('button')
+        const interactiveOverlap = Array.from(document.querySelectorAll<HTMLElement>('a, button, input'))
+          .filter((element) => !element.closest('[data-app-update-notice-stack]'))
+          .map((element) => {
+            const rect = element.getBoundingClientRect()
+            const area = stack
+              ? Math.max(0, Math.min(stack.getBoundingClientRect().right, rect.right) - Math.max(stack.getBoundingClientRect().left, rect.left))
+                * Math.max(0, Math.min(stack.getBoundingClientRect().bottom, rect.bottom) - Math.max(stack.getBoundingClientRect().top, rect.top))
+              : 0
+            return { label: element.textContent?.trim() || element.getAttribute('data-testid') || element.tagName, area }
+          })
+          .filter((item) => item.area > 0)
         let hit: string | null = null
         if (actions && button) {
           const ar = actions.getBoundingClientRect(); const br = button.getBoundingClientRect()
@@ -78,6 +87,8 @@ test('PR #1254 production Electron에서 배너 도달성·모달·print·폭별
           width, active: document.activeElement?.getAttribute('data-testid'),
           hit, notice: notice?.getBoundingClientRect().toJSON(), stack: stack?.getBoundingClientRect().toJSON(),
           h1: h1?.getBoundingClientRect().toJSON(),
+          interactiveOverlap,
+          interactiveOverlapTotal: interactiveOverlap.reduce((sum, item) => sum + item.area, 0),
           order: stack ? Array.from(stack.children).map((el) => el.getAttribute('data-testid')) : [],
           gaps: stack ? Array.from(stack.children).slice(1).map((el, index) => {
             const previous = stack.children[index].getBoundingClientRect()
@@ -92,6 +103,8 @@ test('PR #1254 production Electron에서 배너 도달성·모달·print·폭별
       metrics.push(result)
       console.log(`[GREEN] ${JSON.stringify(result)}`)
       expect(result.active).toBe('arologis-unassigned-date')
+      console.log(`[GREEN-OVERLAP] width=${width} total=${result.interactiveOverlapTotal} items=${JSON.stringify(result.interactiveOverlap)}`)
+      expect(result.interactiveOverlapTotal).toBe(0)
       if (result.hit !== null) expect(String(result.hit)).not.toContain('actions')
       expect(result.order).toEqual(['app-version-policy-error', 'app-trust-root-disabled', 'app-auto-update-status'])
       expect(result.gaps).toEqual([12, 12])
