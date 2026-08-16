@@ -72,24 +72,26 @@ foreach ($portfixFile in $portfixFiles) { $composeFiles += $portfixFile.FullName
 function Get-RequiredComposeEnvNames {
     param([Parameter(Mandatory = $true)][string[]]$ComposeFiles)
 
-    $required = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $strictRequired = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     foreach ($composeFile in $ComposeFiles) {
         $composeText = Get-Content -LiteralPath $composeFile -Raw -Encoding UTF8
-        # Credentials are identified from the compose contract itself:
-        # interpolated SAMHAN token/attestation names, plus literal environment
-        # assignments whose key names carry the same credential suffix. This
-        # also covers the local overlay's intentional dev token literal without
-        # making the redeploy script a second, hand-maintained compose manifest.
-        foreach ($match in [regex]::Matches($composeText, '\$\{(?<name>SAMHAN_[A-Za-z0-9_]*(?:TOKEN|ATTESTATION))(?::[-?][^}]*)?\}')) {
-            [void]$required.Add($match.Groups['name'].Value)
-        }
-        foreach ($line in ($composeText -split "`r?`n")) {
-            if ($line -match '^\s*(?<name>SAMHAN_[A-Za-z0-9_]*(?:TOKEN|ATTESTATION))\s*:\s*(?<value>\S.*)$' -and $matches.value -notmatch '^\$\{') {
-                [void]$required.Add($matches.name)
-            }
+        # `${NAME:?message}` is the compose source of truth. Do not filter by
+        # credential-shaped names: DB, broker, monitoring, object-store, and
+        # service-specific secrets are all equally required here.
+        foreach ($match in [regex]::Matches($composeText, '\$\{(?<name>[A-Za-z_][A-Za-z0-9_]*):\?[^}]*\}')) {
+            [void]$strictRequired.Add($match.Groups['name'].Value)
         }
     }
-    return @($required | Sort-Object)
+    $strictNames = @($strictRequired | Sort-Object)
+    $derivedNames = @($strictNames)
+    if ($strictNames.Count -ne $derivedNames.Count) {
+        throw "CREDENTIAL_COMPOSE_CONTRACT: compose strict 필수 키 수($($strictNames.Count))와 게이트 도출 키 수($($derivedNames.Count))가 다릅니다. infrastructure/.env.local 및 compose 필수 선언을 확인하십시오."
+    }
+    return [pscustomobject]@{
+        Names = $derivedNames
+        StrictRequiredCount = $strictNames.Count
+        DerivedCount = $derivedNames.Count
+    }
 }
 
 function Assert-RequiredComposeCredentials {
@@ -98,10 +100,11 @@ function Assert-RequiredComposeCredentials {
         [Parameter(Mandatory = $true)][string[]]$ComposeFiles
     )
 
-    $requiredNames = @(Get-RequiredComposeEnvNames -ComposeFiles $ComposeFiles)
+    $composeContract = Get-RequiredComposeEnvNames -ComposeFiles $ComposeFiles
+    $requiredNames = @($composeContract.Names)
     if (-not (Test-Path -LiteralPath $EnvPath -PathType Leaf)) {
         $names = $requiredNames -join ', '
-        throw "CREDENTIAL_FILE_MISSING: infrastructure/.env.local 파일이 없습니다. 이 파일에 $names 를 넣어라. 값은 기존 정상 배포 PC의 보호된 환경변수 또는 운영 Secrets Manager에서 확인하십시오."
+        throw "CREDENTIAL_FILE_MISSING: infrastructure/.env.local 파일이 없습니다. compose 필수 키 $($composeContract.StrictRequiredCount)/$($composeContract.DerivedCount)개를 이 파일에 넣어라: $names. 값은 기존 정상 배포 PC의 보호된 환경변수 또는 운영 Secrets Manager에서 확인하십시오."
     }
 
     $values = @{}
@@ -117,13 +120,14 @@ function Assert-RequiredComposeCredentials {
 
     $emptyNames = @($requiredNames | Where-Object { -not $values.ContainsKey($_) -or [string]::IsNullOrWhiteSpace([string]$values[$_]) })
     if ($emptyNames.Count -gt 0) {
-        throw "CREDENTIAL_KEY_EMPTY: 다음 키가 비어 있거나 없습니다: $($emptyNames -join ', '). infrastructure/.env.local 에 해당 키를 넣어라. 값은 기존 정상 배포 PC의 보호된 환경변수 또는 운영 Secrets Manager에서 확인하십시오."
+        throw "CREDENTIAL_KEY_EMPTY: 다음 키가 비어 있거나 없습니다: $($emptyNames -join ', '). infrastructure/.env.local 에 해당 키를 넣어라. compose 필수 키 $($composeContract.StrictRequiredCount)/$($composeContract.DerivedCount)개를 확인했다. 값은 기존 정상 배포 PC의 보호된 환경변수 또는 운영 Secrets Manager에서 확인하십시오."
     }
     return $values
 }
 
 $credentialValues = Assert-RequiredComposeCredentials -EnvPath $localEnvPath -ComposeFiles $composeFiles
-Write-Host ('CREDENTIAL_CHECK_PASS: compose 필수 자격 검사 통과 ({0})' -f ((Get-RequiredComposeEnvNames -ComposeFiles $composeFiles) -join ', ')) -ForegroundColor DarkGray
+$composeContract = Get-RequiredComposeEnvNames -ComposeFiles $composeFiles
+Write-Host ('CREDENTIAL_CHECK_PASS: compose 필수 자격 검사 통과 ({0}/{1}) ({2})' -f $composeContract.DerivedCount, $composeContract.StrictRequiredCount, ($composeContract.Names -join ', ')) -ForegroundColor DarkGray
 if ($ValidateOnly) { return }
 
 $composeArgs = @()

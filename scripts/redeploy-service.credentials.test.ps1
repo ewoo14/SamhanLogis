@@ -12,6 +12,14 @@ try {
     Copy-Item (Join-Path $sourceRoot 'infrastructure/docker-compose.local-all.yml') (Join-Path $tempRoot 'infrastructure')
 
     $script = Join-Path $tempRoot 'scripts/redeploy-service.ps1'
+    $requiredKeys = @(
+        'DB_PASSWORD', 'DB_USER', 'GF_SECURITY_ADMIN_PASSWORD', 'GF_SECURITY_ADMIN_USER',
+        'MINIO_ROOT_PASSWORD', 'MINIO_ROOT_USER', 'POSTGRES_DB', 'POSTGRES_PASSWORD',
+        'POSTGRES_USER', 'RABBIT_PASSWORD', 'RABBIT_USER', 'RABBITMQ_DEFAULT_PASS',
+        'RABBITMQ_DEFAULT_USER', 'SAMHAN_AROLOGIS_JWT_SECRET', 'SAMHAN_GATEWAY_ATTESTATION',
+        'SAMHAN_INTERNAL_TOKEN', 'SAMHAN_JWT_SECRET', 'SAMHAN_S3_ACCESS_KEY', 'SAMHAN_S3_SECRET_KEY'
+    )
+    $completeEnv = (($requiredKeys | ForEach-Object { "$_=test-credential" }) -join "`n") + "`n"
     function Invoke-Validation {
         param([string]$Content, [switch]$CreateFile)
         $envPath = Join-Path $tempRoot 'infrastructure/.env.local'
@@ -35,21 +43,23 @@ try {
         throw "RED/GREEN contract failed for missing file: $($missing.Output)"
     }
 
-    $empty = Invoke-Validation "SAMHAN_INTERNAL_TOKEN=`nSAMHAN_GATEWAY_ATTESTATION=present" -CreateFile
-    if ($empty.ExitCode -eq 0 -or $empty.Output -notmatch 'SAMHAN_INTERNAL_TOKEN' -or $empty.Output -notmatch 'CREDENTIAL_KEY_EMPTY') {
+    $empty = Invoke-Validation ($completeEnv -replace 'DB_PASSWORD=test-credential', 'DB_PASSWORD=') -CreateFile
+    if ($empty.ExitCode -eq 0 -or $empty.Output -notmatch 'DB_PASSWORD' -or $empty.Output -notmatch 'CREDENTIAL_KEY_EMPTY') {
         throw "RED/GREEN contract failed for empty key: $($empty.Output)"
     }
 
-    $valid = Invoke-Validation "SAMHAN_INTERNAL_TOKEN=redacted-test-token`nSAMHAN_GATEWAY_ATTESTATION=redacted-test-attestation" -CreateFile
-    if ($valid.ExitCode -ne 0 -or $valid.Output -notmatch 'CREDENTIAL_CHECK_PASS') {
+    $valid = Invoke-Validation $completeEnv -CreateFile
+    if ($valid.ExitCode -ne 0 -or $valid.Output -notmatch 'CREDENTIAL_CHECK_PASS' -or $valid.Output -notmatch '19/19') {
         throw "normal credential validation failed: $($valid.Output)"
     }
+    Write-Output $valid.Output.Trim()
 
     $localCompose = Join-Path $tempRoot 'infrastructure/docker-compose.local-all.yml'
-    $composeWithRenamedCredential = (Get-Content -LiteralPath $localCompose -Raw -Encoding UTF8).Replace('SAMHAN_INTERNAL_TOKEN', 'SAMHAN_REDEPLOY_TOKEN')
-    [IO.File]::WriteAllText($localCompose, $composeWithRenamedCredential, [Text.UTF8Encoding]::new($false))
-    $staleList = Invoke-Validation "SAMHAN_INTERNAL_TOKEN=redacted-old-token`nSAMHAN_GATEWAY_ATTESTATION=redacted-test-attestation" -CreateFile
-    if ($staleList.ExitCode -eq 0 -or $staleList.Output -notmatch 'SAMHAN_REDEPLOY_TOKEN' -or $staleList.Output -notmatch 'CREDENTIAL_KEY_EMPTY') {
+    $baseCompose = Join-Path $tempRoot 'infrastructure/docker-compose.yml'
+    $composeWithRenamedCredential = (Get-Content -LiteralPath $baseCompose -Raw -Encoding UTF8).Replace('RABBITMQ_DEFAULT_USER', 'RABBITMQ_REDEPLOY_USER')
+    [IO.File]::WriteAllText($baseCompose, $composeWithRenamedCredential, [Text.UTF8Encoding]::new($false))
+    $staleList = Invoke-Validation $completeEnv -CreateFile
+    if ($staleList.ExitCode -eq 0 -or $staleList.Output -notmatch 'RABBITMQ_REDEPLOY_USER' -or $staleList.Output -notmatch 'CREDENTIAL_KEY_EMPTY') {
         throw "stale credential discovery was not detected: $($staleList.Output)"
     }
     Write-Output 'PASS: stale compose credential contract'
