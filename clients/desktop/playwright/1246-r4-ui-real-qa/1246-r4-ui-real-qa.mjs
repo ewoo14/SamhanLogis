@@ -5,12 +5,13 @@ import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs';
+import { resolveQaShotsDir } from '../../../../scripts/lib/qa-shots-dir.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, '../../../..');
 const mobileDir = path.join(repo, 'clients', 'mobile-staff');
-const artifactDir = path.join(repo, 'docs', 'qa', 'expo-mobile-buildable', 'r4-ui-real-qa-2026-08-16');
-const shotsDir = path.join(artifactDir, 'screenshots');
+const artifactDir = resolveQaShotsDir(path.join(repo, 'docs', 'qa', 'expo-mobile-buildable', 'r4-ui-real-qa-2026-08-16'));
+const shotsDir = resolveQaShotsDir(path.join(repo, 'docs', 'qa', 'expo-mobile-buildable', 'r4-ui-real-qa-2026-08-16', 'screenshots'));
 const expoLogPath = path.join(artifactDir, 'expo-real-qa.log');
 const resultsPath = path.join(artifactDir, 'results.json');
 const appBase = 'http://127.0.0.1:28101';
