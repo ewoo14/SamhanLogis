@@ -2,6 +2,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir.mjs'
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -12,7 +13,7 @@ const { chromium } = require(path.join(mainCheckout, 'clients/desktop/node_modul
 
 const baseUrl = process.env.QA_BASE_URL ?? 'http://127.0.0.1:25142'
 const bizNo = process.env.QA_BIZ_NO
-const password = process.env.QA_PARTNER_ORDER_PASSWORD
+const password = resolveQaCredential('QA_PARTNER_ORDER_PASSWORD')
 const chromiumPath = process.env.QA_CHROMIUM_PATH
 const shots = resolveQaShotsDir(path.join(repoRoot, 'docs/qa/pr-1242-sol-merge-real-qa/screenshots'))
 
