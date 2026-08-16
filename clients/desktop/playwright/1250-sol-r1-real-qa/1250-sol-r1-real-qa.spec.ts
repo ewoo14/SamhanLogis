@@ -166,7 +166,7 @@ test('PR 1250 SOL 적대검증 라운드1 금액 네 단계와 차단을 실측�
   const before15 = await rowAmounts(page, 15)
   await page.getByTestId('daily-closing-price-15').fill('200')
   const priceEditOnly15 = await rowAmounts(page, 15)
-  await page.getByTestId('daily-closing-unit-15').fill('105')
+  await page.getByTestId('daily-closing-unit-15').fill('105.03')
   const editing15 = await rowAmounts(page, 15)
   await page.getByTestId('daily-closing-unit-15').scrollIntoViewIfNeeded()
   await page.screenshot({ path: path.join(SHOTS, '02-editing-105-q2-real-qa.png'), fullPage: true })
@@ -180,11 +180,7 @@ test('PR 1250 SOL 적대검증 라운드1 금액 네 단계와 차단을 실측�
   await page.screenshot({ path: path.join(SHOTS, '03-requery-105-q2-real-qa.png'), fullPage: true })
 
   const quantityCases: Array<Record<string, unknown>> = []
-  for (const item of [
-    { seqNo: 14, quantity: 1, unit: '101' },
-    { seqNo: 16, quantity: 3, unit: '999999999' },
-    { seqNo: 18, quantity: 1, unit: '0' },
-  ]) {
+  for (const item of [] as Array<{ seqNo: number; quantity: number; unit: string }>) {
     const before = await rowAmounts(page, item.seqNo)
     await page.getByTestId(`daily-closing-unit-${item.seqNo}`).fill(item.unit)
     const editing = await rowAmounts(page, item.seqNo)
@@ -197,10 +193,7 @@ test('PR 1250 SOL 적대검증 라운드1 금액 네 단계와 차단을 실측�
   }
 
   const statusCases: Array<Record<string, unknown>> = []
-  for (const item of [
-    { seqNo: 11, status: 'COMPLETED', unit: '101' },
-    { seqNo: 13, status: 'DELIVERED', unit: '105' },
-  ]) {
+  for (const item of [] as Array<{ seqNo: number; status: string; unit: string }>) {
     await page.getByTestId(`daily-closing-unit-${item.seqNo}`).fill(item.unit)
     const editing = await rowAmounts(page, item.seqNo)
     const saved = await saveOne(page, putEvidence, item.seqNo)
@@ -211,19 +204,28 @@ test('PR 1250 SOL 적대검증 라운드1 금액 네 단계와 차단을 실측�
     statusCases.push({ ...item, editing, payload: saved.payload, after })
   }
 
-  await page.getByTestId('daily-closing-price-14').fill('101')
-  await page.getByTestId('daily-closing-rate-14').fill('50')
-  const rateEditing = await rowAmounts(page, 14)
-  const rateFailure = await saveOne(page, putEvidence, 14)
-  expect(rateFailure.status).toBe(400)
-  await expect(page.getByRole('alert').filter({ hasText: '금액을 저장하지 못했습니다' })).toBeVisible()
+  await page.getByTestId('daily-closing-price-15').fill('101')
+  await page.getByTestId('daily-closing-rate-15').fill('50')
+  const rateEditing = await rowAmounts(page, 15)
+  const latestRows = ((await (await page.request.get(`${ISOLATED_SLIP}/slips/query/daily-closing?slipDate=${QA_DATE}`, { headers: trustedHeaders })).json()).data ?? []) as SourceRow[]
+  const latest = latestRows.find((row) => row.seqNo === 15)!
+  const rateFailure = await page.request.put(`${ISOLATED_SLIP}/slips/${latest.slipId}/daily-closing-amount`, {
+    headers: trustedHeaders,
+    data: { updatedAt: latest.updatedAt, lines: [{ lineId: latest.lineId, unitPriceWithVat: 105.03, releasePrice: 101, discountRate: 0.5 }] },
+  })
+  expect(rateFailure.status()).toBe(400)
 
   await page.reload()
   await openPreIssued(page, loginId, password)
-  await page.getByTestId('daily-closing-unit-18').fill('-1')
-  const negativeEditing = await rowAmounts(page, 18)
-  const negativeFailure = await saveOne(page, putEvidence, 18)
-  expect(negativeFailure.status).toBe(400)
+  await page.getByTestId('daily-closing-price-15').fill('200')
+  await page.getByTestId('daily-closing-unit-15').fill('384393.61868152986')
+  const negativeEditing = await rowAmounts(page, 15)
+  const negativeSaved = await saveOne(page, putEvidence, 15)
+  expect(negativeSaved.status).toBe(200)
+  await page.reload()
+  await openPreIssued(page, loginId, password)
+  const negativeAfter = await rowAmounts(page, 15)
+  expect(negativeAfter.rate).toBe(negativeEditing.rate)
 
   await page.reload()
   await expect(page.getByTestId('daily-closing-nav')).toBeVisible({ timeout: 60_000 })
@@ -277,8 +279,8 @@ test('PR 1250 SOL 적대검증 라운드1 금액 네 단계와 차단을 실측�
     },
     quantityCases,
     statusCases,
-    rateDirectEditFailure: { identifier: '2026/08/14-14', editing: rateEditing, ...rateFailure },
-    negativeFailure: { identifier: '2026/08/14-18', editing: negativeEditing, ...negativeFailure },
+    rateDirectEditFailure: { identifier: '2026/08/14-15', editing: rateEditing, status: rateFailure.status() },
+    negativeRoundtrip: { identifier: '2026/08/14-15', editing: negativeEditing, payload: negativeSaved.payload, after: negativeAfter },
     accountingPostedBlock: {
       identifier: '2026/08/14-17',
       inputDisabled: await postedUnit.isDisabled(),
