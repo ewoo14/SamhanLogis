@@ -4,6 +4,8 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.InternalAuthProperties;
 import java.math.BigDecimal;
+import java.nio.ByteBuffer;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -204,12 +206,12 @@ public class ProductClient {
         @SuppressWarnings("unchecked")
         Map<String, Object> m = (Map<String, Object>) item;
         return new ProductSummary(
-                UUID.fromString((String) m.get("id")),
+                decodeOpaqueUuid((String) m.get("id")),
                 (String) m.get("name"),
                 (String) m.get("modelName"),
                 m.get("categoryId") == null
                         ? null
-                        : UUID.fromString((String) m.get("categoryId")),
+                        : decodeOpaqueUuid((String) m.get("categoryId")),
                 m.get("sellingPrice") == null
                         ? null
                         : new java.math.BigDecimal(m.get("sellingPrice").toString()),
@@ -234,6 +236,23 @@ public class ProductClient {
                  (String) m.get("physicalCategoryCode"),
                  (String) m.get("discountOption"),
                  Boolean.TRUE.equals(m.get("classificationAssigned")));
+    }
+
+    /** product-service OpaqueUuidSerializer 발급값과 레거시 UUID 응답을 함께 수용한다. */
+    private UUID decodeOpaqueUuid(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException ignored) {
+            byte[] bytes = Base64.getUrlDecoder().decode(value);
+            if (bytes.length != 16) {
+                throw new IllegalArgumentException("product-service opaque UUID 길이가 올바르지 않습니다");
+            }
+            ByteBuffer buffer = ByteBuffer.wrap(bytes);
+            return new UUID(buffer.getLong(), buffer.getLong());
+        }
     }
 
     private String requireToken() {

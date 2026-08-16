@@ -212,7 +212,8 @@ public class PartnerOrderLine extends BaseEntity {
             case PRICE -> {
                 requireNonNegative(priceVat, "priceVat");
                 resolvedTotal = priceVat.multiply(BigDecimal.valueOf(quantity));
-                VatAmountCalculator.Split split = VatAmountCalculator.splitVatInclusive(resolvedTotal);
+                VatAmountCalculator.Split split = VatAmountCalculator.splitVatInclusive(
+                        resolvedTotal, RoundingMode.HALF_UP);
                 resolvedSupply = split.supplyAmount();
                 resolvedVat = split.vatAmount();
             }

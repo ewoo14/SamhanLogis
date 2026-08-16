@@ -21,8 +21,8 @@ class PartnerOrderLineSupplyVatTest {
         assertThat(Arrays.stream(PartnerOrderLine.class.getDeclaredFields())
                 .map(Field::getName)
                 .toList()).contains("supplyAmount", "vatAmount");
-        assertThat(line.getSupplyAmount()).isEqualByComparingTo("100004");
-        assertThat(line.getVatAmount()).isEqualByComparingTo("10001");
+        assertThat(line.getSupplyAmount()).isEqualByComparingTo("100005");
+        assertThat(line.getVatAmount()).isEqualByComparingTo("10000");
         assertThat(line.getSubtotal()).isEqualByComparingTo("110005");
         assertThat(line.getSupplyAmount().add(line.getVatAmount()))
                 .isEqualByComparingTo(line.getLineTotal());
@@ -52,7 +52,7 @@ class PartnerOrderLineSupplyVatTest {
             assertThat(line.getSupplyAmount().add(line.getVatAmount()))
                     .isEqualByComparingTo(line.getLineTotal());
         }
-        assertThat(price.getVatAmount()).isEqualByComparingTo("10001");
+        assertThat(price.getVatAmount()).isEqualByComparingTo("10000");
         assertThat(supply.getVatAmount()).isEqualByComparingTo("10000");
         assertThat(vat.getVatAmount()).isEqualByComparingTo("9999");
         assertThat(total.getSupplyAmount()).isEqualByComparingTo("100004");
@@ -89,5 +89,24 @@ class PartnerOrderLineSupplyVatTest {
         assertThat(positive.getVatAmount()).isEqualByComparingTo("10000");
         assertThat(negative.getSupplyAmount()).isEqualByComparingTo("-100005");
         assertThat(negative.getVatAmount()).isEqualByComparingTo("-10000");
+    }
+
+    @Test
+    @DisplayName("R15 VAT 경계는 주문서웹 가격 경로에서도 HALF_UP으로 분리한다")
+    void priceAuthorityUsesGasVatBoundaries() {
+        assertSplit("5", "5", "0");
+        assertSplit("6", "5", "1");
+        assertSplit("11", "10", "1");
+        assertSplit("800000", "727273", "72727");
+    }
+
+    private static void assertSplit(String total, String supply, String vat) {
+        PartnerOrderLine line = PartnerOrderLine.create(
+                UUID.randomUUID(), "R15", "품목", "singleSets", 1,
+                new java.math.BigDecimal(total), null);
+        assertThat(line.getSupplyAmount()).isEqualByComparingTo(supply);
+        assertThat(line.getVatAmount()).isEqualByComparingTo(vat);
+        assertThat(line.getSupplyAmount().add(line.getVatAmount()))
+                .isEqualByComparingTo(total);
     }
 }

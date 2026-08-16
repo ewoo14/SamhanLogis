@@ -328,6 +328,15 @@ public class BundleExpander {
                     "싱글세트 구성품에 실내/실외 본체가 모두 필요합니다: " + parent.getModelCode());
         }
 
+        // 카탈로그 구성품 합계가 세트 금액과 이미 일치하면 DB의 권위 금액을 보존한다.
+        // AC060CS6PBH1SY처럼 끝전이 포함된 GAS 배분을 천원 재배분으로 훼손하지 않는다.
+        BigDecimal componentSum = picked.stream()
+                .map(p -> round(p.price))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (componentSum.compareTo(round(setUnit)) == 0) {
+            return;
+        }
+
         int ratioIn = household ? 6 : 4;
         int ratioOut = household ? 4 : 6;
         BigDecimal fixedSum = BigDecimal.ZERO;

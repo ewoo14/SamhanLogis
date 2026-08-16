@@ -63,8 +63,7 @@ class ProductSheetSyncSchedulerTest {
 
         scheduler.scheduledSync();
 
-        verify(productSyncService).syncAll();
-        verify(lookupSyncService).syncAll();
+        org.mockito.Mockito.verifyNoInteractions(productSyncService, lookupSyncService);
     }
 
     @Test
@@ -80,8 +79,7 @@ class ProductSheetSyncSchedulerTest {
 
         scheduler.onApplicationReady();
 
-        verify(productSyncService).syncAll();
-        verify(lookupSyncService).syncAll();
+        org.mockito.Mockito.verifyNoInteractions(productSyncService, lookupSyncService);
     }
 
     // ============================================================
@@ -116,8 +114,21 @@ class ProductSheetSyncSchedulerTest {
 
         scheduler.scheduledSync();
 
-        verify(productSyncService).syncAll();
-        verify(lookupSyncService).syncAll();
+        org.mockito.Mockito.verifyNoInteractions(productSyncService, lookupSyncService);
+    }
+
+    @Test
+    void 어떤_시트_환경변수도_주입되어도_자동경로는_시트에_연결하지_않는다() {
+        ProductSheetSyncService productSyncService = mock(ProductSheetSyncService.class);
+        ProductLookupSheetSyncService lookupSyncService = mock(ProductLookupSheetSyncService.class);
+        ProductSheetSyncScheduler scheduler = new ProductSheetSyncScheduler(productSyncService, lookupSyncService);
+        ReflectionTestUtils.setField(scheduler, "schedulingEnabled", true);
+        ReflectionTestUtils.setField(scheduler, "cronEnabled", true);
+
+        scheduler.scheduledSync();
+        scheduler.onApplicationReady();
+
+        org.mockito.Mockito.verifyNoInteractions(productSyncService, lookupSyncService);
     }
 
     @Test
@@ -181,7 +192,6 @@ class ProductSheetSyncSchedulerTest {
 
         scheduler.onApplicationReady();
 
-        verify(productSyncService).syncAll();
-        verify(lookupSyncService).syncAll();
+        org.mockito.Mockito.verifyNoInteractions(productSyncService, lookupSyncService);
     }
 }

@@ -81,7 +81,6 @@ public class ProductSheetSyncService {
     private static final Logger log = LoggerFactory.getLogger(ProductSheetSyncService.class);
 
     /** legacy 시트 ID (사용자 결재 변경 X). */
-    @Value("${google.sheets.sheet-id:1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ}")
     private String sheetId;
 
     /** 시트 신규 적재와 V38 백필이 공유하는 제품구분 카테고리 코드 집합. */

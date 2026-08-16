@@ -14,6 +14,8 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.InternalAuthProperties;
+import java.nio.ByteBuffer;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -104,6 +106,33 @@ class ProductClientTest {
         assertThat(product.hasVariableDiscount()).isTrue();
         assertThat(product.physicalCategoryCode()).isEqualTo("INDOOR_WALL");
         server.verify();
+    }
+
+    @Test
+    void lookup은_product_service의_opaque_uuid_응답을_내부_UUID로_복원한다() {
+        UUID productId = UUID.fromString("00000000-0000-0000-0000-000000000101");
+        UUID categoryId = UUID.fromString("00000000-0000-0000-0000-000000000201");
+        String opaqueProductId = opaque(productId);
+        String opaqueCategoryId = opaque(categoryId);
+
+        server.expect(once(), requestTo(LOOKUP_ENDPOINT))
+                .andRespond(withSuccess("""
+                        {"success":true,"data":[{
+                          "id":"%s","name":"무풍 벽걸이","modelName":"AJ040RXH4BC1",
+                          "categoryId":"%s","sellingPrice":123456.789,"status":"ACTIVE"
+                        }]}""".formatted(opaqueProductId, opaqueCategoryId), MediaType.APPLICATION_JSON));
+
+        List<ProductSummary> products = client.lookup(List.of(productId));
+
+        assertThat(products.get(0).id()).isEqualTo(productId);
+        assertThat(products.get(0).categoryId()).isEqualTo(categoryId);
+    }
+
+    private static String opaque(UUID value) {
+        ByteBuffer bytes = ByteBuffer.allocate(16)
+                .putLong(value.getMostSignificantBits())
+                .putLong(value.getLeastSignificantBits());
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes.array());
     }
 
     @Test
