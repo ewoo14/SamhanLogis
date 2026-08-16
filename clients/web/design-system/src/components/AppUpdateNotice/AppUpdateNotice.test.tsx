@@ -131,4 +131,43 @@ describe('AppUpdateNotice', () => {
 
     expect(main.scrollTop).toBeGreaterThan(100)
   })
+
+  it('확대된 좁은 화면에서 우측 스크롤바 띠와 겹친 배너 버튼도 마우스 클릭을 받는다', () => {
+    const onClick = vi.fn()
+    render(
+      <AppUpdateNoticeStack>
+        <AppUpdateNotice
+          severity="network"
+          title="업데이트"
+          description="확인해 주세요."
+          actions={<button type="button" onClick={onClick}>CSV 다운로드</button>}
+        />
+        <AppUpdateNotice severity="trust" title="두 번째" description="확인해 주세요." />
+      </AppUpdateNoticeStack>,
+    )
+
+    const stack = screen.getByRole('region') as HTMLElement
+    const button = screen.getByRole('button', { name: 'CSV 다운로드' })
+    Object.defineProperties(stack, {
+      clientHeight: { configurable: true, value: 100 },
+      scrollHeight: { configurable: true, value: 220 },
+    })
+    vi.spyOn(stack, 'getBoundingClientRect').mockReturnValue({
+      left: 0, right: 100, top: 0, bottom: 100, width: 100, height: 100,
+      x: 0, y: 0, toJSON: () => ({}),
+    })
+    vi.spyOn(button, 'getBoundingClientRect').mockReturnValue({
+      left: 84, right: 100, top: 40, bottom: 72, width: 16, height: 32,
+      x: 84, y: 40, toJSON: () => ({}),
+    })
+
+    button.dispatchEvent(new MouseEvent('click', {
+      bubbles: true,
+      cancelable: true,
+      clientX: 95,
+      clientY: 56,
+    }))
+
+    expect(onClick).toHaveBeenCalledOnce()
+  })
 })

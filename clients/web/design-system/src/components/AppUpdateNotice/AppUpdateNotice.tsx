@@ -142,6 +142,8 @@ export function AppUpdateNoticeStack({ children }: AppUpdateNoticeStackProps): J
       stack.scrollTop = Math.min(maxScrollTop, Math.max(0, stack.scrollTop + event.deltaY))
     }
     const handleScrollbarClick = (event: MouseEvent) => {
+      const target = event.target instanceof Element ? event.target : null
+      if (target?.closest('button, a, input, select')) return
       const rect = stack.getBoundingClientRect()
       const scrollbarWidth = 12
       const inScrollbar = event.clientX >= rect.right - scrollbarWidth && event.clientX <= rect.right
