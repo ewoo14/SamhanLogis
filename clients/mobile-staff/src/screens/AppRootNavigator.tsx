@@ -7,11 +7,19 @@
 
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Constants from 'expo-constants';
 import EstimateWebViewScreen from './EstimateWebViewScreen';
 import { colors } from '../theme/tokens';
 import QrScanScreen from './QrScanScreen';
+import SalesTabNavigator from './sales/SalesTabNavigator';
 
 export default function AppRootNavigator(): JSX.Element {
+  const appVariant = Constants.expoConfig?.extra?.appVariant ?? 'staff';
+
+  if (appVariant === 'sales') {
+    return <SalesTabNavigator token={null} />;
+  }
+
   if (process.env.EXPO_PUBLIC_WAREHOUSE_SCAN === '1') {
     return <QrScanScreen />;
   }
