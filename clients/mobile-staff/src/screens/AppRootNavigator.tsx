@@ -12,12 +12,13 @@ import EstimateWebViewScreen from './EstimateWebViewScreen';
 import { colors } from '../theme/tokens';
 import QrScanScreen from './QrScanScreen';
 import SalesTabNavigator from './sales/SalesTabNavigator';
+import { getSalesAccessToken } from '../auth/salesAuth';
 
 export default function AppRootNavigator(): JSX.Element {
   const appVariant = Constants.expoConfig?.extra?.appVariant ?? 'staff';
 
   if (appVariant === 'sales') {
-    return <SalesTabNavigator token={null} />;
+    return <SalesTabNavigator token={getSalesAccessToken()} />;
   }
 
   if (process.env.EXPO_PUBLIC_WAREHOUSE_SCAN === '1') {

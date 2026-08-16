@@ -1,8 +1,8 @@
 /**
  * SalesHomeScreen — P1-4 영업 native 앱 대시보드.
  *
- * 오늘 매출 / 미수금 / 진행 중 견적 건수 / 오늘 신규 주문 건수를 카드 형태로 표시.
- * BE: sales-service GET /api/v1/sales/dashboard (@PreAuthorize SALES/MANAGER/MASTER).
+ * 집계 기간 매출 / 미수금 / 견적 상태별 건수를 카드 형태로 표시.
+ * BE: slip-service GET /mobile/sales/dashboard (@RequirePermission VIEW).
  *
  * UUID 비공개:
  *   - 화면에 표시하는 숫자/건수는 UUID 아님. 집계 수치만 노출.
@@ -99,34 +99,32 @@ export default function SalesHomeScreen({ token, onNavigate }: Props): JSX.Eleme
       <View style={styles.header}>
         <Text style={styles.headerTitle}>영업 대시보드</Text>
         {data && (
-          <Text style={styles.headerDate}>{formatDate(data.baseDate)} 기준</Text>
+          <Text style={styles.headerDate}>{formatDate(data.fromDate)} ~ {formatDate(data.toDate)}</Text>
         )}
       </View>
 
       {/* 집계 카드 */}
       <View style={styles.cardRow}>
         <MetricCard
-          label="오늘 매출"
-          value={data ? formatKRW(data.todaySalesAmount) : '—'}
-          sub={data ? formatChangeRate(data.salesChangeRate) : undefined}
-          subColor={data ? changeRateColor(data.salesChangeRate) : undefined}
+          label="기간 매출"
+          value={data ? formatKRW(data.totalSalesAmount) : '—'}
           accent={colors.action.brand}
         />
         <MetricCard
           label="미수금"
-          value={data ? formatKRW(data.unpaidAmount) : '—'}
-          accent={data && data.unpaidAmount > 0 ? colors.state.danger : colors.state.success}
+          value={data ? formatKRW(data.totalOutstanding) : '—'}
+          accent={data && data.totalOutstanding > 0 ? colors.state.danger : colors.state.success}
         />
       </View>
       <View style={styles.cardRow}>
         <MetricCard
           label="진행 견적"
-          value={data ? `${data.activeQuotationCount}건` : '—'}
+          value={data ? `${data.estimateDraftCount + data.estimateSentCount}건` : '—'}
           accent={colors.state.info}
         />
         <MetricCard
-          label="오늘 신규 주문"
-          value={data ? `${data.todayOrderCount}건` : '—'}
+          label="수주 완료 견적"
+          value={data ? `${data.estimateAcceptedCount}건` : '—'}
           accent={colors.sliceAccent.success}
         />
       </View>
@@ -202,17 +200,6 @@ function QuickButton({ label, onPress, color }: QuickButtonProps): JSX.Element {
 
 function formatKRW(amount: number): string {
   return `${amount.toLocaleString('ko-KR')}원`;
-}
-
-function formatChangeRate(rate: number): string {
-  const sign = rate >= 0 ? '+' : '';
-  return `전월 대비 ${sign}${rate.toFixed(1)}%`;
-}
-
-function changeRateColor(rate: number): string {
-  if (rate > 0) return colors.state.success;
-  if (rate < 0) return colors.state.danger;
-  return colors.ink.tertiary;
 }
 
 function formatDate(iso: string): string {

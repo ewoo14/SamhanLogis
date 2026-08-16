@@ -79,9 +79,16 @@ export default function PartnerOrderCreateScreen({ token, onBack }: Props): JSX.
 
   // ---- 거래처 선택 ----
   const handleSelectCustomer = useCallback((customer: CustomerSummary) => {
+    if (selectedCustomer && selectedCustomer.id !== customer.id) {
+      setLines([newLine()]);
+      setDeliveryAddress('');
+      setRequestedDate('');
+      setMemo('');
+      setResult(null);
+    }
     setSelectedCustomer(customer);
     setStep('lines');
-  }, []);
+  }, [selectedCustomer]);
 
   // ---- 라인 조작 ----
   const updateLine = useCallback((id: string, field: keyof LineForm, value: string) => {

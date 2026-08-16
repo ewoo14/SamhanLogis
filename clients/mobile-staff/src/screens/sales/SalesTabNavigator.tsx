@@ -62,7 +62,7 @@ export default function SalesTabNavigator({ token }: Props): JSX.Element {
   return (
     <View style={styles.container}>
       <View style={styles.screen}>
-        {tab === 'home' && (
+        <View style={[styles.tabScreen, tab !== 'home' && styles.hidden]}>
           <SalesHomeScreen
             token={token}
             onNavigate={(dest) => {
@@ -71,17 +71,17 @@ export default function SalesTabNavigator({ token }: Props): JSX.Element {
               }
             }}
           />
-        )}
-        {tab === 'quotation' && (
+        </View>
+        <View style={[styles.tabScreen, tab !== 'quotation' && styles.hidden]}>
           <QuotationCreateScreen token={token} onBack={handleBack} />
-        )}
-        {tab === 'order' && (
+        </View>
+        <View style={[styles.tabScreen, tab !== 'order' && styles.hidden]}>
           <PartnerOrderCreateScreen token={token} onBack={handleBack} />
-        )}
-        {tab === 'customer' && (
+        </View>
+        <View style={[styles.tabScreen, tab !== 'customer' && styles.hidden]}>
           <CustomerSearchScreen token={token} standalone />
-        )}
-        {tab === 'visit-photo' && (
+        </View>
+        <View style={[styles.tabScreen, tab !== 'visit-photo' && styles.hidden]}>
           <VisitPhotoScreen
             partnerId={visitCtx.partnerId}
             partnerCode={visitCtx.partnerCode}
@@ -90,7 +90,7 @@ export default function SalesTabNavigator({ token }: Props): JSX.Element {
             onUploaded={() => setTab('home')}
             onBack={() => setTab('home')}
           />
-        )}
+        </View>
       </View>
 
       {/* 하단 탭 바 (견적/주문 화면 = 멀티스텝 중에도 탭 이동 허용) */}
@@ -167,6 +167,8 @@ function TabButton({ label, active, onPress, testID }: TabButtonProps): JSX.Elem
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface.app },
   screen: { flex: 1 },
+  tabScreen: { ...StyleSheet.absoluteFillObject },
+  hidden: { display: 'none' },
   tabBar: {
     flexDirection: 'row',
     backgroundColor: colors.surface.card,

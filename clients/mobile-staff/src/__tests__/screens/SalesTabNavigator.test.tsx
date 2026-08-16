@@ -5,12 +5,13 @@ jest.mock('expo-image-picker', () => ({}), { virtual: true });
 jest.mock('expo-image-manipulator', () => ({}), { virtual: true });
 jest.mock('../../api/sales', () => ({
   getSalesDashboard: jest.fn().mockResolvedValue({
-    todaySalesAmount: 0,
-    salesChangeRate: 0,
-    unpaidAmount: 0,
-    activeQuotationCount: 0,
-    todayOrderCount: 0,
-    baseDate: '2026-08-16',
+    fromDate: '2026-07-17',
+    toDate: '2026-08-16',
+    totalSalesAmount: 0,
+    totalOutstanding: 0,
+    estimateDraftCount: 0,
+    estimateSentCount: 0,
+    estimateAcceptedCount: 0,
   }),
   quickSearchCustomer: jest.fn().mockResolvedValue([]),
   createMobileQuotation: jest.fn(),
@@ -33,5 +34,16 @@ describe('SalesTabNavigator 화면 도달성', () => {
 
     fireEvent.press(utils.getByTestId('sales-tab-customer'));
     expect(utils.getByTestId('customer-search-input')).toBeTruthy();
+
+    fireEvent.changeText(utils.getByTestId('customer-search-input'), '상태보존SOL');
+    fireEvent.press(utils.getByTestId('sales-tab-home'));
+    fireEvent.press(utils.getByTestId('sales-tab-customer'));
+    expect(utils.getByTestId('customer-search-input').props.value).toBe('상태보존SOL');
+
+    fireEvent.press(utils.getByTestId('sales-tab-visit-photo'));
+    fireEvent.changeText(utils.getByTestId('visit-photo-memo'), '상태보존 방문메모 SOL');
+    fireEvent.press(utils.getByTestId('sales-tab-home'));
+    fireEvent.press(utils.getByTestId('sales-tab-visit-photo'));
+    expect(utils.getByTestId('visit-photo-memo').props.value).toBe('상태보존 방문메모 SOL');
   });
 });
