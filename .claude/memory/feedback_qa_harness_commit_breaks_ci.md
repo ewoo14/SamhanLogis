@@ -130,6 +130,40 @@ select(.status!="COMPLETED")|length
 
 실측: 이 조건 오류로 CI 대기 루프가 한 번 헛돌아 "CI 완료" 를 잘못 보고했다.
 
+## 🚨 2026-08-16 재발 — 접미사가 아니라 **캡처 경로 상수**였다. 두 트랙 연속
+
+PM 이 라운드 산출 QA 증거를 커밋했더니 **#1246 과 #1229 가 나란히** red 가 됐다. 이번엔 `-real-qa` 접미사는 맞게 붙였는데 **다른 축**에 걸렸다.
+
+```text
+FAIL src/renderer/test-utils/harness-false-green-guard.test.ts
+
+#1246  × H-2  캡처 목적지로 쓰이는 docs/qa 경로 상수는 전부 resolveQaShotsDir 를 경유한다
+             1246-r4-ui-real-qa/1246-r4-ui-real-qa.mjs → const shotsDir
+
+#1229  × G3a  clients/**/scripts·루트 scripts/ 의 JS/CJS/MJS 캡처 목적지도 _local 격리를 거친다
+       × H2b  docs/qa/**/*.{js,cjs,mjs,ts} 의 캡처 목적지도 _local 격리를 거친다
+             docs/qa/pr-1229-sol-r5/full-liveqa.cjs → const OUT
+             docs/qa/pr-1229-sol-r5/liveqa.cjs      → const OUT
+```
+
+영향 잡이 **두 개씩** 뜬다 — `Frontend Desktop (typecheck + lint + build)` 와 `하네스 거짓 green 가드 (docs/qa 관할)`. 같은 테스트 파일이 양쪽에서 돌기 때문이다.
+
+### 🔑 원인 — PM 이 "증거니까 그대로 커밋" 했다
+
+검증자가 만든 하네스는 **자기 워크트리에서 돌 때만** 맞으면 된다고 여기고 경로를 직접 잡는다. 그걸 PM 이 증거로 커밋하는 순간 **저장소 규약의 대상**이 된다. 검증자 잘못이 아니라 **커밋하는 쪽이 확인할 몫**이다.
+
+```text
+✅ 커밋 전에 본다
+   1) 파일명·디렉터리에 -real-qa 접미사가 있는가
+   2) 캡처 목적지가 resolveQaShotsDir() / _local 격리를 경유하는가
+      → docs/qa/**/*.{js,cjs,mjs,ts} 와 clients/**/scripts 둘 다 대상이다
+   3) 스크린샷 PNG 는 지우지 말고 경로 규약만 고친다 (증거다)
+```
+
+### 🚩 함께 뜨는 `tools/s14-probes/...` 는 대개 연쇄다
+
+가드 테스트가 자기 검사용으로 만드는 probe fixture 이고 **git 에 추적되지 않는다**(`git ls-files` 0건). 앞 단정이 던지면서 정리가 건너뛰어져 뒤 단정이 잔재를 본다. 진짜 위반 하나를 고치면 같이 사라진다 — **네 위반이라고 착각해서 엉뚱한 데를 고치지 마라.**
+
 ### 🚫 config 를 넓혀 해결하지 말 것
 
 `playwright.config.ts` 의 `testIgnore` 를 넓히면 **다른 라이브 스펙이 조용히 빠져** false-green 이 된다. 스펙 쪽 이름을 규약(`-real-qa`)에 맞춘다.
