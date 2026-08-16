@@ -10,15 +10,17 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.api.Test;
 
-/** 일마감 화면과 저장 도메인이 공유하는 VAT 포함 단가 기준 금액 계약. */
+/** 일마감 금액 편집 경로의 VAT 포함 단가 기준 금액 계약. */
 class SlipLineAmountContractTest {
 
     @ParameterizedTest(name = "단가 {0}원, 수량 {1}")
     @MethodSource("경계금액")
-    void 경계금액도_단가축_계약을_따른다(String unit, int quantity, String supply, String vat, String total) {
+    void 경계금액도_일마감_변경에서는_단가축_계약을_따른다(String unit, int quantity, String supply, String vat, String total) {
         SlipLine line = SlipLine.createFromVatInclusive(
-                null, UUID.randomUUID(), "경계 품목", null, null, quantity,
-                new BigDecimal(unit), null, null);
+                null, UUID.randomUUID(), "경계 품목", null, null, 1,
+                BigDecimal.ZERO, null, null);
+        line.changeQuantity(quantity);
+        line.changeUnitPriceWithVat(new BigDecimal(unit));
 
         assertThat(line.getSupplyAmount()).isEqualByComparingTo(supply);
         assertThat(line.getVatAmount()).isEqualByComparingTo(vat);
@@ -47,7 +49,8 @@ class SlipLineAmountContractTest {
     void VAT포함_단가를_먼저_원단위_반올림한_뒤_수량을_곱한다() {
         SlipLine line = SlipLine.createFromVatInclusive(
                 null, UUID.randomUUID(), "경계 품목", null, null, 2,
-                new BigDecimal("105"), null, null);
+                BigDecimal.ZERO, null, null);
+        line.changeUnitPriceWithVat(new BigDecimal("105"));
 
         assertThat(line.getUnitPriceWithVat()).isEqualByComparingTo("105");
         assertThat(line.getSupplyAmount()).isEqualByComparingTo("190");
