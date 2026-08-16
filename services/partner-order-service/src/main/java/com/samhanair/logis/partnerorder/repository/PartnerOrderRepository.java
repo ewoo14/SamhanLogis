@@ -86,8 +86,42 @@ public interface PartnerOrderRepository extends JpaRepository<PartnerOrder, UUID
             @Param("partnerCode") String partnerCode, @Param("bizCode") String bizCode,
             @Param("from") LocalDateTime from, @Param("to") LocalDateTime to, Pageable pageable);
 
+    /** 사업자번호 하이픈 표기 차이를 흡수하는 PARTNER history 조회. */
+    @Query(value = "SELECT * FROM partner_orders "
+            + "WHERE regexp_replace(biz_code, '[^0-9]', '', 'g') = :bizCode "
+            + "AND confirmed_at BETWEEN :from AND :to ORDER BY confirmed_at DESC",
+            countQuery = "SELECT COUNT(*) FROM partner_orders "
+                    + "WHERE regexp_replace(biz_code, '[^0-9]', '', 'g') = :bizCode "
+                    + "AND confirmed_at BETWEEN :from AND :to",
+            nativeQuery = true)
+    Page<PartnerOrder> findAllHistoryIncludingDeletedByNormalizedBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(
+            @Param("bizCode") String bizCode, @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to, Pageable pageable);
+
+    /** 거래처코드/사업자번호의 저장 표기 차이를 함께 흡수하는 PARTNER history 조회. */
+    @Query(value = "SELECT * FROM partner_orders "
+            + "WHERE regexp_replace(lower(partner_code), '[^a-z0-9]', '', 'g') = :partnerCode "
+            + "AND regexp_replace(biz_code, '[^0-9]', '', 'g') = :bizCode "
+            + "AND confirmed_at BETWEEN :from AND :to ORDER BY confirmed_at DESC",
+            countQuery = "SELECT COUNT(*) FROM partner_orders "
+                    + "WHERE regexp_replace(lower(partner_code), '[^a-z0-9]', '', 'g') = :partnerCode "
+                    + "AND regexp_replace(biz_code, '[^0-9]', '', 'g') = :bizCode "
+                    + "AND confirmed_at BETWEEN :from AND :to",
+            nativeQuery = true)
+    Page<PartnerOrder> findAllHistoryIncludingDeletedByNormalizedPartnerCodeAndNormalizedBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(
+            @Param("partnerCode") String partnerCode, @Param("bizCode") String bizCode,
+            @Param("from") LocalDateTime from, @Param("to") LocalDateTime to, Pageable pageable);
+
     /** PARTNER 가 다른 거래처 사업자번호로 history 조회를 시도했는지 식별한다. */
     boolean existsByBizCodeAndPartnerCodeNot(String bizCode, String partnerCode);
+
+    /** 정규화된 두 식별자 축으로 타 거래처 주문 존재 여부를 확인한다. */
+    @Query(value = "SELECT EXISTS (SELECT 1 FROM partner_orders "
+            + "WHERE regexp_replace(biz_code, '[^0-9]', '', 'g') = :bizCode "
+            + "AND regexp_replace(lower(partner_code), '[^a-z0-9]', '', 'g') <> :partnerCode)",
+            nativeQuery = true)
+    boolean existsByNormalizedBizCodeAndNormalizedPartnerCodeNot(
+            @Param("bizCode") String bizCode, @Param("partnerCode") String partnerCode);
 
     /** Idempotency-Key 로 기존 주문 조회 (재호출 시 중복 차단). */
     Optional<PartnerOrder> findByIdempotencyKey(String idempotencyKey);

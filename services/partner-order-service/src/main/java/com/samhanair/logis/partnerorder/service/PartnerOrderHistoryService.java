@@ -60,20 +60,45 @@ public class PartnerOrderHistoryService {
         if (from.isAfter(to)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "from 이 to 보다 이후일 수 없습니다");
         }
+        String normalizedBizCode = normalizeBizCode(bizCode);
         String partnerScope = partnerSelfScopeGuard.partnerScopeOrNull(callerPartnerCode);
         if (partnerScope != null) {
-            if (orderRepository.existsByBizCodeAndPartnerCodeNot(bizCode, partnerScope)) {
+            String normalizedPartnerScope = normalizePartnerCode(partnerScope);
+            if (isBusinessNumber(normalizedPartnerScope)) {
+                if (!normalizedPartnerScope.equals(normalizedBizCode)) {
+                    throw new org.springframework.security.access.AccessDeniedException(
+                            "본인 거래처 주문 이력만 조회할 수 있습니다.");
+                }
+                return orderRepository
+                        .findAllHistoryIncludingDeletedByNormalizedBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(
+                                normalizedBizCode, from, to, pageable)
+                        .map(HistoryResponse::from);
+            }
+            if (orderRepository.existsByNormalizedBizCodeAndNormalizedPartnerCodeNot(
+                    normalizedBizCode, normalizedPartnerScope)) {
                 throw new org.springframework.security.access.AccessDeniedException(
                         "본인 거래처 주문 이력만 조회할 수 있습니다.");
             }
             return orderRepository
-                    .findAllHistoryIncludingDeletedByPartnerCodeAndBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(
-                            partnerScope, bizCode, from, to, pageable)
+                    .findAllHistoryIncludingDeletedByNormalizedPartnerCodeAndNormalizedBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(
+                            normalizedPartnerScope, normalizedBizCode, from, to, pageable)
                     .map(HistoryResponse::from);
         }
         return orderRepository
                 .findAllHistoryIncludingDeletedByBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(
                         bizCode, from, to, pageable)
                 .map(HistoryResponse::from);
+    }
+
+    private String normalizeBizCode(String value) {
+        return value == null ? "" : value.replaceAll("[^0-9]", "");
+    }
+
+    private String normalizePartnerCode(String value) {
+        return value == null ? "" : value.trim().toLowerCase().replaceAll("[^a-z0-9]", "");
+    }
+
+    private boolean isBusinessNumber(String value) {
+        return value.matches("[0-9]{10}");
     }
 }

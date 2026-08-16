@@ -2449,7 +2449,15 @@ async function getNotionHistory(startDate, endDate, _dateField, bizCode) {
     `${BASE_URL}/api/v1/partner-orders/history`,
     { bizCode: historyBizCode, from: `${startDate}T00:00:00`, to: `${endDate}T23:59:59` },
   );
-  return Array.isArray(data) ? data : data?.content || data?.items || [];
+  const rows = Array.isArray(data)
+    ? data
+    : data?.content || data?.items || data?.data?.content || data?.data?.items || [];
+  return rows.map((row) => ({
+    ...row,
+    date: row.date || row.confirmedAt || '',
+    slipNo: row.slipNo || row.orderNo || '',
+    custName: row.custName || row.partnerName || '',
+  }));
 }
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -2743,6 +2751,8 @@ async function checkUserAuth(email) {
         authorized: true,
         managerName: u.fullName || '',
         managerCode: u.loginId || '',
+        bizNo: u.bizNo || u.businessNumber || '',
+        partnerCode: u.partnerCode || '',
         ecountId: '',
         ecountApi: '',
       };

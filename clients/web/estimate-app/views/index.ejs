@@ -2372,6 +2372,11 @@ const PANEL_PC1DWSK1 = (HOMEMULTI.find(r=>/^PC1DWSK1$/i.test(r?.model||''))||{})
 // 현재 세션 사업자등록번호
 let CURRENT_BIZNO = '';
 
+/** 인증된 거래처의 사업자번호를 발송내역 조회 키로 선택한다. */
+function resolveCurrentBizno(auth) {
+  return String(auth?.bizNo || auth?.businessNumber || auth?.partnerCode || '').trim();
+}
+
 function getModelFlags(model) {
   const m = String(model || '').toUpperCase();
   let is360 = false, is4way = false, is1way = false, isStand = false, isDeluxe = false, isGrade1 = false;
@@ -9516,6 +9521,8 @@ function startAuth() {
   google.script.run
     .withSuccessHandler(function(res) {
       if (res && res.authorized) {
+        CURRENT_BIZNO = resolveCurrentBizno(res);
+        window.CURRENT_BIZNO = CURRENT_BIZNO;
         const authGate = document.getElementById('pageBizGate');
         const menuGate = document.getElementById('mobileGate');
         

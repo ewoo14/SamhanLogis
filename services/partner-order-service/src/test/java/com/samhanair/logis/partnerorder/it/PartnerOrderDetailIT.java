@@ -275,6 +275,36 @@ class PartnerOrderDetailIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
 
+    @Test
+    @WithMockUser(username = "partner-owner", roles = {"PARTNER"})
+    void history_matches_hyphenated_biz_no_and_legacy_partner_code_without_leaking_other_partner()
+            throws Exception {
+        saveOrder("2026/05/07-10", "P-2026-0001", "211-87-12345", true);
+        saveOrder("2026/05/07-11", "P-2026-0002", "222-88-12345", false);
+
+        mockMvc.perform(get("/api/v1/partner-orders/history")
+                        .param("bizCode", "2118712345")
+                        .param("from", "2026-01-01T00:00:00")
+                        .param("to", "2027-01-01T00:00:00")
+                        .header("X-User-Id", PARTNER_ACCOUNT_ID)
+                        .header("X-User-Role", "PARTNER")
+                        .header("X-Is-Partner", "true")
+                        .header("X-Partner-Code", "2118712345"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()" ).value(1))
+                .andExpect(jsonPath("$.data.content[0].isDeleted").value(true));
+
+        mockMvc.perform(get("/api/v1/partner-orders/history")
+                        .param("bizCode", "2228812345")
+                        .param("from", "2026-01-01T00:00:00")
+                        .param("to", "2027-01-01T00:00:00")
+                        .header("X-User-Id", PARTNER_ACCOUNT_ID)
+                        .header("X-User-Role", "PARTNER")
+                        .header("X-Is-Partner", "true")
+                        .header("X-Partner-Code", "2118712345"))
+                .andExpect(status().isForbidden());
+    }
+
     /**
      * 고정 productId/modelName 라인 1건의 주문을 저장한다 (productType enrich 검증용 —
      * productClient.lookup stub 의 ProductSummary.id 와 매칭하기 위해 결정적 productId 사용).
