@@ -64,9 +64,25 @@ describe('AppUpdateNotice', () => {
       </>,
     )
 
-    const stack = screen.getByTestId('app-update-notice').parentElement as HTMLElement
+    const stack = screen.getAllByTestId('app-update-notice')[0]!.parentElement as HTMLElement
     expect(stack.dataset.appUpdateNoticeStack).toBeDefined()
     expect(stack.style.getPropertyValue('--app-update-notice-top')).toBe('16px')
     expect(screen.getByTestId('first-content')).toBeTruthy()
+  })
+
+  it('stack 자체를 키보드로 스크롤할 수 있는 독립 영역으로 노출한다', () => {
+    render(
+      <AppUpdateNoticeStack>
+        <AppUpdateNotice severity="network" title="첫 번째" description="확인해 주세요." />
+        <AppUpdateNotice severity="trust" title="두 번째" description="확인해 주세요." />
+        <AppUpdateNotice severity="disabled" title="세 번째" description="확인해 주세요." />
+      </AppUpdateNoticeStack>,
+    )
+
+    const stack = screen.getAllByTestId('app-update-notice')[0]!.parentElement as HTMLElement
+    expect(stack.getAttribute('role')).toBe('region')
+    expect(stack.getAttribute('aria-label')).toBe('업데이트 알림')
+    expect(stack.tabIndex).toBe(0)
+    expect(stack.dataset.scrollable).toBe('true')
   })
 })

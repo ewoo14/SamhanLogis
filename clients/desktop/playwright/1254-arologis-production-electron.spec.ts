@@ -18,7 +18,10 @@ const ELECTRON_BINARY = path.resolve(
 test('PR #1254 production Electron에서 배너 도달성·모달·print·폭별 상단 조작을 실측한다', async () => {
   const app = await electron.launch({
     executablePath: ELECTRON_BINARY,
-    args: [APP_DIR],
+    // Ubuntu runner의 Electron setuid sandbox가 준비되지 않아 첫 BrowserWindow가
+    // 열리지 않던 것이 60초 timeout의 근원이다. CI Linux에서만 Chromium sandbox를
+    // 끄고, Windows/macOS의 기본 sandbox 계약은 그대로 둔다.
+    args: [ ...(process.platform === 'linux' ? ['--no-sandbox'] : []), APP_DIR ],
     env: { ...process.env, CERTIFICATE_FIXTURE: '', AROLOGIS_E2E_SKIP_TRUST_PROMPT: '1' },
   })
   try {
@@ -54,13 +57,14 @@ test('PR #1254 production Electron에서 배너 도달성·모달·print·폭별
     await expect(page.getByTestId('app-auto-update-status')).toBeVisible()
 
     const metrics: Array<Record<string, unknown>> = []
-    for (const width of [600, 768, 1024, 1280, 1440, 1920]) {
-      await page.setViewportSize({ width, height: 900 })
-      await page.emulateMedia({ media: 'screen' })
-      const input = page.getByTestId('arologis-unassigned-date')
-      // Electron의 native date picker는 headless BrowserWindow를 닫을 수 있어 실제 입력 포커스 도달을 단정한다.
-      await input.focus()
-      const measured = await page.evaluate((width) => {
+    for (const height of [720, 800, 900, 1080]) {
+      for (const width of [600, 768, 1024, 1280, 1440, 1920]) {
+        await page.setViewportSize({ width, height })
+        await page.emulateMedia({ media: 'screen' })
+        const input = page.getByTestId('arologis-unassigned-date')
+        // Electron의 native date picker는 headless BrowserWindow를 닫을 수 있어 실제 입력 포커스 도달을 단정한다.
+        await input.focus()
+        const measured = await page.evaluate((width) => {
         const date = document.querySelector<HTMLInputElement>('[data-testid="arologis-unassigned-date"]')!
         const notice = document.querySelector<HTMLElement>('[data-testid="app-auto-update-status"]')
         const stack = document.querySelector<HTMLElement>('[data-app-update-notice-stack]')
@@ -95,24 +99,25 @@ test('PR #1254 production Electron에서 배너 도달성·모달·print·폭별
             return Number((el.getBoundingClientRect().top - previous.bottom).toFixed(3))
           }) : [],
         }
-      }, width)
-      await page.screenshot({ path: path.join(SHOTS, `${width}px.png`), fullPage: true })
-      await page.emulateMedia({ media: 'print' })
-      const printDisplay = await page.locator('.no-print, [data-print-exclude]').evaluateAll((els) => els.map((el) => ({ id: el.getAttribute('data-testid'), display: getComputedStyle(el).display, visibility: getComputedStyle(el).visibility })))
-      const result = { ...measured, printDisplay }
-      metrics.push(result)
-      console.log(`[GREEN] ${JSON.stringify(result)}`)
-      expect(result.active).toBe('arologis-unassigned-date')
-      console.log(`[GREEN-OVERLAP] width=${width} total=${result.interactiveOverlapTotal} items=${JSON.stringify(result.interactiveOverlap)}`)
-      expect(result.interactiveOverlapTotal).toBe(0)
-      if (result.hit !== null) expect(String(result.hit)).not.toContain('actions')
-      expect(result.order).toEqual(['app-version-policy-error', 'app-trust-root-disabled', 'app-auto-update-status'])
-      expect(result.gaps).toEqual([12, 12])
-      expect(result.printDisplay.length).toBeGreaterThan(0)
-      expect(result.printDisplay.every((item) => item.display === 'none')).toBe(true)
+        }, width)
+        await page.screenshot({ path: path.join(SHOTS, `${width}x${height}.png`), fullPage: false })
+        await page.emulateMedia({ media: 'print' })
+        const printDisplay = await page.locator('.no-print, [data-print-exclude]').evaluateAll((els) => els.map((el) => ({ id: el.getAttribute('data-testid'), display: getComputedStyle(el).display, visibility: getComputedStyle(el).visibility })))
+        const result = { ...measured, height, printDisplay }
+        metrics.push(result)
+        console.log(`[GREEN] ${JSON.stringify(result)}`)
+        expect(result.active).toBe('arologis-unassigned-date')
+        console.log(`[GREEN-OVERLAP] width=${width} height=${height} total=${result.interactiveOverlapTotal} items=${JSON.stringify(result.interactiveOverlap)}`)
+        expect(result.interactiveOverlapTotal).toBe(0)
+        if (result.hit !== null) expect(String(result.hit)).not.toContain('actions')
+        expect(result.order).toEqual(['app-version-policy-error', 'app-trust-root-disabled', 'app-auto-update-status'])
+        expect(result.gaps).toEqual([12, 12])
+        expect(result.printDisplay.length).toBeGreaterThan(0)
+        expect(result.printDisplay.every((item) => item.display === 'none')).toBe(true)
+      }
     }
 
-    const at1024 = metrics.find((item) => item.width === 1024)
+    const at1024 = metrics.find((item) => item.width === 1024 && item.height === 900)
     if (at1024?.stack && at1024.h1) {
       const stack = at1024.stack as { top: number }
       const h1 = at1024.h1 as { top: number; bottom: number }
@@ -143,6 +148,78 @@ test('PR #1254 production Electron에서 배너 도달성·모달·print·폭별
     })
     console.log(`[GREEN-INVARIANT] body-first-y=${JSON.stringify(bodyY)}`)
     expect(bodyY.difference).toBe(0)
+
+    const bannerCountMatrix: Array<Record<string, unknown>> = []
+    for (const height of [720, 800, 900, 1080]) {
+      for (const width of [600, 768, 1024, 1280, 1440, 1920]) {
+        await page.setViewportSize({ width, height })
+        const counts = await page.locator('[data-app-update-notice-stack]').evaluate((element) => {
+          const stack = element as HTMLElement
+          const children = Array.from(stack.children) as HTMLElement[]
+          return [1, 2, 3].map((count) => {
+            const previousDisplay = children.map((child) => child.style.display)
+            children.forEach((child, index) => { child.style.display = index < count ? '' : 'none' })
+            const reachable = children.slice(0, count).map((child) => {
+              stack.scrollTop = child.offsetTop
+              const rect = child.getBoundingClientRect()
+              return rect.top >= 0 && rect.bottom <= innerHeight
+            })
+            const result = {
+              count,
+              overflowY: getComputedStyle(stack).overflowY,
+              order: children.slice(0, count).map((child) => child.dataset.testid),
+              gaps: children.slice(0, count).slice(1).map((child, index) => Number((child.getBoundingClientRect().top - children[index].getBoundingClientRect().bottom).toFixed(3))),
+              reachable,
+            }
+            children.forEach((child, index) => { child.style.display = previousDisplay[index] })
+            stack.scrollTop = 0
+            return result
+          })
+        })
+        bannerCountMatrix.push({ width, height, counts })
+        expect(counts.every((item) => item.reachable.every(Boolean))).toBe(true)
+        expect(counts.map((item) => item.gaps)).toEqual([[], [12], [12, 12]])
+      }
+    }
+    console.log(`[BANNER-COUNT-MATRIX] cases=${bannerCountMatrix.length} counts=1,2,3 reachable=true`)
+
+    await page.emulateMedia({ media: 'screen' })
+    await page.setViewportSize({ width: 600, height: 720 })
+    const thirdBanner = page.getByTestId('app-auto-update-status')
+    const thirdBeforeScroll = await thirdBanner.boundingBox()
+    const stackLocator = page.locator('[data-app-update-notice-stack]')
+    await stackLocator.evaluate((element) => { (element as HTMLElement).scrollTop = 0 })
+    const stackBox = await stackLocator.boundingBox()
+    if (!stackBox) throw new Error('업데이트 알림 stack bounding box가 없습니다.')
+    await page.mouse.move(stackBox.x + stackBox.width / 2, stackBox.y + stackBox.height / 2)
+    await page.mouse.wheel(0, 240)
+    const wheelScrollTop = await stackLocator.evaluate((element) => (element as HTMLElement).scrollTop)
+    console.log(`[STACK-WHEEL] ${JSON.stringify({ wheelScrollTop, overflowY: await stackLocator.evaluate((element) => getComputedStyle(element).overflowY) })}`)
+    expect(wheelScrollTop).toBeGreaterThan(0)
+    const scrollState = await page.locator('[data-app-update-notice-stack]').evaluate((element) => {
+      const stack = element as HTMLElement
+      stack.focus()
+      stack.scrollTop = stack.scrollHeight
+      const card = stack.lastElementChild as HTMLElement
+      const rect = card.getBoundingClientRect()
+      return {
+        scrollTop: stack.scrollTop,
+        scrollHeight: stack.scrollHeight,
+        clientHeight: stack.clientHeight,
+        third: { top: rect.top, bottom: rect.bottom, fullyInViewport: rect.top >= 0 && rect.bottom <= innerHeight },
+      }
+    })
+    console.log(`[STACK-SCROLL] ${JSON.stringify({ viewport: { width: 600, height: 720 }, thirdBeforeScroll, ...scrollState })}`)
+    expect(scrollState.scrollHeight).toBeGreaterThan(scrollState.clientHeight)
+    expect(scrollState.third.fullyInViewport).toBe(true)
+    const thirdButton = thirdBanner.getByRole('button').first()
+    await expect(thirdButton).toBeVisible()
+    let thirdButtonClicks = 0
+    await thirdButton.evaluate((button) => button.addEventListener('click', () => { (window as typeof window & { __thirdButtonClicks?: number }).__thirdButtonClicks = ((window as typeof window & { __thirdButtonClicks?: number }).__thirdButtonClicks ?? 0) + 1 }, { once: true }))
+    await thirdButton.click()
+    thirdButtonClicks = await page.evaluate(() => (window as typeof window & { __thirdButtonClicks?: number }).__thirdButtonClicks ?? 0)
+    console.log(`[THIRD-BUTTON-CLICK] ${JSON.stringify({ thirdButtonClicks, visible: await thirdButton.isVisible() })}`)
+    expect(thirdButtonClicks).toBe(1)
   } finally {
     await app.close()
   }

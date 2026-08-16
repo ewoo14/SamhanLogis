@@ -31,6 +31,10 @@
   z-index: 999;
   display: grid;
   gap: var(--space-3);
+  max-block-size: max(0px, calc(100dvh - var(--app-update-notice-top, var(--space-4)) - var(--space-4)));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   width: min(24rem, calc(36vw - var(--space-4)));
   pointer-events: none;
 }

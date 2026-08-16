@@ -109,14 +109,36 @@ export function AppUpdateNoticeStack({ children }: AppUpdateNoticeStackProps): J
     const observer = new MutationObserver(schedulePosition)
     observer.observe(document.body, { childList: true, subtree: true })
     window.addEventListener('resize', schedulePosition)
+    const handleWheel = (event: WheelEvent) => {
+      if (stack.scrollHeight <= stack.clientHeight) return
+      const rect = stack.getBoundingClientRect()
+      if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) return
+      event.preventDefault()
+      stack.scrollTop += event.deltaY
+    }
+    window.addEventListener('wheel', handleWheel, { capture: true, passive: false })
     return () => {
       observer.disconnect()
       cancelAnimationFrame(frame)
       window.removeEventListener('resize', schedulePosition)
+      window.removeEventListener('wheel', handleWheel, { capture: true })
     }
   }, [])
 
-  return <div ref={stackRef} className={styles.stack} data-app-update-notice-stack data-print-exclude="app-update-notice-stack">{children}</div>
+  return (
+    <div
+      ref={stackRef}
+      className={styles.stack}
+      role="region"
+      aria-label="업데이트 알림"
+      tabIndex={0}
+      data-app-update-notice-stack
+      data-scrollable="true"
+      data-print-exclude="app-update-notice-stack"
+    >
+      {children}
+    </div>
+  )
 }
 
 export default AppUpdateNotice
