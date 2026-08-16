@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { AppUpdateNotice } from './AppUpdateNotice'
+import { AppUpdateNotice, AppUpdateNoticeStack } from './AppUpdateNotice'
 
 describe('AppUpdateNotice', () => {
   it('본문 흐름을 밀지 않는 고정 오버레이로 표시한다', () => {
@@ -52,5 +52,21 @@ describe('AppUpdateNotice', () => {
 
     screen.getByRole('button', { name: '다시 확인' }).click()
     expect(onRetry).toHaveBeenCalledOnce()
+  })
+
+  it('stack 위치는 현재 본문 조작 요소의 실제 끝에서 계산하고 본문 흐름을 밀지 않는다', () => {
+    render(
+      <>
+        <AppUpdateNoticeStack>
+          <AppUpdateNotice severity="network" title="업데이트" description="확인해 주세요." />
+        </AppUpdateNoticeStack>
+        <main data-testid="first-content">본문 첫 요소</main>
+      </>,
+    )
+
+    const stack = screen.getByTestId('app-update-notice').parentElement as HTMLElement
+    expect(stack.dataset.appUpdateNoticeStack).toBeDefined()
+    expect(stack.style.getPropertyValue('--app-update-notice-top')).toBe('16px')
+    expect(screen.getByTestId('first-content')).toBeTruthy()
   })
 })

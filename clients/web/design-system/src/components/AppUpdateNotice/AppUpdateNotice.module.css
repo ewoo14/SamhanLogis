@@ -24,12 +24,14 @@
 
 .stack {
   position: fixed;
-  /* 상단 전역/배차 메뉴와 본문 첫 조작 행을 덮지 않는 고정 슬롯. */
-  inset-block-start: 480px;
-  inset-inline: 0;
+  /* 현재 헤더/메뉴 조작 요소의 실제 끝에서 계산한 슬롯이다. */
+  inset-block-start: var(--app-update-notice-top, var(--space-4));
+  inset-inline-start: var(--space-4);
+  inset-inline-end: auto;
   z-index: 999;
   display: grid;
   gap: var(--space-3);
+  width: min(24rem, calc(36vw - var(--space-4)));
   pointer-events: none;
 }
 
@@ -37,12 +39,12 @@
   position: relative;
   inset: auto;
   z-index: auto;
-  width: min(100% - var(--space-8), 920px);
+  width: 100%;
   margin: 0 auto;
 }
 
 .stack > aside {
-  width: min(100% - var(--space-8), 920px);
+  width: 100%;
   margin: 0 auto;
   box-sizing: border-box;
 }

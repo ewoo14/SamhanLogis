@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react'
+import { useLayoutEffect, useRef, type ReactNode } from 'react'
 import { Badge } from '../Badge'
 import { Button } from '../Button'
 import { Card } from '../Card'
@@ -81,7 +81,42 @@ export function AppUpdateNotice({
 
 /** 여러 업데이트 알림을 한 묶음으로 고정해도 알림 사이 간격과 본문 좌표를 보존한다. */
 export function AppUpdateNoticeStack({ children }: AppUpdateNoticeStackProps): JSX.Element {
-  return <div className={styles.stack} data-app-update-notice-stack data-print-exclude="app-update-notice-stack">{children}</div>
+  const stackRef = useRef<HTMLDivElement>(null)
+
+  useLayoutEffect(() => {
+    const stack = stackRef.current
+    if (!stack) return
+
+    const updatePosition = () => {
+      const spacing = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--space-4')) || 16
+      const interactive = Array.from(document.querySelectorAll<HTMLElement>('a, button, input'))
+        .filter((element) => !element.closest('[data-app-update-notice-stack]'))
+        .map((element) => ({ element, rect: element.getBoundingClientRect() }))
+        .filter(({ rect }) => rect.width > 0 && rect.height > 0)
+      const headerControls = interactive
+        .filter(({ element }) => !element.closest('tbody tr'))
+        .map(({ rect }) => rect)
+      const top = Math.max(spacing, ...headerControls.map((rect) => rect.bottom + spacing))
+      stack.style.setProperty('--app-update-notice-top', `${top}px`)
+    }
+
+    let frame = 0
+    const schedulePosition = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => requestAnimationFrame(updatePosition))
+    }
+    updatePosition()
+    const observer = new MutationObserver(schedulePosition)
+    observer.observe(document.body, { childList: true, subtree: true })
+    window.addEventListener('resize', schedulePosition)
+    return () => {
+      observer.disconnect()
+      cancelAnimationFrame(frame)
+      window.removeEventListener('resize', schedulePosition)
+    }
+  }, [])
+
+  return <div ref={stackRef} className={styles.stack} data-app-update-notice-stack data-print-exclude="app-update-notice-stack">{children}</div>
 }
 
 export default AppUpdateNotice
