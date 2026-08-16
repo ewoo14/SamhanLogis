@@ -92,11 +92,13 @@ export function AppUpdateNoticeStack({ children }: AppUpdateNoticeStackProps): J
       const interactive = Array.from(document.querySelectorAll<HTMLElement>('a, button, input'))
         .filter((element) => !element.closest('[data-app-update-notice-stack]'))
         .map((element) => ({ element, rect: element.getBoundingClientRect() }))
-        .filter(({ rect }) => rect.width > 0 && rect.height > 0)
+        .filter(({ rect }) => rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < window.innerHeight)
       const headerControls = interactive
         .filter(({ element }) => !element.closest('tbody tr'))
         .map(({ rect }) => rect)
-      const top = Math.max(spacing, ...headerControls.map((rect) => rect.bottom + spacing))
+      const minimumStackHeight = 40
+      const calculatedTop = Math.max(spacing, ...headerControls.map((rect) => rect.bottom + spacing))
+      const top = Math.min(calculatedTop, Math.max(spacing, window.innerHeight - spacing - minimumStackHeight))
       stack.style.setProperty('--app-update-notice-top', `${top}px`)
     }
 
@@ -110,11 +112,30 @@ export function AppUpdateNoticeStack({ children }: AppUpdateNoticeStackProps): J
     observer.observe(document.body, { childList: true, subtree: true })
     window.addEventListener('resize', schedulePosition)
     const handleWheel = (event: WheelEvent) => {
-      if (stack.scrollHeight <= stack.clientHeight) return
       const rect = stack.getBoundingClientRect()
       if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) return
+      const maxScrollTop = Math.max(0, stack.scrollHeight - stack.clientHeight)
+      const canScrollDown = event.deltaY > 0 && stack.scrollTop < maxScrollTop
+      const canScrollUp = event.deltaY < 0 && stack.scrollTop > 0
+      if (!canScrollDown && !canScrollUp) {
+        const previousPointerEvents = stack.style.pointerEvents
+        stack.style.pointerEvents = 'none'
+        const underlying = document.elementFromPoint(event.clientX, event.clientY)
+        stack.style.pointerEvents = previousPointerEvents
+        let scroller = underlying instanceof HTMLElement ? underlying : null
+        while (scroller && scroller !== stack) {
+          const style = getComputedStyle(scroller)
+          if (scroller.scrollHeight > scroller.clientHeight && /(auto|scroll)/.test(style.overflowY)) break
+          scroller = scroller.parentElement
+        }
+        if (scroller && scroller !== stack) {
+          scroller.scrollTop += event.deltaY
+          event.preventDefault()
+        }
+        return
+      }
       event.preventDefault()
-      stack.scrollTop += event.deltaY
+      stack.scrollTop = Math.min(maxScrollTop, Math.max(0, stack.scrollTop + event.deltaY))
     }
     window.addEventListener('wheel', handleWheel, { capture: true, passive: false })
     return () => {
