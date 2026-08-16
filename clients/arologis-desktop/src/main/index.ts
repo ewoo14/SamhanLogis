@@ -21,6 +21,7 @@ import { dirname, join } from 'node:path'
 import { registerAuthIpcHandlers } from './ipc/auth-token.js'
 import { registerAutoUpdateIpcHandlers } from './auto-update.js'
 import { promptForTrustRoot, registerTrustRootIpcHandlers } from './certificate-trust.js'
+import { shouldPromptForTrustRoot } from './certificate-trust-policy.js'
 import { resolveCertificateFixtureQuery } from '../../../../scripts/certificate-expiry-fixtures.cjs'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -120,7 +121,7 @@ app.whenReady().then(() => {
   })
   createMainWindow()
   // Native 인증서 안내가 renderer QA를 가리지 않도록 테스트 실행에서만 생략한다.
-  if (!app.isPackaged && process.env['AROLOGIS_E2E_SKIP_TRUST_PROMPT'] !== '1') void promptForTrustRoot(mainWindow)
+  if (shouldPromptForTrustRoot(app.isPackaged, process.env['AROLOGIS_E2E_SKIP_TRUST_PROMPT'])) void promptForTrustRoot(mainWindow)
 
   app.on('activate', () => {
     // macOS 호환 표준 패턴 (본 앱은 Windows 전용).
