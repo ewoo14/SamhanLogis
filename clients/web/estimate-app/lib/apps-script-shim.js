@@ -3,10 +3,7 @@
  * Google Apps Script global API 들을 1:1 흉내낸다.
  *
  * 데이터 출처 (개발책임자 결정 2026-05-05):
- *  - **품목 / 거래처 / 담당자 / 추천 등 SpreadsheetApp 데이터** → google-sheets-client
- *    (Service Account JWT 로 구글 스프레드 시트 직접 read — legacy Apps Script 동작
- *    그대로). 옵션 C 채택으로 estimate-app v2 / order-app v4 의 frontend 는 시트
- *    직접 read 환원.
+ *  - 품목/추천/단가 데이터 → product-service DB 벌크 endpoint (lib/db-catalog.js)
  *  - **출고전표 발송 (sendOrderFromUi)** → SamhanLogis slip-service POST 위임
  *    (lib/slip-bridge.js). e-Count proxy 직접 호출은 폐기.
  *  - **외부 노출 API 호출 (Notion 등)** → noop + warn (SamhanLogis MS DB 가 흡수).
@@ -15,8 +12,7 @@
  * Node.js 에서 그대로 require 가능하게 만들기 위한 호환 layer 다.
  *
  * 다루는 API:
- *  - SpreadsheetApp / Sheet (getDataRange / getValues 등) — google-sheets-client
- *    응답으로 시트 모형 구성. bootstrap 단계 preloadSheets() 로 prefetch 후 동기 read.
+ *  - SpreadsheetApp / Sheet — 테스트·레거시 함수 호환용 로컬 모형만 제공하며 외부 read 없음
  *  - DriveApp.getFolderById — noop + warn (legacy 가 logo/gate 이미지 폴더 read;
  *    public/assets 자산 사용 권장).
  *  - UrlFetchApp.fetch — axios 위임 (e-Count URL 식별 시 noop+warn → slip-bridge 로 우회)
@@ -31,8 +27,6 @@
  * 환경변수:
  *  - SAMHAN_API_BASE_URL    : SamhanLogis MS endpoint base URL (slip-bridge 만 사용)
  *  - DEFAULT_USER_EMAIL     : Session.getActiveUser().getEmail() 대체
- *  - GOOGLE_SERVICE_ACCOUNT_KEY: Google Service Account JSON 키 파일 path
- *    (lib/google-sheets-client.js 가 사용; 미설정 시 SpreadsheetApp 호출 실패).
  *
  * Phase 6 backend (PR #76) 머지 후 USE_MOCK_FALLBACK 환경변수는 폐기되었으며
  * 모든 SamhanLogis MS 호출은 실 endpoint 를 호출한다.
@@ -43,8 +37,6 @@
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
-
-const sheetsClient = require('./google-sheets-client');
 
 const BASE_URL = process.env.SAMHAN_API_BASE_URL || 'http://localhost:8080';
 const DEFAULT_EMAIL = process.env.DEFAULT_USER_EMAIL || 'dev@samhan-air.com';
@@ -244,7 +236,7 @@ const UrlFetchApp = {
 };
 
 /* ─────────────────────────────────────────────────────────────────────────
- * SpreadsheetApp / Sheet — google-sheets-client 위임
+ * SpreadsheetApp / Sheet — 외부 read 없는 로컬 호환 모형
  *
  * 개발책임자 결정 (2026-05-05):
  *   "견적서와 주문서의 경우에만 기존 구글 스크립트처럼 구글 스프레드 시트에서
@@ -254,18 +246,11 @@ const UrlFetchApp = {
  *   .getDataRange().getValues() 는 Apps Script 에서 동기 호출이지만,
  *   Node.js 에서는 sheet read 가 비동기.
  *
- * 해결: bootstrap 단계 preloadSheets(spreadsheetId, [name1, name2, ...]) 로
- *   사전에 모든 탭을 in-memory 로 채운 뒤, 이후 동기 호출 사이트는 즉시 반환.
- *
- * 미 prefetch 탭 접근 시: 빈 [[]] 반환 + warn (legacy 동작과 동등; Apps Script
- *   도 존재하지 않는 탭에서는 빈 결과 반환).
- *
- * Service Account 키 미설정 시: preloadSheet() 가 throw → bootstrap caller 가
- *   try/catch 로 감싸 graceful 처리 (legacy 빈 카탈로그 진입과 동일).
+ * 외부 스프레드시트 read는 제거되었다. 값은 injectSheet()로만 주입된다.
  * ──────────────────────────────────────────────────────────────────────── */
 
 /**
- * Apps Script `Sheet` 호환 모형. google-sheets-client 가 read 한 2D 배열을 보관.
+ * Apps Script `Sheet` 호환 모형. 테스트가 주입한 2D 배열을 보관.
  *
  * 지원 메서드:
  *  - getName / getDataRange / getRange / getLastRow / getLastColumn
@@ -358,8 +343,7 @@ const _spreadCache = new Map();
 
 const SpreadsheetApp = {
   /**
-   * Apps Script 동기 시그니처 보존. 본 호출 전에 반드시 preloadSheets() 로 prefetch.
-   * prefetch 누락 시 getSheetByName 이 빈 sheet 반환 (legacy 동작과 동일).
+   * Apps Script 동기 시그니처 보존. 외부 네트워크 read는 수행하지 않는다.
    */
   openById(id) {
     if (_spreadCache.has(id)) return _spreadCache.get(id);
@@ -370,48 +354,15 @@ const SpreadsheetApp = {
   getActiveSpreadsheet: () => null,
 };
 
-/**
- * Sheet 명 단건 prefetch — bootstrap 단계에서 호출.
- *
- * @param {string} spreadsheetId
- * @param {string} sheetName
- * @returns {Promise<Array<Array<any>>>} legacy values 와 동일 shape (2차원 배열).
- */
-async function preloadSheet(spreadsheetId, sheetName) {
-  const grid = await sheetsClient.readSheetGrid(spreadsheetId, sheetName);
-  let ss = _spreadCache.get(spreadsheetId);
-  if (!ss) {
-    ss = new FakeSpreadsheet(spreadsheetId, {});
-    _spreadCache.set(spreadsheetId, ss);
-  }
-  ss._sheets[sheetName] = new FakeSheet(sheetName, grid.values, grid.formulas);
-  return grid.values;
-}
+/* External sheet prefetch was removed; only local injectSheet remains. */
 
-/**
- * 다수 sheet prefetch (병렬). 일부 탭 read 실패해도 나머지 탭은 가능한 만큼 채우고,
- * 실패한 탭은 빈 sheet 로 대체된다 (Apps Script 동작과 동일).
- *
- * @param {string} spreadsheetId
- * @param {string[]} sheetNames
- */
-async function preloadSheets(spreadsheetId, sheetNames) {
-  const results = await Promise.allSettled(
-    sheetNames.map((n) => preloadSheet(spreadsheetId, n)),
-  );
-  results.forEach((r, i) => {
-    if (r.status === 'rejected') {
-      Logger.log(`[shim] preloadSheet 실패 sheet=${sheetNames[i]} error=${r.reason && r.reason.message}`);
-    }
-  });
-}
+// No remote prefetch API: catalog bootstrap always uses product-service DB.
 
 /**
  * 캐시 강제 무효화 — POST /rpc/clearSheetCache.
  */
 function clearSheetCache() {
   _spreadCache.clear();
-  sheetsClient.clearCache();
 }
 
 /**
@@ -523,8 +474,6 @@ module.exports = {
   DriveApp,
   HtmlService,
   injectSheet,
-  preloadSheet,
-  preloadSheets,
   clearSheetCache,
   // 헬퍼 (lib/code.js 안에서 직접 참조)
   _config: {
