@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { AppUpdateNotice } from '@samhan/design-system'
+import { AppUpdateNotice, AppUpdateNoticeStack } from '@samhan/design-system'
 import { CertificateExpiryNotice } from './CertificateExpiryNotice'
 
 type UpdateStatus =
@@ -79,5 +79,5 @@ export function InternalChatUpdateGate({ children }: { children: ReactNode }): J
     />
   ) : null
 
-  return <>{updateNotice}<CertificateExpiryNotice />{children}</>
+  return <><AppUpdateNoticeStack>{updateNotice}<CertificateExpiryNotice /></AppUpdateNoticeStack>{children}</>
 }

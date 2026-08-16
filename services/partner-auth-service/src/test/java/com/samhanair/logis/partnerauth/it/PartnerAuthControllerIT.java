@@ -16,6 +16,7 @@ import com.samhanair.logis.partnerauth.client.SmsClient;
 import com.samhanair.logis.partnerauth.domain.PartnerAuth;
 import com.samhanair.logis.partnerauth.domain.PartnerStatus;
 import com.samhanair.logis.partnerauth.repository.PartnerAuthRepository;
+import com.samhanair.logis.partnerauth.seed.QaPartnerAuthSeeder;
 import com.samhanair.logis.partnerauth.service.PartnerActivity;
 import com.samhanair.logis.partnerauth.service.PartnerActivityReader;
 import java.util.List;
@@ -172,6 +173,18 @@ class PartnerAuthControllerIT extends AbstractPostgresIT {
         mvc.perform(post("/api/v1/auth/partner-login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("OK"))
+                .andExpect(jsonPath("$.data.token").isNotEmpty());
+    }
+
+    @Test
+    void POST_partner_login_QA_seeded_account_실제_HTTP_성공() throws Exception {
+        new QaPartnerAuthSeeder(authRepository, passwordEncoder, "5831").seed();
+
+        mvc.perform(post("/api/v1/auth/partner-login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"bizNo\":\"9999000001\",\"password\":\"5831\",\"mobile\":false}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("OK"))
                 .andExpect(jsonPath("$.data.token").isNotEmpty());

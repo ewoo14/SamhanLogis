@@ -7,6 +7,8 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -71,6 +73,7 @@ import java.util.UUID;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -187,7 +190,7 @@ class PartnerOrderPermissionControllerIT {
                 false, null, null);
         HistoryResponse history = new HistoryResponse(
                 "PO-1", "SLIP-1", "CONFIRMED", "PUBLISHED", BigDecimal.valueOf(1000),
-                LocalDateTime.of(2026, 5, 26, 9, 0));
+                LocalDateTime.of(2026, 5, 26, 9, 0), false);
         lenient().when(editRequestService.request(any(), any(), anyString(), any(), anyString()))
                 .thenReturn(editRequest);
         lenient().when(editRequestService.request(any(), any(), anyString(), any(), anyString(), any()))
@@ -325,6 +328,43 @@ class PartnerOrderPermissionControllerIT {
                 .andExpect(status().isServiceUnavailable());
     }
 
+    @Test
+    @DisplayName("history: 직원 역할이 X-Is-Partner=true보다 우선하고 동적 VIEW를 사용한다")
+    void history_employeeWithPartnerHeader_keepsEmployeeIdentity() throws Exception {
+        when(dynamicPermissionClient.check(any(UUID.class), eq("sales.partner-order.history"), eq(PermissionAction.VIEW)))
+                .thenReturn(true);
+
+        mockMvc.perform(get("/api/v1/partner-orders/history")
+                        .param("bizCode", "B-OTHER")
+                        .param("from", "2026-05-26T00:00:00")
+                        .param("to", "2026-05-27T00:00:00")
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(ROLE_HEADER, "SALES")
+                        .header(IS_PARTNER_HEADER, "true")
+                        .header("X-Partner-Code", "P001"))
+                .andExpect(status().isOk());
+
+        verify(historyService).findHistory(anyString(), any(), any(), any(), eq("P001"));
+    }
+
+    @Test
+    @DisplayName("history: 직원 토큰에 X-Partner-Code만 있으면 동적 VIEW로 통과한다")
+    void history_employeeWithPartnerCodeOnly_usesDynamicPermission() throws Exception {
+        when(dynamicPermissionClient.check(any(UUID.class), eq("sales.partner-order.history"), eq(PermissionAction.VIEW)))
+                .thenReturn(true);
+
+        mockMvc.perform(get("/api/v1/partner-orders/history")
+                        .param("bizCode", "B001")
+                        .param("from", "2026-05-26T00:00:00")
+                        .param("to", "2026-05-27T00:00:00")
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(ROLE_HEADER, "SALES")
+                        .header("X-Partner-Code", "P001"))
+                .andExpect(status().isOk());
+
+        verify(historyService).findHistory(anyString(), any(), any(), any(), eq("P001"));
+    }
+
     static Stream<EndpointCase> endpoints() {
         return Stream.of(
                 new EndpointCase("edit request create", "sales.partner-order.edit-requests", PermissionAction.CREATE, "SALES", 201,
@@ -413,11 +453,6 @@ class PartnerOrderPermissionControllerIT {
                         () -> get("/api/v1/partner-orders/drafts")),
                 new EndpointCase("draft detail", "sales.partner-order.draft", PermissionAction.VIEW, "PARTNER", 200,
                         () -> get("/api/v1/partner-orders/drafts/{id}", ORDER_ID)),
-                new EndpointCase("history", "sales.partner-order.history", PermissionAction.VIEW, "PARTNER", 200,
-                        () -> get("/api/v1/partner-orders/history")
-                                .param("bizCode", "B001")
-                                .param("from", "2026-05-26T00:00:00")
-                                .param("to", "2026-05-27T00:00:00")),
                 new EndpointCase("order list", "sales.partner-order.list", PermissionAction.VIEW, "PARTNER", 200,
                         () -> get("/api/v1/partner-orders")),
                 new EndpointCase("order detail", "sales.partner-order.list", PermissionAction.VIEW, "PARTNER", 200,

@@ -288,8 +288,21 @@ describe('아로로지스 데스크톱 버전 게이트', () => {
 
     expect(await screen.findByTestId('app-trust-root-disabled')).toBeTruthy()
     expect(screen.getByTestId('app-trust-root-disabled').textContent).toContain('자동 업데이트가 꺼져 있습니다')
-    fireEvent.click(screen.getByRole('button', { name: '신뢰 루트 설치' }))
+    fireEvent.click(screen.getByRole('button', { name: '보안인증서 설치' }))
     await waitFor(() => expect(install).toHaveBeenCalledOnce())
+  })
+
+  it('보안인증서 안내에는 사용자에게 신뢰 루트라는 용어를 노출하지 않는다', async () => {
+    window.arologisTrustRoot = {
+      status: vi.fn(async () => ({ installed: false, declined: true, shouldAskNextRun: true, updateDisabled: true })),
+      install: vi.fn(async () => ({ installed: false, declined: true, shouldAskNextRun: true, updateDisabled: true })),
+    }
+
+    render(<AppVersionGate bootstrapped><div>아로로지스 본문</div></AppVersionGate>)
+
+    const notice = await screen.findByTestId('app-trust-root-disabled')
+    expect(notice.textContent).toContain('보안인증서')
+    expect(notice.textContent).not.toContain('신뢰 루트')
   })
 
   it('실제 신뢰 루트 설치가 확인되면 승인 직후 자동 업데이트 꺼짐 배너를 제거한다', async () => {
@@ -302,7 +315,7 @@ describe('아로로지스 데스크톱 버전 게이트', () => {
     render(<AppVersionGate bootstrapped><div>아로로지스 본문</div></AppVersionGate>)
     await screen.findByTestId('app-trust-root-disabled')
 
-    fireEvent.click(screen.getByRole('button', { name: '신뢰 루트 설치' }))
+    fireEvent.click(screen.getByRole('button', { name: '보안인증서 설치' }))
 
     await waitFor(() => expect(screen.queryByTestId('app-trust-root-disabled')).toBeNull())
     expect(status).toHaveBeenCalledTimes(2)
@@ -317,7 +330,7 @@ describe('아로로지스 데스크톱 버전 게이트', () => {
 
     render(<AppVersionGate bootstrapped><div>아로로지스 본문</div></AppVersionGate>)
     await screen.findByTestId('app-trust-root-disabled')
-    fireEvent.click(screen.getByRole('button', { name: '신뢰 루트 설치' }))
+    fireEvent.click(screen.getByRole('button', { name: '보안인증서 설치' }))
 
     await waitFor(() => expect(install).toHaveBeenCalledOnce())
     expect(screen.getByTestId('app-trust-root-disabled')).toBeTruthy()

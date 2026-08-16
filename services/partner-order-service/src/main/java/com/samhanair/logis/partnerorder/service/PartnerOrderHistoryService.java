@@ -2,9 +2,11 @@ package com.samhanair.logis.partnerorder.service;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
 import com.samhanair.logis.partnerorder.web.dto.HistoryResponse;
 import java.time.LocalDateTime;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -60,19 +62,57 @@ public class PartnerOrderHistoryService {
         if (from.isAfter(to)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "from 이 to 보다 이후일 수 없습니다");
         }
+        String normalizedBizCode = normalizeBizCode(bizCode);
         String partnerScope = partnerSelfScopeGuard.partnerScopeOrNull(callerPartnerCode);
         if (partnerScope != null) {
-            if (orderRepository.existsByBizCodeAndPartnerCodeNot(bizCode, partnerScope)) {
+            String normalizedPartnerScope = normalizePartnerCode(partnerScope);
+            if (isBusinessNumber(normalizedPartnerScope)) {
+                if (!normalizedPartnerScope.equals(normalizedBizCode)) {
+                    throw new org.springframework.security.access.AccessDeniedException(
+                            "본인 거래처 주문 이력만 조회할 수 있습니다.");
+                }
+                return orderRepository
+                        .findAllHistoryIncludingDeletedByNormalizedBizCodeAndConfirmedEventOrderByEffectiveDateDesc(
+                                normalizedBizCode, from, to, pageable)
+                        .map(this::toHistoryResponse);
+            }
+            if (!orderRepository.existsByNormalizedPartnerCodeAndNormalizedBizCode(
+                    normalizedPartnerScope, normalizedBizCode)) {
                 throw new org.springframework.security.access.AccessDeniedException(
                         "본인 거래처 주문 이력만 조회할 수 있습니다.");
             }
             return orderRepository
-                    .findAllByPartnerCodeAndBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(
-                            partnerScope, bizCode, from, to, pageable)
-                    .map(HistoryResponse::from);
+                    .findAllHistoryIncludingDeletedByNormalizedPartnerCodeAndNormalizedBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(
+                            normalizedPartnerScope, normalizedBizCode, from, to, pageable)
+                    .map(this::toHistoryResponse);
         }
         return orderRepository
-                .findAllByBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(bizCode, from, to, pageable)
-                .map(HistoryResponse::from);
+                .findAllHistoryIncludingDeletedByBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(
+                        bizCode, from, to, pageable)
+                .map(this::toHistoryResponse);
+    }
+
+    private HistoryResponse toHistoryResponse(PartnerOrder order) {
+        LocalDateTime outDate = order.getConfirmedAt();
+        if (outDate == null && order.getId() != null) {
+            List<PartnerOrderRepository.ConfirmedEventDate> dates =
+                    orderRepository.findLatestConfirmedEventDates(List.of(order.getId()));
+            if (!dates.isEmpty()) {
+                outDate = dates.get(0).getOccurredAt();
+            }
+        }
+        return HistoryResponse.from(order, outDate);
+    }
+
+    private String normalizeBizCode(String value) {
+        return value == null ? "" : value.replaceAll("[^0-9]", "");
+    }
+
+    private String normalizePartnerCode(String value) {
+        return value == null ? "" : value.trim().toLowerCase().replaceAll("[^a-z0-9]", "");
+    }
+
+    private boolean isBusinessNumber(String value) {
+        return value.matches("[0-9]{10}");
     }
 }
