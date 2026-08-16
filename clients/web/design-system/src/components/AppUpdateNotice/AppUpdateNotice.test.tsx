@@ -1,7 +1,12 @@
 // @vitest-environment jsdom
 import { render, screen } from '@testing-library/react'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { AppUpdateNotice, AppUpdateNoticeStack } from './AppUpdateNotice'
+
+const vitestGlobal = globalThis as typeof globalThis & { process: { cwd: () => string } }
+const cssSource = readFileSync(join(vitestGlobal.process.cwd(), 'src/components/AppUpdateNotice/AppUpdateNotice.module.css'), 'utf8')
 
 describe('AppUpdateNotice', () => {
   it('본문 흐름을 밀지 않는 고정 오버레이로 표시한다', () => {
@@ -84,5 +89,46 @@ describe('AppUpdateNotice', () => {
     expect(stack.getAttribute('aria-label')).toBe('업데이트 알림')
     expect(stack.tabIndex).toBe(0)
     expect(stack.dataset.scrollable).toBe('true')
+  })
+
+  it('stack의 빈 영역은 아래 날짜·저장 조작으로 hit-test를 통과시킨다', () => {
+    const stackRule = cssSource.slice(cssSource.indexOf('.stack {'), cssSource.indexOf('.stack .notice'))
+    expect(stackRule).toContain('pointer-events: none')
+  })
+
+  it('확대 배율에서도 스택 하단에 버튼 전체가 들어갈 내부 여유를 예약한다', () => {
+    const stackRule = cssSource.slice(cssSource.indexOf('.stack {'), cssSource.indexOf('.stack .notice'))
+    expect(stackRule).toContain('padding-block: 1px 1px')
+  })
+
+  it('스택 경계에서 본문 스크롤러를 찾지 못해도 MAIN으로 휠을 위임한다', () => {
+    render(
+      <>
+        <AppUpdateNoticeStack>
+          <AppUpdateNotice severity="network" title="첫 번째" description="확인해 주세요." />
+          <AppUpdateNotice severity="trust" title="두 번째" description="확인해 주세요." />
+        </AppUpdateNoticeStack>
+        <main data-testid="scroll-main">본문</main>
+      </>,
+    )
+
+    const stack = screen.getAllByTestId('app-update-notice')[0]!.parentElement as HTMLElement
+    const main = screen.getByTestId('scroll-main') as HTMLElement
+    Object.defineProperties(stack, {
+      clientHeight: { configurable: true, value: 100 },
+      scrollHeight: { configurable: true, value: 200 },
+      scrollTop: { configurable: true, writable: true, value: 100 },
+    })
+    Object.defineProperties(main, {
+      clientHeight: { configurable: true, value: 100 },
+      scrollHeight: { configurable: true, value: 500 },
+      scrollTop: { configurable: true, writable: true, value: 100 },
+    })
+    vi.spyOn(stack, 'getBoundingClientRect').mockReturnValue({ left: 0, right: 300, top: 0, bottom: 100, width: 300, height: 100, x: 0, y: 0, toJSON: () => ({}) })
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: vi.fn(() => document.body) })
+
+    window.dispatchEvent(new WheelEvent('wheel', { deltaY: 240, clientX: 100, clientY: 50, bubbles: true, cancelable: true }))
+
+    expect(main.scrollTop).toBeGreaterThan(100)
   })
 })

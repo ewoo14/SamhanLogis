@@ -35,12 +35,12 @@
   min-block-size: 40px;
   overflow-y: auto;
   overscroll-behavior: auto;
-  scroll-padding-block: 1px 2px;
+  scroll-padding-block: 1px 1px;
   scrollbar-gutter: stable;
   box-sizing: border-box;
-  padding-block-end: 1px;
+  padding-block: 1px 1px;
   width: min(24rem, calc(36vw - var(--space-4)));
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 .stack .notice {
@@ -48,11 +48,13 @@
   inset: auto;
   z-index: auto;
   width: 100%;
+  min-width: 0;
   margin: 0 auto;
 }
 
 .stack > aside {
   width: 100%;
+  min-width: 0;
   margin: 0 auto;
   box-sizing: border-box;
 }
@@ -88,12 +90,17 @@
 .actions {
   display: flex;
   flex-wrap: wrap;
+  min-width: 0;
   gap: var(--space-2);
   margin-top: var(--space-1);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .notice * { transition: none !important; }
+}
+
+@media (max-width: 600px) {
+  .stack { width: calc(100vw - (var(--space-4) * 2)); }
 }
 
 /* 인쇄 경로는 전역 클래스가 누락되거나 CSS Module 순서가 달라도 배너를 제외한다. */

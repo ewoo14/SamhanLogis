@@ -128,6 +128,10 @@ export function AppUpdateNoticeStack({ children }: AppUpdateNoticeStackProps): J
           if (scroller.scrollHeight > scroller.clientHeight && /(auto|scroll)/.test(style.overflowY)) break
           scroller = scroller.parentElement
         }
+        if (!scroller || scroller === stack) {
+          scroller = Array.from(document.querySelectorAll<HTMLElement>('main, [role="main"]'))
+            .find((candidate) => candidate.scrollHeight > candidate.clientHeight) ?? null
+        }
         if (scroller && scroller !== stack) {
           scroller.scrollTop += event.deltaY
           event.preventDefault()
@@ -137,12 +141,25 @@ export function AppUpdateNoticeStack({ children }: AppUpdateNoticeStackProps): J
       event.preventDefault()
       stack.scrollTop = Math.min(maxScrollTop, Math.max(0, stack.scrollTop + event.deltaY))
     }
+    const handleScrollbarClick = (event: MouseEvent) => {
+      const rect = stack.getBoundingClientRect()
+      const scrollbarWidth = 12
+      const inScrollbar = event.clientX >= rect.right - scrollbarWidth && event.clientX <= rect.right
+        && event.clientY >= rect.top && event.clientY <= rect.bottom
+      if (!inScrollbar || stack.scrollHeight <= stack.clientHeight) return
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      const ratio = Math.max(0, Math.min(1, (event.clientY - rect.top) / Math.max(1, rect.height)))
+      stack.scrollTop = ratio * (stack.scrollHeight - stack.clientHeight)
+    }
     window.addEventListener('wheel', handleWheel, { capture: true, passive: false })
+    window.addEventListener('click', handleScrollbarClick, { capture: true })
     return () => {
       observer.disconnect()
       cancelAnimationFrame(frame)
       window.removeEventListener('resize', schedulePosition)
       window.removeEventListener('wheel', handleWheel, { capture: true })
+      window.removeEventListener('click', handleScrollbarClick, { capture: true })
     }
   }, [])
 
