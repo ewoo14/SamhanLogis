@@ -27,7 +27,8 @@
 param(
     [Parameter(Mandatory = $true, Position = 0)]
     [string[]] $Service,
-    [switch] $SkipBuild
+    [switch] $SkipBuild,
+    [switch] $ValidateOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -67,6 +68,67 @@ $composeFiles = @(
 )
 $portfixFiles = @(Get-ChildItem -Path (Join-Path $repoRoot 'infrastructure/docker-compose.*-port-override.yml') -File -ErrorAction SilentlyContinue | Sort-Object Name)
 foreach ($portfixFile in $portfixFiles) { $composeFiles += $portfixFile.FullName }
+
+function Get-RequiredComposeEnvNames {
+    param([Parameter(Mandatory = $true)][string[]]$ComposeFiles)
+
+    $strictRequired = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach ($composeFile in $ComposeFiles) {
+        $composeText = Get-Content -LiteralPath $composeFile -Raw -Encoding UTF8
+        # `${NAME:?message}` is the compose source of truth. Do not filter by
+        # credential-shaped names: DB, broker, monitoring, object-store, and
+        # service-specific secrets are all equally required here.
+        foreach ($match in [regex]::Matches($composeText, '\$\{(?<name>[A-Za-z_][A-Za-z0-9_]*):\?[^}]*\}')) {
+            [void]$strictRequired.Add($match.Groups['name'].Value)
+        }
+    }
+    $strictNames = @($strictRequired | Sort-Object)
+    $derivedNames = @($strictNames)
+    if ($strictNames.Count -ne $derivedNames.Count) {
+        throw "CREDENTIAL_COMPOSE_CONTRACT: compose strict 필수 키 수($($strictNames.Count))와 게이트 도출 키 수($($derivedNames.Count))가 다릅니다. infrastructure/.env.local 및 compose 필수 선언을 확인하십시오."
+    }
+    return [pscustomobject]@{
+        Names = $derivedNames
+        StrictRequiredCount = $strictNames.Count
+        DerivedCount = $derivedNames.Count
+    }
+}
+
+function Assert-RequiredComposeCredentials {
+    param(
+        [Parameter(Mandatory = $true)][string]$EnvPath,
+        [Parameter(Mandatory = $true)][string[]]$ComposeFiles
+    )
+
+    $composeContract = Get-RequiredComposeEnvNames -ComposeFiles $ComposeFiles
+    $requiredNames = @($composeContract.Names)
+    if (-not (Test-Path -LiteralPath $EnvPath -PathType Leaf)) {
+        $names = $requiredNames -join ', '
+        throw "CREDENTIAL_FILE_MISSING: infrastructure/.env.local 파일이 없습니다. compose 필수 키 $($composeContract.StrictRequiredCount)/$($composeContract.DerivedCount)개를 이 파일에 넣어라: $names. 값은 기존 정상 배포 PC의 보호된 환경변수 또는 운영 Secrets Manager에서 확인하십시오."
+    }
+
+    $values = @{}
+    foreach ($line in Get-Content -LiteralPath $EnvPath -Encoding UTF8) {
+        if ($line -match '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$') {
+            $name = $matches[1]
+            $value = $matches[2].Trim()
+            if ($value.StartsWith('"') -and $value.EndsWith('"')) { $value = $value.Substring(1, $value.Length - 2) }
+            if ($value.StartsWith("'") -and $value.EndsWith("'")) { $value = $value.Substring(1, $value.Length - 2) }
+            $values[$name] = $value
+        }
+    }
+
+    $emptyNames = @($requiredNames | Where-Object { -not $values.ContainsKey($_) -or [string]::IsNullOrWhiteSpace([string]$values[$_]) })
+    if ($emptyNames.Count -gt 0) {
+        throw "CREDENTIAL_KEY_EMPTY: 다음 키가 비어 있거나 없습니다: $($emptyNames -join ', '). infrastructure/.env.local 에 해당 키를 넣어라. compose 필수 키 $($composeContract.StrictRequiredCount)/$($composeContract.DerivedCount)개를 확인했다. 값은 기존 정상 배포 PC의 보호된 환경변수 또는 운영 Secrets Manager에서 확인하십시오."
+    }
+    return $values
+}
+
+$credentialValues = Assert-RequiredComposeCredentials -EnvPath $localEnvPath -ComposeFiles $composeFiles
+$composeContract = Get-RequiredComposeEnvNames -ComposeFiles $composeFiles
+Write-Host ('CREDENTIAL_CHECK_PASS: compose 필수 자격 검사 통과 ({0}/{1}) ({2})' -f $composeContract.DerivedCount, $composeContract.StrictRequiredCount, ($composeContract.Names -join ', ')) -ForegroundColor DarkGray
+if ($ValidateOnly) { return }
 
 $composeArgs = @()
 foreach ($f in $composeFiles) { $composeArgs += @('-f', $f) }

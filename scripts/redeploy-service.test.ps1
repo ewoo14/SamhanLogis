@@ -25,6 +25,14 @@ Assert-Contract ($text -match 'Encoding\]::UTF8.GetString') 'actuator response b
 Assert-Contract ($text -match 'Get-ComposeHealthTimeoutSeconds' -and $text -match '475s') 'default health timeout must cover the measured compose failure horizon'
 Assert-Contract ($text -match 'start_period' -and $text -match 'retries' -and $text -match 'interval' -and $text -match 'timeout') 'default health timeout must document all compose healthcheck inputs'
 Assert-Contract ($text -match 'interval[^\r\n]*timeout|timeout[^\r\n]*interval') 'compose health horizon calculation must include probe timeout alongside interval'
+Assert-Contract ($text -match 'Get-RequiredComposeEnvNames') 'redeploy must derive required credentials from compose references'
+Assert-Contract ($text -match '\\\$\\\{\(\?<name>\[A-Za-z_\]') 'compose credential discovery must parse variable names generically'
+Assert-Contract ($text -match 'StrictRequiredCount' -and $text -match 'DerivedCount') 'compose credential discovery must compare strict and derived counts'
+Assert-Contract ($text -notmatch 'SAMHAN_INTERNAL_TOKEN\s*=|SAMHAN_GATEWAY_ATTESTATION\s*=') 'credential names must not be maintained as a script assignment list'
+Assert-Contract ($text -match 'infrastructure/.env.local') 'credential failure guidance must name the local env file'
+Assert-Contract ($text -match 'CREDENTIAL_FILE_MISSING') 'missing credential file must be distinguished from empty keys'
+Assert-Contract ($text -match 'CREDENTIAL_KEY_EMPTY') 'empty credential keys must be reported distinctly'
+Assert-Contract ($text -match 'ValidateOnly') 'credential validation must be independently testable without redeploying'
 
 if ($failures.Count -gt 0) {
     $failures | ForEach-Object { Write-Output "RED_CONTRACT_FAILED: $_" }
