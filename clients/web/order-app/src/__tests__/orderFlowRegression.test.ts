@@ -17,4 +17,16 @@ describe('주문서웹 서버 가격 수렴 회귀', () => {
     expect(orderHtml).toContain('#commBody [data-cunit="${escapedModel}"]')
     expect(orderHtml).toContain('#singleBody [data-ssu="${escapedModel}"]')
   })
+
+  it('실제 503 실패 화면은 품목표와 미리보기 합계를 함께 금액 없음으로 만든다', () => {
+    const errorHandler = orderHtml.match(
+      /function renderPreviewError\(error\) \{([\s\S]*?)\n  \}/,
+    )?.[1] ?? ''
+
+    expect(errorHandler).toContain('clearServerPricesFromCatalogTables()')
+    expect(errorHandler).toContain('window.__SAMHAN_LATEST_SERVER_PRICE_PAYLOAD__ = null')
+    expect(orderHtml).toContain("function clearServerPricesFromCatalogTables()")
+    expect(orderHtml).toContain("cell.textContent = '—'")
+    expect(orderHtml).toContain("setPreviewFoot(null)")
+  })
 })

@@ -3252,12 +3252,13 @@ function updateCommRatio(){
 function setPreviewFoot(sum){
   const tr=el('#pvFoot');
   if(tr){
+    const displaySum = sum == null ? '—' : fmt(sum);
     // 여백조정
     tr.innerHTML=`
       <td class="pc-spacer" colspan="4"></td>
       <td class="mo-spacer" colspan="2"></td>
       <td><strong>합계</strong></td>
-      <td><strong id="pvSubtotal">${fmt(sum)}</strong></td>
+      <td><strong id="pvSubtotal">${displaySum}</strong></td>
     `;
   }
 }
@@ -8275,6 +8276,18 @@ function updateImgSlide() {
     });
   }
 
+  /** 서버 가격을 받지 못한 화면에는 클라이언트 계산 금액을 남기지 않는다. */
+  function clearServerPricesFromCatalogTables() {
+    document.querySelectorAll(
+      '#homeBody [data-unit], #commBody [data-cunit], #singleBody [data-ssu], ' +
+      '#homeBody [data-sub], #commBody [data-csub], #singleBody [data-ss]'
+    ).forEach((cell) => {
+      cell.textContent = '—';
+      cell.removeAttribute('data-unitraw');
+    });
+    setPreviewFoot(null);
+  }
+
   function previewOrderContext() {
     const partnerCode = window.CURRENT_BIZNO || window.AUTH_BIZ ||
       (document.getElementById('bizGateInput')?.value || '').replace(/[^\d]/g, '');
@@ -8350,6 +8363,8 @@ function updateImgSlide() {
   }
 
   function renderPreviewError(error) {
+    window.__SAMHAN_LATEST_SERVER_PRICE_PAYLOAD__ = null;
+    clearServerPricesFromCatalogTables();
     const body = el('#previewBody');
     body.innerHTML = `<tr><td colspan="7" style="padding:20px;text-align:center;color:#b91c1c">`+
       `서버에서 가격을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.</td></tr>`;
