@@ -4,7 +4,7 @@
  * 전제:
  *  - product-service(:8084) 가 실 Postgres 로 기동 중이고, desktop 관리 화면(P0 캡처2)에서
  *    homemulti.defaultPreChange=true 로 PUT 저장이 이미 반영되어 있어야 한다.
- *  - estimate-app 서버(`node server.js`, 기본 :5183)가 CATALOG_SOURCE=db(기본값) 로 기동 중이어야
+ *  - estimate-app 서버(`node server.js`, 기본 :5183)가 product-service DB 원천으로 기동 중이어야
  *    한다(PRODUCT_SERVICE_URL 기본 http://localhost:8084, SAMHAN_INTERNAL_TOKEN 기본
  *    CHANGE_ME_LOCAL_ONLY — .env 미설정 시 placeholder가 사용됨).
  *  - checkUserAuth 접속 게이트 통과를 위해 user-service 에 존재하는 [DEV-SEED] 이메일을
