@@ -90,17 +90,19 @@ const ax = axios.create({ timeout: 15000, validateStatus: () => true });
  *
  * @param {string} url   호출 URL
  * @param {object} [params] query string
- * @param {*} [_unused]  legacy 시그니처 호환용 — 무시
+ * @param {object} [headers]  선택적 upstream 인증/신원 헤더
  */
-async function _msGet(url, params, _unused) {
-  void _unused;
+async function _msGet(url, params, headers) {
   try {
-    const resp = await ax.get(url, { params });
+    const resp = await ax.get(url, { params, ...(headers ? { headers } : {}) });
     if (resp.status >= 200 && resp.status < 300) return resp.data;
     Logger.log(`[ms] GET ${url} → ${resp.status}`);
-    throw new Error(`SamhanLogis MS GET 실패: ${url} (HTTP ${resp.status})`);
+    const detail = resp.data && (resp.data.message || resp.data.error);
+    const error = new Error(detail || `SamhanLogis MS GET 실패: ${url} (HTTP ${resp.status})`);
+    error.statusCode = resp.status;
+    throw error;
   } catch (e) {
-    if (e && e.message && e.message.startsWith('SamhanLogis MS GET 실패')) throw e;
+    if (e && Number.isInteger(e.statusCode)) throw e;
     Logger.log(`[ms] GET ${url} error: ${e.message}`);
     throw new Error(`SamhanLogis MS GET 실패: ${url} (${e.message})`);
   }
@@ -2389,15 +2391,30 @@ async function saveOrderToNotion(_info, _items, _slipNo) {
 
 /**
  * legacy getNotionHistory(startDate, endDate) (line 2308) — 출고 이력.
- * SamhanLogis: GET /api/v1/partner-orders?startDate=&endDate=
+ * SamhanLogis: 발송내역 전용 GET /api/v1/partner-orders/history. 삭제행을 포함하는
+ * 예외는 이 조회 경로에서만 사용한다.
  */
-async function getNotionHistory(startDate, endDate) {
-  const email = Session.getActiveUser().getEmail();
+async function getNotionHistory(startDate, endDate, _dateField, bizCode, options) {
+  const historyBizCode = String(bizCode || '').trim();
+  if (!historyBizCode) return [];
+  // RPC 는 이름 있는 옵션으로 전달한다. 기존 직접 호출의 headers 객체도 호환한다.
+  const identityHeaders = options && options.identityHeaders
+    ? options.identityHeaders
+    : options;
   const data = await _msGet(
-    `${BASE_URL}/api/v1/partner-orders`,
-    { startDate, endDate, userEmail: email },
+    `${BASE_URL}/api/v1/partner-orders/history`,
+    { bizCode: historyBizCode, from: `${startDate}T00:00:00`, to: `${endDate}T23:59:59` },
+    identityHeaders,
   );
-  return Array.isArray(data) ? data : data?.items || [];
+  const rows = Array.isArray(data)
+    ? data
+    : data?.content || data?.items || data?.data?.content || data?.data?.items || [];
+  return rows.map((row) => ({
+    ...row,
+    date: row.date || row.outDate || '',
+    slipNo: row.slipNo || row.orderNo || '',
+    custName: row.custName || row.partnerName || '',
+  }));
 }
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -2691,6 +2708,8 @@ async function checkUserAuth(email) {
         authorized: true,
         managerName: u.fullName || '',
         managerCode: u.loginId || '',
+        bizNo: u.bizNo || u.businessNumber || '',
+        partnerCode: u.partnerCode || '',
         ecountId: '',
         ecountApi: '',
       };
