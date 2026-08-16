@@ -51,6 +51,10 @@ samhan:
     url: ${SAMHAN_AUTH_SERVICE_URL:http://localhost:8081}
 
 app:
+  qa:
+    partner:
+      # dev/local 프로파일에서만 QA 거래처 마스터 시더를 켠다. 운영 기본값은 false.
+      seed: ${SAMHAN_QA_PARTNER_SEED:false}
   security:
     internal:
       # Phase 8 2차 — SAMHAN_INTERNAL_TOKEN 표준, INTERNAL_AUTH_TOKEN legacy fallback (Phase 10 cutover 시점 단일화).

@@ -473,6 +473,8 @@ services:
       <<: *spring-env
       SERVER_PORT: "8091"
       DB_NAME: partner_auth_db
+      SAMHAN_QA_PARTNER_SEED: "${SAMHAN_QA_PARTNER_SEED:-false}"
+      QA_PARTNER_ORDER_PASSWORD: "${QA_PARTNER_ORDER_PASSWORD:-}"
       # 게이트웨이/auth-service 와 동일 시크릿 필수 — 누락 시 파트너 JWT 가 yml fallback 으로
       # 서명되어 게이트웨이 검증 401(파트너 셀프서비스 E2E 불가 — #757 파트너 QA 에서 실측).
       SAMHAN_JWT_SECRET: "${SAMHAN_JWT_SECRET:?SAMHAN_JWT_SECRET_required}"
@@ -613,6 +615,7 @@ services:
       SAMHAN_PARTNER_DB_USER: samhan
       SAMHAN_PARTNER_DB_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD_required}"
       SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
+      SAMHAN_QA_PARTNER_SEED: "${SAMHAN_QA_PARTNER_SEED:-false}"
       # dev 시드 toggle — accounting/arologis 와 일관. PartnerSeeder(@Profile dev + app.partner.seed-test-data)
       # 가 P-2026-NNNN 거래처를 결정적 UUID(samhan-seed:partner:..)로 native INSERT → accounting/slip 의
       # deterministic partner_id 와 cross-service join 정합(거래처 미수/미지급 보고서 실 거래처 표시).

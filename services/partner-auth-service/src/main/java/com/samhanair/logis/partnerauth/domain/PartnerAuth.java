@@ -125,7 +125,13 @@ public class PartnerAuth extends BaseEntity {
     /** legacy 마이그용 — 이미 비밀번호가 있는 row 시드. */
     public static PartnerAuth seedFromLegacy(
             String bizNo, String partnerCode, String passwordHash, PartnerStatus status) {
-        PartnerAuth pa = new PartnerAuth(bizNo, partnerCode, status, null);
+        return seedFromLegacy(bizNo, partnerCode, passwordHash, status, null);
+    }
+
+    /** 운영 데이터와 구분해야 하는 재현용 시드의 등록 메모리를 함께 저장한다. */
+    public static PartnerAuth seedFromLegacy(
+            String bizNo, String partnerCode, String passwordHash, PartnerStatus status, String registerMemo) {
+        PartnerAuth pa = new PartnerAuth(bizNo, partnerCode, status, registerMemo);
         pa.passwordHash = passwordHash;
         pa.passwordChangedAt = LocalDateTime.now();
         return pa;
