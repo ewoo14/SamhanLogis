@@ -4,8 +4,6 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.InternalAuthProperties;
 import java.math.BigDecimal;
-import java.nio.ByteBuffer;
-import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -13,6 +11,7 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
@@ -37,9 +36,16 @@ public class ProductClient {
     private final RestClient restClient;
     private final InternalAuthProperties internalAuthProperties;
 
+    @Autowired
     public ProductClient(@Qualifier("loadBalancedRestClientBuilder") RestClient.Builder builder,
                          InternalAuthProperties internalAuthProperties) {
         this.restClient = builder.baseUrl(PRODUCT_SERVICE_BASE).build();
+        this.internalAuthProperties = internalAuthProperties;
+    }
+
+    ProductClient(RestClient.Builder builder, InternalAuthProperties internalAuthProperties,
+                  String productServiceBaseUrl) {
+        this.restClient = builder.baseUrl(productServiceBaseUrl).build();
         this.internalAuthProperties = internalAuthProperties;
     }
 
@@ -128,7 +134,7 @@ public class ProductClient {
             Map<UUID, BigDecimal> result = new HashMap<>();
             for (Map.Entry<?, ?> entry : rawMap.entrySet()) {
                 try {
-                    UUID productId = UUID.fromString(String.valueOf(entry.getKey()));
+                    UUID productId = OpaqueUuidDecoder.decode(String.valueOf(entry.getKey()));
                     if (!(entry.getValue() instanceof Map<?, ?> value)) {
                         continue;
                     }
@@ -202,16 +208,50 @@ public class ProductClient {
         }
     }
 
+    /** 주문서웹 confirm 전용 품목분류 조회. */
+    public List<ProductClassification> lookupClassificationsByModelCodes(List<String> modelCodes) {
+        Map<String, Object> body = Map.of("modelCodes", modelCodes);
+        try {
+            Map<String, Object> envelope = restClient.post()
+                    .uri("/products/internal/lookup-classifications-by-model-codes")
+                    .header(INTERNAL_TOKEN_HEADER, requireToken())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .retrieve()
+                    .onStatus(HttpStatusCode::isError, (req, res) -> {
+                        throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                                "품목분류 조회 실패: " + res.getStatusCode());
+                    })
+                    .body(new ParameterizedTypeReference<>() {});
+            Object data = envelope == null ? null : envelope.get("data");
+            if (!(data instanceof List<?> rawList)) {
+                throw new BusinessException(ErrorCode.INTERNAL_ERROR, "품목분류 응답 포맷 오류");
+            }
+            return rawList.stream().map(item -> {
+                @SuppressWarnings("unchecked") Map<String, Object> m = (Map<String, Object>) item;
+                return new ProductClassification((String) m.get("modelCode"),
+                        (String) m.get("productCategory"), (String) m.get("classificationL"),
+                        (String) m.get("classificationM"),
+                        Boolean.TRUE.equals(m.get("classificationAssigned")));
+            }).toList();
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (RuntimeException ex) {
+            log.error("ProductClient classification lookup failed: {}", ex.getMessage());
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "품목분류 조회 실패", ex);
+        }
+    }
+
     private ProductSummary toProductSummary(Object item) {
         @SuppressWarnings("unchecked")
         Map<String, Object> m = (Map<String, Object>) item;
         return new ProductSummary(
-                decodeOpaqueUuid((String) m.get("id")),
+                OpaqueUuidDecoder.decode((String) m.get("id")),
                 (String) m.get("name"),
                 (String) m.get("modelName"),
                 m.get("categoryId") == null
                         ? null
-                        : decodeOpaqueUuid((String) m.get("categoryId")),
+                        : OpaqueUuidDecoder.decode((String) m.get("categoryId")),
                 m.get("sellingPrice") == null
                         ? null
                         : new java.math.BigDecimal(m.get("sellingPrice").toString()),
@@ -233,26 +273,9 @@ public class ProductClient {
                 m.get("hasVariableDiscount") == null
                         ? null
                         : Boolean.valueOf(m.get("hasVariableDiscount").toString()),
-                 (String) m.get("physicalCategoryCode"),
-                 (String) m.get("discountOption"),
-                 Boolean.TRUE.equals(m.get("classificationAssigned")));
-    }
-
-    /** product-service OpaqueUuidSerializer 발급값과 레거시 UUID 응답을 함께 수용한다. */
-    private UUID decodeOpaqueUuid(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        try {
-            return UUID.fromString(value);
-        } catch (IllegalArgumentException ignored) {
-            byte[] bytes = Base64.getUrlDecoder().decode(value);
-            if (bytes.length != 16) {
-                throw new IllegalArgumentException("product-service opaque UUID 길이가 올바르지 않습니다");
-            }
-            ByteBuffer buffer = ByteBuffer.wrap(bytes);
-            return new UUID(buffer.getLong(), buffer.getLong());
-        }
+                  (String) m.get("physicalCategoryCode"),
+                  (String) m.get("discountOption"),
+                  Boolean.TRUE.equals(m.get("classificationAssigned")));
     }
 
     private String requireToken() {

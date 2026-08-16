@@ -2,6 +2,8 @@ package com.samhanair.logis.slip.client;
 
 import java.math.BigDecimal;
 import java.util.UUID;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.samhanair.logis.slip.web.dto.OpaqueUuidDeserializer;
 
 /**
  * product-service 가 반환하는 제품 요약. slip-service 가 product 도메인을 직접 import 하지
@@ -11,11 +13,11 @@ import java.util.UUID;
  * 분기한다. product-service 의 {@code ProductSummaryResponse.serialManaged} 와 wire-format 을 맞춘다.
  */
 public record ProductSummary(
-        UUID id,
+        @JsonDeserialize(using = OpaqueUuidDeserializer.class) UUID id,
         String name,
         String modelName,
         String productCode,
-        UUID categoryId,
+        @JsonDeserialize(using = OpaqueUuidDeserializer.class) UUID categoryId,
         BigDecimal sellingPrice,
         String status,
         boolean serialManaged,

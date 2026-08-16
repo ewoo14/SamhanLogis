@@ -55,6 +55,18 @@ class AuthAccountLookupClientTest {
     }
 
     @Test
+    void acceptsOpaqueEnvelopeAccountId() {
+        server.expect(once(), requestTo(ENDPOINT))
+                .andRespond(withSuccess("""
+                        {"success":true,"data":{"accountId":"AAAAAAAAAAAAAAAAAAAAAA"}}
+                        """, MediaType.APPLICATION_JSON));
+
+        assertThat(client.findAccountIdByLoginId("partner-manager"))
+                .contains(UUID.fromString("00000000-0000-0000-0000-000000000000"));
+        server.verify();
+    }
+
+    @Test
     void returnsEmptyOnNotFoundAndServerError() {
         server.expect(once(), requestTo(ENDPOINT))
                 .andExpect(method(HttpMethod.GET))

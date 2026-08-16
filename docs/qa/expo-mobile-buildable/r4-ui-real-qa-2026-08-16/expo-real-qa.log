@@ -1,0 +1,12 @@
+  --non-interactive is not supported, use $CI=1 instead
+Starting project at C:\dev\Samhan-Public\.claude\worktrees\w1235\clients\mobile-staff
+Metro is running in CI mode, reloads are disabled. Remove CI=true to enable watch mode.
+Starting Metro Bundler
+warning: Bundler cache is empty, rebuilding (this may take a minute)
+Waiting on http://localhost:28101
+Logs for your project will appear below.
+Web node_modules\expo\AppEntry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web node_modules\expo\AppEntry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 99.5% (414/415)
+Web node_modules\expo\AppEntry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 4133ms node_modules\expo\AppEntry.js (415 modules)
+Web Bundled 3259ms node_modules\expo\AppEntry.js (1 module)

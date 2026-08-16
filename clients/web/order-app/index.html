@@ -3252,12 +3252,13 @@ function updateCommRatio(){
 function setPreviewFoot(sum){
   const tr=el('#pvFoot');
   if(tr){
+    const displaySum = sum == null ? '—' : fmt(sum);
     // 여백조정
     tr.innerHTML=`
       <td class="pc-spacer" colspan="4"></td>
       <td class="mo-spacer" colspan="2"></td>
       <td><strong>합계</strong></td>
-      <td><strong id="pvSubtotal">${fmt(sum)}</strong></td>
+      <td><strong id="pvSubtotal">${displaySum}</strong></td>
     `;
   }
 }
@@ -6822,8 +6823,14 @@ function initEvents(){
   el('#btnSendOrder').addEventListener('click',()=>{
     sendLog('주문전송', '최종 주문 확인창(Final) 열기');
     const itemsRaw = buildSendRows();
+    const serverPricePayload = window.__SAMHAN_LATEST_SERVER_PRICE_PAYLOAD__;
+    if (!serverPricePayload || typeof window.__SAMHAN_PRICE_AUTHORITY__ !== 'function') {
+      console.warn('[order-app] 서버 가격 미리보기 없이 최종 확인창을 열 수 없습니다');
+      return;
+    }
+    const authoritativeItems = window.__SAMHAN_PRICE_AUTHORITY__(itemsRaw, serverPricePayload);
     // 모델명+납품가 기준으로 병합
-    const items = aggregateSendRows(itemsRaw);
+    const items = aggregateSendRows(authoritativeItems);
 
     const addrShip = (el('#addrBase').value.trim() + ' ' + el('#addrDetail').value.trim()).trim();
     const addrAuditRaw = (el('#addrAuditBase')?.value.trim() + ' ' + el('#addrAuditDetail')?.value.trim()).trim();
@@ -8163,6 +8170,7 @@ function updateImgSlide() {
 (function() {
   /* 원본 전송행 생성만 보존 — 40% 판정은 이 파일에서 하지 않는다. */
   const originBuildSendRows = window.buildSendRows;
+  window.__SAMHAN_LATEST_SERVER_PRICE_PAYLOAD__ = null;
 
   /* 보너스율계산 */
   function getTierBonusRate(sum) {
@@ -8251,6 +8259,42 @@ function updateImgSlide() {
   let previewDebounceTimer = null;
   let previewQueued = null;
 
+  function applyServerPricesToCatalogTables(items, lines) {
+    lines.forEach((line, index) => {
+      const item = items[index] || {};
+      const model = String(line?.modelCode || item.model || '').trim();
+      const price = Number(line?.finalPrice);
+      const quantity = Number(line?.quantity) || Number(item.qty) || 0;
+      if (!model || !Number.isFinite(price) || price < 0) return;
+
+      const escapedModel = CSS.escape(model);
+      const priceCells = [
+        ...document.querySelectorAll(`#homeBody [data-unit="${escapedModel}"], #commBody [data-cunit="${escapedModel}"], #singleBody [data-ssu="${escapedModel}"]`),
+      ];
+      priceCells.forEach((cell) => {
+        cell.textContent = fmt(price);
+        cell.setAttribute('data-unitraw', String(price));
+      });
+
+      const subtotalCells = [
+        ...document.querySelectorAll(`#homeBody [data-sub="${escapedModel}"], #commBody [data-csub="${escapedModel}"], #singleBody [data-ss="${escapedModel}"]`),
+      ];
+      subtotalCells.forEach((cell) => { cell.textContent = fmt(price * quantity); });
+    });
+  }
+
+  /** 서버 가격을 받지 못한 화면에는 클라이언트 계산 금액을 남기지 않는다. */
+  function clearServerPricesFromCatalogTables() {
+    document.querySelectorAll(
+      '#homeBody [data-unit], #commBody [data-cunit], #singleBody [data-ssu], ' +
+      '#homeBody [data-sub], #commBody [data-csub], #singleBody [data-ss]'
+    ).forEach((cell) => {
+      cell.textContent = '—';
+      cell.removeAttribute('data-unitraw');
+    });
+    setPreviewFoot(null);
+  }
+
   function previewOrderContext() {
     const partnerCode = window.CURRENT_BIZNO || window.AUTH_BIZ ||
       (document.getElementById('bizGateInput')?.value || '').replace(/[^\d]/g, '');
@@ -8287,6 +8331,9 @@ function updateImgSlide() {
     if (lines.length !== items.length) {
       throw new Error('가격 미리보기 라인 수가 주문 입력과 다릅니다');
     }
+    // 최종 확인창과 전송도 이 동일한 서버 응답을 가격 원천으로 사용한다.
+    window.__SAMHAN_LATEST_SERVER_PRICE_PAYLOAD__ = data;
+    applyServerPricesToCatalogTables(items, lines);
     const body = el('#previewBody');
     body.innerHTML = '';
     const thead = document.querySelector('#dlgPreview thead tr');
@@ -8323,6 +8370,8 @@ function updateImgSlide() {
   }
 
   function renderPreviewError(error) {
+    window.__SAMHAN_LATEST_SERVER_PRICE_PAYLOAD__ = null;
+    clearServerPricesFromCatalogTables();
     const body = el('#previewBody');
     body.innerHTML = `<tr><td colspan="7" style="padding:20px;text-align:center;color:#b91c1c">`+
       `서버에서 가격을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.</td></tr>`;
@@ -8334,6 +8383,7 @@ function updateImgSlide() {
   /* 미리보기는 250ms 디바운스 + 최신 요청만 반영한다. 실패 시 자체 계산하지 않는다. */
   window.openPreview = function() {
     const sequence = ++previewSequence;
+    window.__SAMHAN_LATEST_SERVER_PRICE_PAYLOAD__ = null;
     const body = el('#previewBody');
     body.innerHTML = '<tr><td colspan="7" style="padding:20px;text-align:center">서버 가격을 확인하는 중...</td></tr>';
     el('#btnProceed').disabled = true;

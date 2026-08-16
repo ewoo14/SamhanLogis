@@ -55,7 +55,7 @@ class BundleExpanderR13Test {
                 component("AC-PANEL", BundleComponent.ComponentKind.PANEL),
                 component("AC-REMOTE", BundleComponent.ComponentKind.REMOTE));
         when(components.findByBundleProductId(parentId)).thenReturn(bundleComponents);
-        List<Product> componentProducts = List.of(part("AC-IN", "925050"), part("AC-OUT", "616975"),
+        List<Product> componentProducts = List.of(part("AC-IN", "616975"), part("AC-OUT", "925050"),
                 part("AC-PANEL", "104060"), part("AC-REMOTE", "13915"));
         when(products.findByModelCodeInAndIsDeletedFalse(org.mockito.ArgumentMatchers.anySet()))
                 .thenReturn(componentProducts);

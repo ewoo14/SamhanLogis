@@ -1,0 +1,57 @@
+{
+  "head": "c5af40469e34425d2c0faa829a5bd8e0c75f302f",
+  "appUrl": "http://127.0.0.1:28101/#/",
+  "chromiumExecutable": "C:\\Users\\user\\AppData\\Local\\ms-playwright\\chromium_headless_shell-1217\\chrome-headless-shell-win64\\chrome-headless-shell.exe",
+  "observations": [
+    {
+      "screen": "견적",
+      "reachAssertion": "exact text visible: \"신규 견적 — 거래처 선택\"",
+      "requestUrl": "http://127.0.0.1:28100/api/v1/partners/quick-search?q=%EC%82%BC%ED%95%9C&size=20",
+      "httpStatus": 200,
+      "backendCount": 3,
+      "uiRowCount": 3,
+      "screenshotPath": "C:\\dev\\Samhan-Public\\.claude\\worktrees\\w1235\\docs\\qa\\expo-mobile-buildable\\r4-ui-real-qa-2026-08-16\\screenshots\\01-quotation-partner-search-real-qa.png"
+    },
+    {
+      "screen": "주문",
+      "reachAssertion": "exact text visible: \"신규 주문 — 거래처 선택\"",
+      "requestUrl": "http://127.0.0.1:28100/api/v1/partners/quick-search?q=%EC%82%BC%ED%95%9C&size=20",
+      "httpStatus": 200,
+      "backendCount": 3,
+      "uiRowCount": 3,
+      "screenshotPath": "C:\\dev\\Samhan-Public\\.claude\\worktrees\\w1235\\docs\\qa\\expo-mobile-buildable\\r4-ui-real-qa-2026-08-16\\screenshots\\02-order-partner-search-real-qa.png"
+    },
+    {
+      "screen": "거래처",
+      "reachAssertion": "active tab background differs: customer=rgb(219, 234, 254), quotation=rgba(0, 0, 0, 0)",
+      "requestUrl": "http://127.0.0.1:28100/api/v1/partners/quick-search?q=%EC%82%BC%ED%95%9C&size=20",
+      "httpStatus": 200,
+      "backendCount": 3,
+      "uiRowCount": 3,
+      "screenshotPath": "C:\\dev\\Samhan-Public\\.claude\\worktrees\\w1235\\docs\\qa\\expo-mobile-buildable\\r4-ui-real-qa-2026-08-16\\screenshots\\03-customer-partner-search-real-qa.png"
+    }
+  ],
+  "httpObservations": [
+    {
+      "method": "GET",
+      "path": "/api/v1/partners/quick-search?q=%EC%82%BC%ED%95%9C&size=20",
+      "status": 200,
+      "count": 3,
+      "target": "PR_HEAD_PARTNER"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/partners/quick-search?q=%EC%82%BC%ED%95%9C&size=20",
+      "status": 200,
+      "count": 3,
+      "target": "PR_HEAD_PARTNER"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/partners/quick-search?q=%EC%82%BC%ED%95%9C&size=20",
+      "status": 200,
+      "count": 3,
+      "target": "PR_HEAD_PARTNER"
+    }
+  ]
+}

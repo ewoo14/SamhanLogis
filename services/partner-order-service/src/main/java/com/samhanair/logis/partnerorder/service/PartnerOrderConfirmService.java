@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.partnerorder.client.DcConfigClient;
 import com.samhanair.logis.partnerorder.client.ProductClient;
+import com.samhanair.logis.partnerorder.client.ProductClassification;
 import com.samhanair.logis.partnerorder.client.ProductSummary;
 import com.samhanair.logis.partnerorder.client.NotificationClient;
 import com.samhanair.logis.partnerorder.domain.HistoryEventType;
@@ -27,6 +28,9 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.HashMap;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -62,9 +66,14 @@ public class PartnerOrderConfirmService {
 
     private static final Logger log = LoggerFactory.getLogger(PartnerOrderConfirmService.class);
     private static final DateTimeFormatter ORDER_NO_DATE = DateTimeFormatter.ofPattern("yyyy/MM/dd");
-    /** legacy 동작 — 향후 슬라이스에서 partner-warehouse 분기. */
-    private static final UUID DEFAULT_WAREHOUSE_ID =
-            UUID.fromString("00000000-0000-0000-0000-000000000001");
+    private static final Set<String> LEGACY_CLASSIFICATION_DIFF_MODELS = Set.of(
+            "AR-CH01", "AC060CXAPBH1", "AC072CXAPBH1", "AC090CXAPBH1", "AC100CXAPBH1",
+            "AC100CXAPHH1", "AC110CXAPBH1", "AC110CXAPHH1", "AC130CXAPBH1", "AC130CXAPHH1",
+            "AC145CXAPHH1", "AC145BXADHH1", "AR06A9170HNQ", "AR06B9150HNQ", "AR06D9151HNQ",
+            "AR60F06D1A0Q", "AR60F06D1A1Q", "AR70H06D1A1Q", "AR80F06D2A1Q", "AR80H06D2A1Q",
+            "ARR-NK3F", "ARR-PK8F", "ARR-WK8F", "FRC-1438XAF2", "FRH-1412NA3", "FRH-1412XA3",
+            "FRH-1438NH3", "AC060CS6PBH1SY", "AC110BXAPBH3", "AC110BXAPHH3", "AC145BXAPHH5",
+            "AP083BXPPBH3");
 
     private final PartnerOrderRepository orderRepository;
     private final PartnerOrderDraftRepository draftRepository;
@@ -154,6 +163,15 @@ public class PartnerOrderConfirmService {
                     ErrorCode.PRICE_CALCULATION_UNAVAILABLE.getDefaultMessage());
         }
 
+        OrderWarehouseByClassification.Decision warehouseDecision =
+                decideWarehouseAtConfirm(calculation.lines());
+        String warehouseCode = warehouseDecision.warehouseCode();
+        if (!warehouseDecision.legacyExceptions().isEmpty()) {
+            warehouseDecision.legacyExceptions().forEach(exception ->
+                    log.warn("order-warehouse temporary legacy exception: modelCode={}, warehouseCode={}, reason={}",
+                            exception.modelCode(), exception.warehouseCode(), exception.reason()));
+        }
+
         // 4) inventory reserve 제거 (Phase 2.6c — 주문 무영향 원칙)
         // confirm 단계에서는 재고 예약을 하지 않는다. 재고 예약은 "출고전표로 전환(convert)" 시점에만 발생.
 
@@ -194,7 +212,12 @@ public class PartnerOrderConfirmService {
         order = orderRepository.save(order);
         historyRepository.save(PartnerOrderHistory.ofOrder(
                 order.getId(), partnerCode, HistoryEventType.CONFIRMED,
-                actorUserId, "{\"orderNo\":\"" + orderNo + "\"}"));
+                actorUserId, "{\"orderNo\":\"" + orderNo + "\",\"warehouseCode\":\""
+                        + warehouseCode + "\",\"unclassifiedCount\":"
+                        + warehouseDecision.unclassifiedCount() + ",\"unclassifiedModels\":"
+                        + jsonArray(warehouseDecision.unclassifiedModels()) + ",\"legacyExceptionModels\":"
+                        + jsonArray(warehouseDecision.legacyExceptions().stream()
+                        .map(LegacyWarehouseExceptions.Exception::modelCode).toList()) + "}"));
 
         // 6) slip 발행 없음 — 슬라이스 D1 confirm 자동발행 폐지 (D-CF-02).
         // 출고전표는 본사 데스크톱의 명시적 convert 액션(PartnerOrderConvertService)으로만 발행.
@@ -211,6 +234,43 @@ public class PartnerOrderConfirmService {
         publishListChanged();
 
         return ConfirmResponse.from(order);
+    }
+
+    /** 주문서웹 confirm에서만 품목분류를 조회하고 창고를 결정한다. */
+    private OrderWarehouseByClassification.Decision decideWarehouseAtConfirm(
+            List<PartnerOrderPriceCalculationService.Line> lines) {
+        List<String> modelCodes = lines.stream().map(line -> modelCodeSnapshot(line.product())).toList();
+        Map<String, ProductClassification> byModelCode = new HashMap<>();
+        for (ProductClassification classification : productClient.lookupClassificationsByModelCodes(modelCodes)) {
+            byModelCode.put(classification.modelCode(), classification);
+        }
+
+        List<OrderWarehouseByClassification.Item> items = lines.stream().map(line -> {
+            String modelCode = modelCodeSnapshot(line.product());
+            ProductClassification classification = byModelCode.get(modelCode);
+            if (classification == null) {
+                return new OrderWarehouseByClassification.Item(modelCode, null, null, null, false);
+            }
+            if (LEGACY_CLASSIFICATION_DIFF_MODELS.contains(modelCode)) {
+                log.info("order-warehouse classification diff candidate: modelCode={}, productCategory={}, catL={}, catM={}",
+                        modelCode, classification.productCategory(), classification.classificationL(),
+                        classification.classificationM());
+            }
+            return new OrderWarehouseByClassification.Item(modelCode, classification.productCategory(),
+                    classification.classificationL(), classification.classificationM(),
+                    classification.classificationAssigned());
+        }).toList();
+        OrderWarehouseByClassification.Decision decision = new OrderWarehouseByClassification().decide(items);
+        if (decision.unclassifiedCount() > 0) {
+            log.warn("order-warehouse classification warning: unclassifiedCount={}, modelCodes={}",
+                    decision.unclassifiedCount(), decision.unclassifiedModels());
+        }
+        return decision;
+    }
+
+    private String jsonArray(List<String> values) {
+        return values.stream().map(value -> "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\"")
+                .collect(java.util.stream.Collectors.joining(",", "[", "]"));
     }
 
     private PartnerOrderPriceCalculationService effectivePriceCalculationService() {

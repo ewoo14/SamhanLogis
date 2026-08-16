@@ -164,6 +164,18 @@ class InventoryClientTest {
     }
 
     @Test
+    void resolveWarehouseIdByCode_acceptsOpaqueWarehouseId() {
+        server.expect(requestTo("http://inventory-service/internal/inventory/warehouses/by-code?code=MAIN"))
+                .andRespond(withSuccess("""
+                        {"success":true,"data":{"warehouseId":"AAAAAAAAAAAAAAAAAAAAAA"}}
+                        """, MediaType.APPLICATION_JSON));
+
+        assertThat(client.resolveWarehouseIdByCode("MAIN"))
+                .isEqualTo(UUID.fromString("00000000-0000-0000-0000-000000000000"));
+        server.verify();
+    }
+
+    @Test
     void resolveWarehouseIdByCode_404는_NOT_FOUND() {
         server.expect(requestTo("http://inventory-service/internal/inventory/warehouses/by-code?code=UNKNOWN"))
                 .andExpect(method(HttpMethod.GET))
