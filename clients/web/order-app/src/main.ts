@@ -28,6 +28,7 @@ import {
   type QuantitySyncRule,
 } from './quantitySync'
 import { mountOrderVersionGate } from './version/versionGate'
+import { applyServerPrices } from './serverPriceAuthority'
 
 const CURRENT_VERSION = import.meta.env.VITE_APP_VERSION || '0.1.0-dev'
 const VERSION_API_BASE_URL = import.meta.env.VITE_VERSION_API_BASE_URL || 'http://localhost:8080'
@@ -40,12 +41,15 @@ type SingleQuantitySyncState = {
 
 declare global {
   interface Window {
+    __SAMHAN_PRICE_AUTHORITY__: typeof applyServerPrices
     __SAMHAN_QUANTITY_SYNC__?: {
       getQuantitySyncRules: (catalog: SingleCatalogRow[]) => Promise<SingleQuantitySyncState>
       getState: () => SingleQuantitySyncState
     }
   }
 }
+
+window.__SAMHAN_PRICE_AUTHORITY__ = applyServerPrices
 
 let singleQuantitySyncState: SingleQuantitySyncState = {
   status: 'idle',

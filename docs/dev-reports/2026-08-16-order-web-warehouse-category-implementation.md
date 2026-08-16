@@ -176,3 +176,74 @@ BUILD SUCCESSFUL in 26s
 ```
 
 실제 분류값 검증 fixture는 `AC060CXAPBH1 / SINGLE_SET / 냉난방 스탠드 > 프레스티지`(분류 비적중이지만 레거시 상일 예외), `AC060CS6PBH1SY / SINGLE_SET / 360 > CST UV`(분류 상일이지만 레거시 초월 예외)이며, 예외가 아닌 실제 상품 `AF17B6474GZRS / SINGLE_SET / 가정용 에어컨 > 24년형`은 분류 기준대로 상일을 유지한다.
+
+## 2026-08-16 opaque 식별자 계약 회귀 수정
+
+### 원인 귀속
+
+`origin/main`과 현재 HEAD의 공통 product-service 응답은 `ProductSummaryResponse.id`와 `categoryId`에 `OpaqueUuidSerializer`를 적용한다. 반면 `origin/main`과 현재 partner-order `ProductClient.toProductSummary()`는 두 필드를 `UUID.fromString()`으로 읽는다. 따라서 이번 32개 창고 예외 변경이 만든 문제는 아니며, 기존 공통 `/products/internal/lookup-by-model-codes` 계약의 producer/consumer 불일치다.
+
+읽기 전용 호출자 전수 조사 결과 해당 endpoint의 운영 consumer는 `partner-order-service`와 `slip-service` **2곳**이다. partner-order 내부 호출 지점은 가격 계산·상세 조회·수정의 3곳이며, slip-service는 동일 client 메서드 계약을 보유한다.
+
+### 수정 정책
+
+product-service 응답을 UUID 원문으로 바꾸지 않았다. 두 consumer가 기존 UUID 문자열과 opaque token을 모두 내부 UUID로 복원한다. 외부 응답에는 opaque token만 남고, 가격 방어선인 상품 마스터 미등록 모델의 `NOT_FOUND` 동작도 변경하지 않았다.
+
+### RED 원문 — 실제 HTTP 경계
+
+```text
+./gradlew --no-daemon :services:partner-order-service:test --tests '*ProductClientTest.lookupByModelCodes_실제Http의OpaqueId를_ProductSummary로복원한다'
+
+ProductClientTest > lookupByModelCodes_실제Http의OpaqueId를_ProductSummary로복원한다() FAILED
+    BusinessException at ProductClientTest.java:177
+        Caused by: IllegalArgumentException at ProductClientTest.java:177
+BUILD FAILED
+```
+
+### GREEN 원문
+
+```text
+./gradlew --no-daemon :services:partner-order-service:test --tests '*ProductClientTest' --tests '*PartnerOrderPriceCalculationServiceTest'
+BUILD SUCCESSFUL in 30s
+
+./gradlew --no-daemon :services:slip-service:test --tests '*ProductClientLookupByModelCodesTest'
+BUILD SUCCESSFUL in 23s
+
+./gradlew --no-daemon :services:product-service:test --tests '*ProductInternalControllerIT'
+BUILD SUCCESSFUL in 54s
+```
+
+## 2026-08-16 ProductClient 생성자 회귀 수정
+
+opaque 복원용 테스트 base-url 생성자를 추가하면서 `ProductClient`에 생성자가 2개가 되었고, 운영 생성자에 명시적 자동 주입 표기가 없어 Spring이 기본 생성자(`ProductClient.<init>()`)를 찾다가 실패했다. opaque 복원 로직이나 product-service 응답 계약의 문제는 아니었다.
+
+### RED 원문
+
+```text
+TaskSchedulerIsolationIT > 기본_scheduler와_outbox_scheduler는_서로_다른_풀이고_pool_크기는_5와_1이다() FAILED
+Caused by: BeanCreationException: Error creating bean with name 'productClient'
+Caused by: BeanInstantiationException: Failed to instantiate ProductClient: No default constructor found
+Caused by: java.lang.NoSuchMethodException:
+com.samhanair.logis.partnerorder.client.ProductClient.<init>()
+```
+
+### 수정
+
+기존 운영 생성자 시그니처는 유지하고 `@Autowired`만 명시했다. 테스트용 overload는 그대로 두어 실제 HTTP opaque 경계 테스트를 유지했다. partner-order 내 명시적 `new ProductClient`는 테스트 2곳이며, production/config에는 직접 생성이 없고 Spring component bean 1개가 운영 생성자를 사용한다.
+
+### GREEN 원문
+
+```text
+./gradlew --no-daemon :services:partner-order-service:test \
+  --tests '*TaskSchedulerIsolationIT' \
+  --tests '*TaskSchedulerLocalProfileIT' \
+  --tests '*TaskSchedulerPoolSizeIT'
+
+BUILD SUCCESSFUL in 58s
+
+./gradlew --no-daemon :services:partner-order-service:test \
+  --tests '*ProductClientTest' \
+  --tests '*PartnerOrderPriceCalculationServiceTest'
+
+BUILD SUCCESSFUL in 14s
+```
