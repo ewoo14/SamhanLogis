@@ -102,6 +102,22 @@ class PartnerOrderHistoryServiceTest {
                 any(), any(), any(), any());
     }
 
+    @Test
+    void historyResponse_exposesTheFieldsConsumedByBothHistoryScreens() {
+        PartnerOrder order = order("2026/08/16-4", true, BigDecimal.TEN);
+        when(order.getDeliveryAddress()).thenReturn("서울시 중구");
+        when(order.getMemo()).thenReturn("배송 메모");
+        when(order.getCreatedAt()).thenReturn(LocalDateTime.of(2026, 8, 15, 9, 0));
+
+        HistoryResponse response = HistoryResponse.from(order);
+
+        assertThat(response.outDate()).isEqualTo(order.getConfirmedAt());
+        assertThat(response.orderDate()).isEqualTo(order.getCreatedAt());
+        assertThat(response.addr()).isEqualTo("서울시 중구");
+        assertThat(response.note()).isEqualTo("배송 메모");
+        assertThat(response.isDeleted()).isTrue();
+    }
+
     private PartnerOrder order(String orderNo, boolean deleted, BigDecimal amount) {
         PartnerOrder order = mock(PartnerOrder.class);
         when(order.getOrderNo()).thenReturn(orderNo);

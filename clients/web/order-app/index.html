@@ -9013,13 +9013,14 @@ function renderHistory(data) {
     const orderDateStr = row.orderDate ? row.orderDate.slice(0, 16).replace('T', ' ') : '-';
     
     const deleted = row.isDeleted === true;
+    const deletedNote = [row.orderNo, row.note].filter(Boolean).join(' · ');
     const tr = document.createElement('tr');
     if (deleted) tr.className = 'history-deleted-row';
     tr.innerHTML = `
       <td>${escapeLegacyHtml(outDateStr)}</td>
       <td>${escapeLegacyHtml(orderDateStr)}</td>
       <td style="text-align:left">${escapeLegacyHtml(row.addr)}</td>
-      <td>${escapeLegacyHtml(row.note)}</td>
+      <td>${escapeLegacyHtml(deleted ? deletedNote : row.note)}</td>
       <td>${deleted ? '<span aria-label="삭제된 원본">삭제됨</span>' : `<button class="btn-mini" onclick="openDetail(${i})">자세히</button>`}</td>
     `;
     tb.appendChild(tr);

@@ -2371,10 +2371,16 @@ const PANEL_PC1DWSK1 = (HOMEMULTI.find(r=>/^PC1DWSK1$/i.test(r?.model||''))||{})
 
 // 현재 세션 사업자등록번호
 let CURRENT_BIZNO = '';
+let CURRENT_HISTORY_BIZNO = '';
 
 /** 인증된 거래처의 사업자번호를 발송내역 조회 키로 선택한다. */
 function resolveCurrentBizno(auth) {
   return String(auth?.bizNo || auth?.businessNumber || auth?.partnerCode || '').trim();
+}
+
+/** 직원 화면의 발송내역은 현재 선택한 거래처의 사업자번호로 조회한다. */
+function resolveHistoryBizno(selectedCustomer) {
+  return String(selectedCustomer?.bizno || '').trim();
 }
 
 function getModelFlags(model) {
@@ -14135,6 +14141,12 @@ function loadHistory() {
   const eDate = document.getElementById('histEnd')?.value;
   const dateField = document.getElementById('histDateField')?.value || '출고일';
 
+  if (!CURRENT_HISTORY_BIZNO) {
+    if (loader) loader.classList.add('hidden');
+    alert('발송내역을 조회할 거래처를 먼저 선택해주세요.');
+    return;
+  }
+
   google.script.run
     .withSuccessHandler((data) => {
       if (loader) loader.classList.add('hidden');
@@ -14145,7 +14157,7 @@ function loadHistory() {
       if (loader) loader.classList.add('hidden');
       alert('조회 실패: ' + err);
     })
-    .getNotionHistory(sDate, eDate, dateField, window.CURRENT_BIZNO || '');
+    .getNotionHistory(sDate, eDate, dateField, CURRENT_HISTORY_BIZNO);
 }
 
 /* 목록 렌더링 */
@@ -16305,6 +16317,8 @@ function initCustomerSearch() {
   inp.addEventListener('input', function(e) {
     // 코드 정보 초기화
     this.dataset.code = ''; 
+    CURRENT_HISTORY_BIZNO = '';
+    window.CURRENT_HISTORY_BIZNO = '';
     if(typeof toggleSlipButton === 'function') toggleSlipButton();
 
     // 입력값이 변경 시 하위 거래처 정보 필드 모두 초기화
@@ -16352,6 +16366,8 @@ function initCustomerSearch() {
       item.addEventListener('mousedown', function(e) {
         inp.value = c.name;
         inp.dataset.code = c.code; 
+        CURRENT_HISTORY_BIZNO = resolveHistoryBizno(c);
+        window.CURRENT_HISTORY_BIZNO = CURRENT_HISTORY_BIZNO;
 
         // 값 주입
         if(document.getElementById('custRep')) document.getElementById('custRep').value = c.rep || '';

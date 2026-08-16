@@ -2454,7 +2454,7 @@ async function getNotionHistory(startDate, endDate, _dateField, bizCode) {
     : data?.content || data?.items || data?.data?.content || data?.data?.items || [];
   return rows.map((row) => ({
     ...row,
-    date: row.date || row.confirmedAt || '',
+    date: row.date || row.outDate || '',
     slipNo: row.slipNo || row.orderNo || '',
     custName: row.custName || row.partnerName || '',
   }));
