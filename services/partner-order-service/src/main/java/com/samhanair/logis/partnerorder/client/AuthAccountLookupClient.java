@@ -112,7 +112,7 @@ public class AuthAccountLookupClient {
             if (accountId == null || accountId.isNull() || accountId.asText().isBlank()) {
                 return Optional.empty();
             }
-            return Optional.of(UUID.fromString(accountId.asText()));
+            return Optional.of(OpaqueUuidDecoder.decode(accountId.asText()));
         } catch (Exception ex) {
             log.warn("AuthAccountLookupClient.findAccountIdByLoginId 응답 파싱 실패 — msg={}", ex.getMessage());
             return Optional.empty();

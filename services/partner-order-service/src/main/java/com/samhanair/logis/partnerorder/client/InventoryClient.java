@@ -279,7 +279,7 @@ public class InventoryClient {
                 throw new BusinessException(ErrorCode.INTERNAL_ERROR,
                         "inventory-service warehouse 응답 warehouseId 필드 없음");
             }
-            return UUID.fromString(warehouseIdStr);
+            return OpaqueUuidDecoder.decode(warehouseIdStr);
         } catch (BusinessException ex) {
             throw ex;
         } catch (RuntimeException ex) {
