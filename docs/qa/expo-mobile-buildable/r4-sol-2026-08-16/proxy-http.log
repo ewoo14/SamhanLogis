@@ -1,0 +1,5 @@
+[R4_PROXY_READY] http://127.0.0.1:28100
+[R4_HTTP] GET /app/version?clientType=SAMHAN_MOBILE_STAFF&currentVersion=2026%2F08%2F16-1246 target=SHARED_GATEWAY status=200 bytes=233
+[R4_HTTP] GET /mobile/sales/dashboard target=SHARED_GATEWAY status=200 bytes=333
+[R4_HTTP] GET /mobile/sales/dashboard target=SHARED_GATEWAY status=200 bytes=333
+[R4_HTTP] GET /api/v1/partners/quick-search?q=%EC%82%BC%ED%95%9C&size=20 target=PR_HEAD_PARTNER status=200 bytes=605
