@@ -84,7 +84,10 @@ public interface PartnerOrderRepository extends JpaRepository<PartnerOrder, UUID
             + "SELECT 1 FROM partner_order_history h WHERE h.partner_order_id = o.id "
             + "AND h.event_type = 'CONFIRMED' AND h.is_deleted = FALSE "
             + "AND h.occurred_at BETWEEN :from AND :to)) "
-            + "ORDER BY COALESCE(o.confirmed_at, ce.effective_confirmed_at) DESC NULLS LAST, o.order_no DESC, o.id ASC",
+            + "ORDER BY COALESCE(o.confirmed_at, ce.effective_confirmed_at) DESC NULLS LAST, "
+            + "CASE WHEN regexp_replace(o.order_no, '^.*-', '') ~ '^[0-9]+$' "
+            + "THEN CAST(regexp_replace(o.order_no, '^.*-', '') AS NUMERIC) END DESC NULLS LAST, "
+            + "o.order_no DESC, o.id ASC",
             countQuery = "SELECT COUNT(*) FROM partner_orders "
                     + "WHERE biz_code = :bizCode AND (confirmed_at BETWEEN :from AND :to OR EXISTS ("
                     + "SELECT 1 FROM partner_order_history h WHERE h.partner_order_id = partner_orders.id "
@@ -105,7 +108,9 @@ public interface PartnerOrderRepository extends JpaRepository<PartnerOrder, UUID
             + "SELECT 1 FROM partner_order_history h WHERE h.partner_order_id = o.id "
             + "AND h.event_type = 'CONFIRMED' AND h.is_deleted = FALSE "
             + "AND h.occurred_at BETWEEN :from AND :to)) ORDER BY COALESCE(o.confirmed_at, ce.effective_confirmed_at) "
-            + "DESC NULLS LAST, o.order_no DESC, o.id ASC",
+            + "DESC NULLS LAST, CASE WHEN regexp_replace(o.order_no, '^.*-', '') ~ '^[0-9]+$' "
+            + "THEN CAST(regexp_replace(o.order_no, '^.*-', '') AS NUMERIC) END DESC NULLS LAST, "
+            + "o.order_no DESC, o.id ASC",
             countQuery = "SELECT COUNT(*) FROM partner_orders "
                     + "WHERE partner_code = :partnerCode AND biz_code = :bizCode "
                     + "AND (confirmed_at BETWEEN :from AND :to OR EXISTS ("
@@ -127,7 +132,9 @@ public interface PartnerOrderRepository extends JpaRepository<PartnerOrder, UUID
             + "SELECT 1 FROM partner_order_history h WHERE h.partner_order_id = o.id "
             + "AND h.event_type = 'CONFIRMED' AND h.is_deleted = FALSE "
             + "AND h.occurred_at BETWEEN :from AND :to)) ORDER BY COALESCE(o.confirmed_at, ce.effective_confirmed_at) "
-            + "DESC NULLS LAST, o.order_no DESC, o.id ASC",
+            + "DESC NULLS LAST, CASE WHEN regexp_replace(o.order_no, '^.*-', '') ~ '^[0-9]+$' "
+            + "THEN CAST(regexp_replace(o.order_no, '^.*-', '') AS NUMERIC) END DESC NULLS LAST, "
+            + "o.order_no DESC, o.id ASC",
             countQuery = "SELECT COUNT(*) FROM partner_orders "
                     + "WHERE regexp_replace(biz_code, '[^0-9]', '', 'g') = :bizCode "
                     + "AND (confirmed_at BETWEEN :from AND :to OR EXISTS ("
@@ -149,7 +156,10 @@ public interface PartnerOrderRepository extends JpaRepository<PartnerOrder, UUID
             + "SELECT 1 FROM partner_order_history h WHERE h.partner_order_id = o.id "
             + "AND h.event_type = 'CONFIRMED' AND h.is_deleted = FALSE "
             + "AND h.occurred_at BETWEEN :from AND :to)) "
-            + "ORDER BY COALESCE(o.confirmed_at, ce.effective_confirmed_at) DESC NULLS LAST, o.order_no DESC, o.id ASC",
+            + "ORDER BY COALESCE(o.confirmed_at, ce.effective_confirmed_at) DESC NULLS LAST, "
+            + "CASE WHEN regexp_replace(o.order_no, '^.*-', '') ~ '^[0-9]+$' "
+            + "THEN CAST(regexp_replace(o.order_no, '^.*-', '') AS NUMERIC) END DESC NULLS LAST, "
+            + "o.order_no DESC, o.id ASC",
             countQuery = "SELECT COUNT(*) FROM partner_orders o "
                     + "WHERE regexp_replace(o.biz_code, '[^0-9]', '', 'g') = :bizCode "
                     + "AND (o.confirmed_at BETWEEN :from AND :to OR EXISTS ("
@@ -172,7 +182,9 @@ public interface PartnerOrderRepository extends JpaRepository<PartnerOrder, UUID
             + "SELECT 1 FROM partner_order_history h WHERE h.partner_order_id = o.id "
             + "AND h.event_type = 'CONFIRMED' AND h.is_deleted = FALSE "
             + "AND h.occurred_at BETWEEN :from AND :to)) ORDER BY COALESCE(o.confirmed_at, ce.effective_confirmed_at) "
-            + "DESC NULLS LAST, o.order_no DESC, o.id ASC",
+            + "DESC NULLS LAST, CASE WHEN regexp_replace(o.order_no, '^.*-', '') ~ '^[0-9]+$' "
+            + "THEN CAST(regexp_replace(o.order_no, '^.*-', '') AS NUMERIC) END DESC NULLS LAST, "
+            + "o.order_no DESC, o.id ASC",
             countQuery = "SELECT COUNT(*) FROM partner_orders "
                     + "WHERE regexp_replace(lower(partner_code), '[^a-z0-9]', '', 'g') = :partnerCode "
                     + "AND regexp_replace(biz_code, '[^0-9]', '', 'g') = :bizCode "

@@ -88,6 +88,44 @@ class PartnerOrderActivityRepositoryTest {
         assertThat(first.getTotalElements()).isEqualTo(3);
     }
 
+    @Test
+    void historyPaginationSortsVariableWidthOrderNumbersNumericallyWithinSameConfirmedEventTime() {
+        LocalDateTime sameOccurredAt = LocalDateTime.of(2099, 12, 31, 23, 59);
+        var orderNumbers = java.util.List.of(
+                "2099/12/31-0", "2099/12/31-0007", "2099/12/31-7", "2099/12/31-9",
+                "2099/12/31-25", "2099/12/31-100", "2099/12/31-1000",
+                "2099/12/31-999999999999999999");
+        var orders = orderNumbers.stream().map(this::orderWithoutConfirmedAt).toList();
+        orders.forEach(entityManager::persist);
+        entityManager.flush();
+        orders.forEach(order -> persistConfirmedEvent(order, sameOccurredAt));
+        entityManager.flush();
+        entityManager.clear();
+
+        var first = repository
+                .findAllHistoryIncludingDeletedByBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(
+                        "217-63-10279", LocalDateTime.of(2099, 12, 31, 0, 0),
+                        LocalDateTime.of(2100, 1, 1, 0, 0),
+                        org.springframework.data.domain.PageRequest.of(0, 4));
+        var second = repository
+                .findAllHistoryIncludingDeletedByBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(
+                        "217-63-10279", LocalDateTime.of(2099, 12, 31, 0, 0),
+                        LocalDateTime.of(2100, 1, 1, 0, 0),
+                        org.springframework.data.domain.PageRequest.of(1, 4));
+
+        assertThat(first.getContent()).extracting(PartnerOrder::getOrderNo)
+                .containsExactly(
+                        "2099/12/31-999999999999999999",
+                        "2099/12/31-1000", "2099/12/31-100", "2099/12/31-25");
+        assertThat(second.getContent()).extracting(PartnerOrder::getOrderNo)
+                .containsExactly("2099/12/31-9", "2099/12/31-7", "2099/12/31-0007", "2099/12/31-0");
+        assertThat(first.getContent()).extracting(PartnerOrder::getOrderNo)
+                .doesNotContainAnyElementsOf(second.getContent().stream()
+                        .map(PartnerOrder::getOrderNo).toList());
+        assertThat(first.getTotalElements()).isEqualTo(orderNumbers.size());
+        assertThat(second.getTotalElements()).isEqualTo(orderNumbers.size());
+    }
+
     private PartnerOrder orderWithoutConfirmedAt(String orderNo) {
         PartnerOrder order = PartnerOrder.create("P-2026-0009", "217-63-10279", orderNo,
                 "history-order-" + orderNo, BigDecimal.ONE);
