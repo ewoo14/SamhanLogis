@@ -40,7 +40,7 @@ export const Disabled: Story = {
   args: {
     severity: 'disabled',
     title: '자동 업데이트가 꺼져 있습니다',
-    description: '신뢰 루트 설치가 필요합니다. 설치가 끝날 때까지 앱은 그대로 사용할 수 있습니다.',
-    actions: <Button size="sm" variant="secondary">신뢰 루트 설치</Button>,
+    description: '보안인증서 설치가 필요합니다. 설치가 끝날 때까지 앱은 그대로 사용할 수 있습니다.',
+    actions: <Button size="sm" variant="secondary">보안인증서 설치</Button>,
   },
 }
