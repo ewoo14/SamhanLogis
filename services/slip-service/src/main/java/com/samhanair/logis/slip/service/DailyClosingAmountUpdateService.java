@@ -93,6 +93,7 @@ public class DailyClosingAmountUpdateService {
             String oldTotal = text(line.getUnitPriceWithVat() == null
                     ? null : line.getUnitPriceWithVat().multiply(BigDecimal.valueOf(line.getQuantity())));
             line.changeUnitPriceWithVat(input.unitPriceWithVat());
+            line.changeDailyClosingReferenceAmounts(input.releasePrice(), input.discountRate());
             String path = AUDIT_PREFIX + ".line[" + index + "]";
             changes.add(new SlipAuditLogService.ChangeEntry(path + ".unitPriceWithVat",
                     oldUnit, text(input.unitPriceWithVat())));
@@ -126,7 +127,8 @@ public class DailyClosingAmountUpdateService {
         }
         BigDecimal expected = BigDecimal.ONE.subtract(
                 line.unitPriceWithVat().divide(line.releasePrice(), 8, RoundingMode.HALF_UP));
-        if (expected.subtract(line.discountRate()).abs().compareTo(new BigDecimal("0.0001")) > 0) {
+        BigDecimal screenExpected = expected.setScale(2, RoundingMode.HALF_UP);
+        if (screenExpected.subtract(line.discountRate()).abs().compareTo(new BigDecimal("0.005")) > 0) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "출고가·단가·할인율 계산 근거가 일치하지 않습니다.");
         }

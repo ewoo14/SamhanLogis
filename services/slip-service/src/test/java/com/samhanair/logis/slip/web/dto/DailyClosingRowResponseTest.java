@@ -1,33 +1,57 @@
 package com.samhanair.logis.slip.web.dto;
 
 import static org.assertj.core.api.Assertions.assertThat;
-
-import java.util.Arrays;
-import com.samhanair.logis.slip.domain.Slip;
-import com.samhanair.logis.slip.domain.SlipLine;
-import org.junit.jupiter.api.Test;
-
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.samhanair.logis.slip.domain.Slip;
+import com.samhanair.logis.slip.domain.SlipLine;
+import java.math.BigDecimal;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+
 class DailyClosingRowResponseTest {
-
     @Test
-    void dailyClosingResponse_exposesModelNameForTheDetailRow() {
-        assertThat(Arrays.stream(DailyClosingRowResponse.class.getRecordComponents())
-                .map(component -> component.getName()))
-                .contains("modelName");
-    }
-
-    @Test
-    void from_copiesModelNameSnapshotFromSlipLine() {
+    void 저장된_출고가와_소수_할인율을_원본_상품가격보다_우선해_왕복한다() {
         Slip slip = mock(Slip.class);
         SlipLine line = mock(SlipLine.class);
-        when(line.getModelName()).thenReturn("MODEL-001");
-        when(line.getQuantity()).thenReturn(1);
+        when(line.getQuantity()).thenReturn(2);
+        when(line.getUnitPriceWithVat()).thenReturn(new BigDecimal("105"));
+        when(line.getSupplyAmount()).thenReturn(new BigDecimal("190"));
+        when(line.getVatAmount()).thenReturn(new BigDecimal("20"));
+        when(line.getDailyClosingReleasePrice()).thenReturn(new BigDecimal("200"));
+        when(line.getDailyClosingDiscountRate()).thenReturn(new BigDecimal("0.475"));
+        when(slip.getSlipDate()).thenReturn(java.time.LocalDate.of(2026, 8, 14));
+        when(slip.getStatus()).thenReturn(com.samhanair.logis.slip.domain.SlipStatus.CONFIRMED);
+        when(slip.getPartnerName()).thenReturn("거래처");
+        when(slip.getPartnerCode()).thenReturn("P");
 
-        DailyClosingRowResponse response = DailyClosingRowResponse.from(slip, line);
+        DailyClosingRowResponse row = DailyClosingRowResponse.from(slip, line,
+                new DailyClosingRowResponse.SourceValues(new BigDecimal("520300"), null, null, null));
 
-        assertThat(response.modelName()).isEqualTo("MODEL-001");
+        assertThat(row.productPrice()).isEqualByComparingTo("200");
+        assertThat(row.discountRate()).isEqualByComparingTo("47.5");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"0", "0.5", "-1920.9680934076493", "1.01", "0.123456789"})
+    void 할인율_소수_퍼센트_경계가_저장조회_왕복에서_변하지_않는다(String storedRate) {
+        Slip slip = mock(Slip.class);
+        SlipLine line = mock(SlipLine.class);
+        BigDecimal fraction = new BigDecimal(storedRate);
+        when(line.getQuantity()).thenReturn(3);
+        when(line.getUnitPriceWithVat()).thenReturn(new BigDecimal("999999999"));
+        when(line.getSupplyAmount()).thenReturn(new BigDecimal("2727272725"));
+        when(line.getVatAmount()).thenReturn(new BigDecimal("272727272"));
+        when(line.getDailyClosingReleasePrice()).thenReturn(new BigDecimal("101"));
+        when(line.getDailyClosingDiscountRate()).thenReturn(fraction);
+        when(slip.getSlipDate()).thenReturn(java.time.LocalDate.of(2026, 8, 14));
+        when(slip.getStatus()).thenReturn(com.samhanair.logis.slip.domain.SlipStatus.CONFIRMED);
+
+        DailyClosingRowResponse row = DailyClosingRowResponse.from(slip, line,
+                new DailyClosingRowResponse.SourceValues(new BigDecimal("520300"), null, null, null));
+
+        assertThat(row.discountRate()).isEqualByComparingTo(fraction.movePointRight(2));
     }
 }

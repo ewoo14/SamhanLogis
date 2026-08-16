@@ -416,6 +416,10 @@ function dailyClosingIsDeleted(row: DailyClosingSourceRow): boolean {
 }
 const LEGACY_DISCOUNT_COLORS: Record<string,string> = {'dc-45':'#fecaca','dc-46':'#fed7aa','dc-47':'#fef08a','dc-48':'#d9f99d','dc-49':'#bfdbfe'}
 export function formatLegacyNumber(value: string|number|null|undefined): string { return Math.round(Number(value)||0).toLocaleString() }
+function formatLegacyRate(value: string|number|null|undefined): string {
+  const numeric = Number(value)
+  return Number.isFinite(numeric) ? numeric.toLocaleString('en-US', { maximumFractionDigits: 12 }) : '0'
+}
 function legacyDiscountClass(rate:number): string { return rate>=45&&rate<=49 ? `dc-${rate}` : '' }
 function legacyStatusBadge(row: DailyClosingSourceRow) {
   const variant = row.confirmation==='CONFIRMED'?'success':row.confirmation==='MISMATCH'?'danger':'neutral'
@@ -447,7 +451,7 @@ function initialEditableAmounts(row: DailyClosingSourceRow): EditableAmountValue
   return {
     unit: Number(row.unitPriceWithVat ?? 0),
     price: Number(row.productPrice ?? 0),
-    rate: rate <= 1 ? rate * 100 : rate,
+    rate,
     quantity: row.quantity,
   }
 }
@@ -589,7 +593,7 @@ function LegacyAmountEditor({
       aria-label={label + ' ' + row.seqNo}
       data-testid={'daily-closing-' + field + '-' + row.seqNo}
       disabled={disabled}
-      value={formatLegacyNumber(value)}
+      value={field === 'rate' ? formatLegacyRate(value) : formatLegacyNumber(value)}
       onChange={(event) => commit(field, event.target.value)}
       title={disabled ? amountEditDisabledReason(row) : undefined}
       className={field === 'rate' ? 'edit-rate' : 'edit-input'}

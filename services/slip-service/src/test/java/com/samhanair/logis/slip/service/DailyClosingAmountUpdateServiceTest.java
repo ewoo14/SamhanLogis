@@ -110,6 +110,46 @@ class DailyClosingAmountUpdateServiceTest {
         }
 
         verify(line, org.mockito.Mockito.times(2)).changeUnitPriceWithVat(new BigDecimal("11000"));
+        verify(line, org.mockito.Mockito.times(2)).changeDailyClosingReferenceAmounts(
+                new BigDecimal("12000"), new BigDecimal("0.083333"));
+    }
+
+    @Test
+    void 화면이_반올림한_50퍼센트_정상조합은_허용하고_실제_불일치는_거부한다() {
+        SlipRepository slips = mock(SlipRepository.class);
+        AccountingPostedAtClient accounting = mock(AccountingPostedAtClient.class);
+        SlipClosedDateGuard closedDateGuard = mock(SlipClosedDateGuard.class);
+        Slip slip = mock(Slip.class);
+        SlipLine line = mock(SlipLine.class);
+        when(slips.findById(SLIP_ID)).thenReturn(Optional.of(slip));
+        when(slip.getSlipNo()).thenReturn("2026/08/14-rate");
+        when(slip.getSlipType()).thenReturn(SlipType.OUTBOUND);
+        when(slip.getStatus()).thenReturn(SlipStatus.CONFIRMED);
+        when(slip.getSlipDate()).thenReturn(LocalDate.of(2026, 8, 14));
+        when(slip.getCreatedAt()).thenReturn(VERSION);
+        when(slip.getLines()).thenReturn(java.util.List.of(line));
+        when(line.getId()).thenReturn(UUID.randomUUID());
+        when(line.getQuantity()).thenReturn(1);
+        when(line.getUnitPriceWithVat()).thenReturn(new BigDecimal("51"));
+        when(accounting.hasAccountingSlip("2026/08/14-rate")).thenReturn(false);
+        when(slips.saveAndFlush(slip)).thenReturn(slip);
+        DailyClosingAmountUpdateService service = new DailyClosingAmountUpdateService(
+                slips, accounting, closedDateGuard, mock(SlipAuditLogService.class),
+                mock(SlipRevisionService.class));
+
+        UUID lineId = line.getId();
+        DailyClosingAmountUpdateRequest roundedScreenValue = new DailyClosingAmountUpdateRequest(
+                VERSION, java.util.List.of(new DailyClosingAmountUpdateRequest.Line(
+                        lineId, new BigDecimal("51"), new BigDecimal("101"), new BigDecimal("0.5"))));
+        service.update(SLIP_ID, roundedScreenValue, UUID.randomUUID(), "마스터");
+
+        DailyClosingAmountUpdateRequest contradictory = new DailyClosingAmountUpdateRequest(
+                VERSION, java.util.List.of(new DailyClosingAmountUpdateRequest.Line(
+                        lineId, new BigDecimal("51"), new BigDecimal("101"), new BigDecimal("0.6"))));
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                () -> service.update(SLIP_ID, contradictory, UUID.randomUUID(), "마스터"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("계산 근거");
     }
 
     private DailyClosingAmountUpdateRequest request() {

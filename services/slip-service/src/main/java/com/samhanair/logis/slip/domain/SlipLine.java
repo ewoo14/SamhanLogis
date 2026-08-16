@@ -109,6 +109,14 @@ public class SlipLine extends BaseEntity {
     @Column(name = "vat_amount", precision = 15, scale = 2)
     private BigDecimal vatAmount;
 
+    /** 일마감에서 사용자가 확정한 출고가(원본 상품 가격과 분리해 보존). */
+    @Column(name = "daily_closing_release_price", precision = 17, scale = 2)
+    private BigDecimal dailyClosingReleasePrice;
+
+    /** 일마감 할인율 저장값. 계약상 소수(50% = 0.5)로 보존하며 조회 시 퍼센트로 표시한다. */
+    @Column(name = "daily_closing_discount_rate", precision = 30, scale = 18)
+    private BigDecimal dailyClosingDiscountRate;
+
     /**
      * 단가 권위 도메인 — #937 재수렴 6차, 개발책임자 결정 A안 (V59 migration).
      *
@@ -445,6 +453,8 @@ public class SlipLine extends BaseEntity {
             // (추측으로 채우면 원본과 사본이 다른 단가를 보이게 된다).
             line.unitPriceDomain = source.unitPriceDomain;
         }
+        line.dailyClosingReleasePrice = source.dailyClosingReleasePrice;
+        line.dailyClosingDiscountRate = source.dailyClosingDiscountRate;
         line.parentSetModel = source.parentSetModel;
         line.setHead = source.setHead;
         line.bundleSetOptions = source.bundleSetOptions;
@@ -541,6 +551,15 @@ public class SlipLine extends BaseEntity {
         this.unitPriceWithVat = amounts.unitPriceWithVat();
         this.unitPriceDomain = UnitPriceDomain.VAT_INCLUSIVE;
         validateStorableAmounts();
+    }
+
+    /** 일마감 편집 열의 계산 근거를 전표 라인에 함께 보존한다. */
+    public void changeDailyClosingReferenceAmounts(BigDecimal releasePrice, BigDecimal discountRate) {
+        if (releasePrice == null || releasePrice.signum() < 0 || discountRate == null) {
+            throw new IllegalArgumentException("일마감 출고가·할인율은 필수입니다");
+        }
+        this.dailyClosingReleasePrice = releasePrice;
+        this.dailyClosingDiscountRate = discountRate;
     }
 
     /**
