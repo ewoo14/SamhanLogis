@@ -2,6 +2,7 @@ package com.samhanair.logis.partnerorder.web.dto;
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import java.math.BigDecimal;
 import java.util.UUID;
 
 /**
@@ -18,10 +19,17 @@ public record ConfirmLineRequest(
         String modelCode,
         @NotBlank String categoryKey,
         @Min(1) int quantity,
+        BigDecimal unitPrice,
         String remark) {
 
     /** 기존 UUID 기반 호출자 호환 생성자. */
     public ConfirmLineRequest(UUID productId, String categoryKey, int quantity, String remark) {
-        this(productId, null, categoryKey, quantity, remark);
+        this(productId, null, categoryKey, quantity, null, remark);
+    }
+
+    /** 모델코드 기반 기존 호출자 호환 생성자. */
+    public ConfirmLineRequest(UUID productId, String modelCode, String categoryKey,
+                              int quantity, String remark) {
+        this(productId, modelCode, categoryKey, quantity, null, remark);
     }
 }

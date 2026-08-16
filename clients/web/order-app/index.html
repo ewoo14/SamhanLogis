@@ -1466,11 +1466,11 @@ const COMM_PARTS_INC = J(COMM_PARTS_INC_RAW, {});
 const PRICE_CHANGE_SCHEDULE = J(PRICE_CHANGE_SCHEDULE_RAW, {});
 const oldQty=new Map();
 
-// Model B: due<변동일→*_INC(인상전), due>=변동일→base(인상후)
+// 레거시 정합: due<변동일→base, due>=변동일→*_INC (경계일 포함)
 function incActive(categoryKey, due) {
   const effectiveDate = PRICE_CHANGE_SCHEDULE && PRICE_CHANGE_SCHEDULE[categoryKey];
   if (!effectiveDate || !due) return false;
-  return due < String(effectiveDate);
+  return due >= String(effectiveDate);
 }
 
 let CONFIG=J(CFG_RAW,{

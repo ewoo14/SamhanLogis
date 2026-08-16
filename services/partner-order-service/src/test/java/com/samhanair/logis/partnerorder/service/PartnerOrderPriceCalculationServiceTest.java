@@ -57,6 +57,30 @@ class PartnerOrderPriceCalculationServiceTest {
     }
 
     @Test
+    void 세트_배분_단가는_dc_서버응답으로_덮지_않고_미리보기와_확정의_공통_최종가가_된다() {
+        UUID productId = UUID.randomUUID();
+        ProductSummary component = new ProductSummary(
+                productId, "실내기", "INDOOR-1", UUID.randomUUID(), new BigDecimal("865000"), "ACTIVE",
+                "INDOOR-1", "SINGLE", "singleSets", null, "NONE", "000000",
+                new BigDecimal("865000"), new BigDecimal("865000"), true, "HVAC");
+        when(productClient.lookupByModelCodes(List.of("INDOOR-1"))).thenReturn(List.of(component));
+        when(dcConfigClient.calculateDetailed(any(), any())).thenReturn(
+                new DcConfigClient.CalculationResult(
+                        java.util.Map.of("0", new DcConfigClient.CalculatedLine(
+                                new BigDecimal("865000"), null)), true));
+
+        PartnerOrderPriceCalculationService.Calculation result = service.calculate(
+                "P-SET-001", new ConfirmRequest(List.of(
+                        new ConfirmLineRequest(null, "INDOOR-1", "singleSets", 1,
+                                new BigDecimal("588975"), null))));
+
+        assertThat(result.available()).isTrue();
+        assertThat(result.lines().get(0).listPrice()).isEqualByComparingTo("588975");
+        assertThat(result.lines().get(0).finalPrice()).isEqualByComparingTo("588975");
+        assertThat(result.totalFinalAmount()).isEqualByComparingTo("588975");
+    }
+
+    @Test
     void fixed_discount_none은_보조_endpoint_장애에도_600000원으로_계산된다() {
         UUID productId = UUID.fromString("00000000-0000-0000-0000-000000000040");
         ProductSummary product = new ProductSummary(

@@ -456,6 +456,7 @@ describe('samhanApi.call', () => {
             modelCode: 'HM-1',
             categoryKey: 'homemulti',
             quantity: 2,
+            unitPrice: 12345,
             remark: null,
           },
         ],
@@ -591,7 +592,7 @@ describe('samhanApi.call', () => {
     expect(mocks.post).toHaveBeenCalledWith(
       '/partner-orders/price-preview',
       {
-        lines: [{ modelCode: 'ERV-001', categoryKey: 'homemulti', quantity: 1, remark: null }],
+        lines: [{ modelCode: 'ERV-001', categoryKey: 'homemulti', quantity: 1, unitPrice: 1000000, remark: null }],
       },
       { headers: { 'X-Partner-Code': 'P-001' } },
     );
@@ -601,6 +602,28 @@ describe('samhanApi.call', () => {
       totalFinalAmount: 600000,
       totalDiscountAmount: 400000,
     });
+  });
+
+  it('세트 배분 단가는 미리보기 서버 계산 입력으로 보존한다', async () => {
+    mocks.post.mockResolvedValueOnce({
+      data: { success: true, data: { lines: [], totalListAmount: 1590000, totalFinalAmount: 1590000 } },
+    });
+
+    await samhanApi.call('pricePreview', [
+      [{ section: 'SINGLE', model: 'INDOOR-1', qty: 1, price: 588975 }],
+      { bizno: 'P-001' },
+    ]);
+
+    expect(mocks.post).toHaveBeenCalledWith(
+      '/partner-orders/price-preview',
+      {
+        lines: [{
+          modelCode: 'INDOOR-1', categoryKey: 'singleSets', quantity: 1,
+          unitPrice: 588975, remark: null,
+        }],
+      },
+      { headers: { 'X-Partner-Code': 'P-001' } },
+    );
   });
 
   it('가격 미리보기 실패는 정상가/기존율로 변환하지 않고 reject한다', async () => {

@@ -125,7 +125,9 @@ public class PartnerOrderPriceCalculationService {
             String discountFlags = optionFlags(product);
             BigDecimal fixedDiscountRate = product.fixedDiscountRate() != null
                     ? product.fixedDiscountRate() : fixedDiscountRates.get(product.id());
-            BigDecimal listPrice = resolveListPrice(product, line.categoryKey(), fixedDiscountRate);
+            BigDecimal unitPrice = line.unitPrice();
+            BigDecimal listPrice = unitPrice != null && unitPrice.signum() > 0
+                    ? unitPrice : resolveListPrice(product, line.categoryKey(), fixedDiscountRate);
             if (listPrice == null || listPrice.signum() <= 0) {
                 throw new BusinessException(ErrorCode.INTERNAL_ERROR,
                         "확정 가격 기준가 없음: " + modelCodeSnapshot(product));
@@ -164,7 +166,10 @@ public class PartnerOrderPriceCalculationService {
         BigDecimal totalFinal = BigDecimal.ZERO;
         for (int i = 0; i < requestLines.size(); i++) {
             DcConfigClient.CalculatedLine calculatedLine = calculated.get(String.valueOf(i));
-            BigDecimal finalPrice = calculatedLine == null || calculatedLine.finalPrice() == null
+            BigDecimal authoritativeUnitPrice = requestLines.get(i).unitPrice();
+            BigDecimal finalPrice = authoritativeUnitPrice != null && authoritativeUnitPrice.signum() > 0
+                    ? authoritativeUnitPrice
+                    : calculatedLine == null || calculatedLine.finalPrice() == null
                     ? listPrices.get(i) : calculatedLine.finalPrice();
             resultLines.add(new Line(i, requestLines.get(i), lineProducts.get(i), listPrices.get(i),
                     finalPrice, calculatedLine == null ? null : calculatedLine.appliedRate()));

@@ -199,6 +199,7 @@ type LegacyOrderItem = {
   section?: unknown
   model?: unknown
   qty?: unknown
+  price?: unknown
   remarks?: unknown
 }
 
@@ -235,7 +236,14 @@ function confirmLines(itemsArg: unknown): Array<{
     const remark = typeof item.remarks === 'string' && item.remarks.trim()
       ? item.remarks.trim()
       : null
-    return { modelCode, categoryKey, quantity, remark }
+    const unitPrice = Number(item.price)
+    return {
+      modelCode,
+      categoryKey,
+      quantity,
+      ...(Number.isFinite(unitPrice) && unitPrice > 0 ? { unitPrice } : {}),
+      remark,
+    }
   })
 }
 
