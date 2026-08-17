@@ -17,6 +17,7 @@ describe('일마감 회계전표 요청 변환', () => {
       productName: '품목',
       quantity: 2,
       unitPriceWithVat: 1100,
+      total: 2200,
       taxType: 'TAXABLE',
     })
 
@@ -29,6 +30,33 @@ describe('일마감 회계전표 요청 변환', () => {
       allocatedQty: '2',
       allocatedAmount: '2200',
     })
+  })
+
+  it.each([
+    ['매출', 'SALES_SLIP'],
+    ['매입', 'PURCHASE_SLIP'],
+  ] as const)('%s 원천행의 일마감·line·allocation 금액을 원천 total로 통일한다', (_, sourceKind) => {
+    const request = buildDailyClosingAccountingSlipRequest({
+      sourceKind,
+      slipDate: '2026-08-14',
+      slipId: 'slip-amount',
+      slipNo: '2026/08/14-amount',
+      lineId: 'line-amount',
+      sourceLineNo: 1,
+      partnerId: 'partner-1',
+      partnerCode: 'P-1',
+      partnerName: '거래처',
+      productCode: 'MODEL-1',
+      productName: '품목',
+      quantity: 1,
+      unitPriceWithVat: 10000,
+      total: 11000,
+      taxType: 'TAXABLE',
+    })
+
+    const line = request.body.lines[0]!
+    expect(line.unitPrice).toBe('11000')
+    expect(line.allocations[0]!.allocatedAmount).toBe('11000')
   })
 
   it('이미 회계반영된 원본행은 생성 요청으로 변환하지 않는다', () => {

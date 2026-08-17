@@ -350,6 +350,15 @@ function execPartnerDraftGuardMessage(typedDraft: string, confirmedLabel: string
 
 
 export const DAILY_CLOSING_HEADERS = ['DC','일자','번호','창고명','품목명','수량','단가(VAT포함)','공급가액','부가세','합계','거래처명','거래처코드','출고가','할인율','총계','확인','회계반영일자'] as const
+
+export function dailyClosingSourceTableLabels(slipType: 'OUTBOUND' | 'INBOUND'): {
+  heading: string
+  dateLabel: string
+} {
+  return slipType === 'INBOUND'
+    ? { heading: '입고전표 원본행', dateLabel: '입고일' }
+    : { heading: '출고전표 원본행', dateLabel: '출고일' }
+}
 const LEGACY_MERGE_COLS = new Set(['DC','일자','번호','창고명','거래처명','거래처코드','회계반영일자'])
 type DailyClosingHeader = typeof DAILY_CLOSING_HEADERS[number]
 type DailyClosingFilterType = 'exact' | 'empty' | 'not_empty' | 'include' | 'exclude'
@@ -1030,6 +1039,7 @@ function EditableLegacyDailyClosingTable({
           productName: row.productName,
           quantity: row.quantity,
           unitPriceWithVat: row.unitPriceWithVat ?? 0,
+          total: row.total,
           taxType: row.taxType!,
           accountingPostedAt: row.accountingPostedAt,
         })))
@@ -1077,19 +1087,20 @@ function EditableLegacyDailyClosingTable({
     </tr>
   }
 
+  const tableLabels = dailyClosingSourceTableLabels(closingKind === 'PURCHASE' ? 'INBOUND' : 'OUTBOUND')
   return <div style={{ display: active ? undefined : 'none' }}>
     <Card style={{ marginBottom: 16 }}>
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-        <h3 style={{ margin: 0 }}>출고전표 원본행</h3>
-        <span style={{ color: 'var(--ink-secondary)', fontSize: 12 }}>출고일 {slipDate}</span>
+        <h3 style={{ margin: 0 }}>{tableLabels.heading}</h3>
+        <span style={{ color: 'var(--ink-secondary)', fontSize: 12 }}>{tableLabels.dateLabel} {slipDate}</span>
       </div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
         <label>통합검색 <input data-testid="daily-closing-global-search" value={currentViewState.globalSearch} onChange={(event) => updateViewState((state) => ({ ...state, globalSearch: event.target.value }))} /></label>
         <button type="button" onClick={() => updateViewState(() => ({ ...EMPTY_DAILY_CLOSING_VIEW_STATE }))}>열 필터·정렬 초기화</button>
         <span data-testid="daily-closing-selection-summary">합계: {selectedSum.toLocaleString()}</span>
       </div>
-      {query.isError ? <div role="alert" className="error-banner">출고전표 원본행을 불러오지 못했습니다.</div> : (
+      {query.isError ? <div role="alert" className="error-banner">{tableLabels.heading}을 불러오지 못했습니다.</div> : (
         <div
           data-testid={query.isLoading || !active ? undefined : 'daily-closing-table'}
           onCopy={handleTableCopy}

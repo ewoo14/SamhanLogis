@@ -33,7 +33,8 @@ export interface DailyClosingSourceRow {
   unitPriceWithVat: string | number | null
   supplyAmount: string | number | null
   vatAmount: string | number | null
-  total: string | number | null
+  /** 원천 SlipLine의 VAT 포함 line total — 회계전표 line/allocation의 정본. */
+  total?: string | number | null
   partnerName: string
   partnerCode: string
   partnerId?: string | null
