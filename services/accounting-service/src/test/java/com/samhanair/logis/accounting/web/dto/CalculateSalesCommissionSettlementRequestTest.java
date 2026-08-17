@@ -51,6 +51,6 @@ class CalculateSalesCommissionSettlementRequestTest {
             String manualExpenseRate) {
         return new CalculateSalesCommissionSettlementRequest(
                 total, equipment, prepaid, install, safety,
-                SalesCommissionPaymentMethod.CASH, false, manualExpenseRate, 1);
+                SalesCommissionPaymentMethod.CASH, false, manualExpenseRate, 1, 1L);
     }
 }

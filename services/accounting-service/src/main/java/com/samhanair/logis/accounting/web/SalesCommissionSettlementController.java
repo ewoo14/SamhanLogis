@@ -81,6 +81,6 @@ public class SalesCommissionSettlementController {
             @PathVariable UUID id,
             @Valid @RequestBody CalculateSalesCommissionSettlementRequest request) {
         return ApiResponse.ok(SalesCommissionSettlementResponse.from(
-                service.calculate(id, request.rateContractVersion(), request.toInput())));
+                service.calculate(id, request.rateContractVersion(), request.toInput(), request.requestSequence())));
     }
 }

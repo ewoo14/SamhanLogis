@@ -16,7 +16,8 @@ public record CalculateSalesCommissionSettlementRequest(
         @NotNull SalesCommissionPaymentMethod paymentMethod,
         @NotNull Boolean withholdingApplied,
         @Pattern(regexp = "^-?\\d{1,18}(\\.\\d{1,6})?$|^$") String manualExpenseRate,
-        @NotNull Integer rateContractVersion) {
+        @NotNull Integer rateContractVersion,
+        @NotNull Long requestSequence) {
 
     public SalesCommissionSettlementCalculationInput toInput() {
         return new SalesCommissionSettlementCalculationInput(

@@ -56,7 +56,7 @@ async function direct(method, pathname, headers, body) {
 
 const baseInput = {
   equipment: '0', prepaid: '0', install: '0', safety: '0', paymentMethod: 'CASH',
-  withholdingApplied: false, manualExpenseRate: null, rateContractVersion: 1,
+  withholdingApplied: false, manualExpenseRate: null, rateContractVersion: 1, requestSequence: 1,
 }
 
 const browser = await chromium.launch({ headless: true })
@@ -141,7 +141,7 @@ try {
 
   const sample = {
     total: '1234567', equipment: '234567', prepaid: '100000', install: '123456', safety: '7890',
-    paymentMethod: 'CARD', withholdingApplied: true, manualExpenseRate: null, rateContractVersion: 1,
+    paymentMethod: 'CARD', withholdingApplied: true, manualExpenseRate: null, rateContractVersion: 1, requestSequence: 2,
   }
   const sampleSaved = await direct('POST', `/accounting/sales-commission-settlements/${draftId}/calculate`, managerHeaders, sample)
   const sampleRead = await direct('GET', `/accounting/sales-commission-settlements/${draftId}`, managerHeaders)

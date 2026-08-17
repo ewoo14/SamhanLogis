@@ -79,12 +79,13 @@ export function SalesCommissionSettlementDetailPage() {
   const loadedSettlement = query.data
   const [form, setForm] = useState<CalculateSalesCommissionSettlementRequest>({
     total: '0', equipment: '0', prepaid: '0', install: '0', safety: '0',
-    paymentMethod: 'CARD', withholdingApplied: true, manualExpenseRate: null, rateContractVersion: 1,
+    paymentMethod: 'CARD', withholdingApplied: true, manualExpenseRate: null, rateContractVersion: 1, requestSequence: 0,
   })
   const [expenseMode, setExpenseMode] = useState<'default' | 'manual'>('default')
   const [inputError, setInputError] = useState<string | null>(null)
   const [settlementState, setSettlement] = useState<SalesCommissionSettlement | null>(null)
-  const calculationRequestSequence = useRef(0)
+  // 서버에 저장된 sequence보다 항상 높은 값을 시작해 새로고침 뒤 입력도 저장한다.
+  const calculationRequestSequence = useRef(Date.now())
   const editingFields = useRef(new Set<keyof CalculateSalesCommissionSettlementRequest>())
   const queryKey = ['accounting', 'sales-commission-settlement', id] as const
   useEffect(() => {
@@ -130,7 +131,7 @@ export function SalesCommissionSettlementDetailPage() {
   })
   const submitCalculation = (next: CalculateSalesCommissionSettlementRequest) => {
     const sequence = ++calculationRequestSequence.current
-    calculateMutation.mutate({ next, sequence })
+    calculateMutation.mutate({ next: { ...next, requestSequence: sequence }, sequence })
   }
   const setField = (key: keyof CalculateSalesCommissionSettlementRequest, value: string | boolean) => {
     const next = { ...form, [key]: value } as CalculateSalesCommissionSettlementRequest

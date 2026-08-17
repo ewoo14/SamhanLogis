@@ -128,6 +128,10 @@ public class SalesCommissionSettlement extends BaseEntity {
     @Column(name = "vat_amount", precision = 24, scale = 6)
     private BigDecimal vatAmount;
 
+    /** 같은 화면에서 발생한 계산 저장 요청의 최신 client sequence. */
+    @Column(name = "last_calculation_request_sequence", nullable = false)
+    private Long lastCalculationRequestSequence;
+
     private SalesCommissionSettlement(LocalDate settlementDate) {
         if (settlementDate == null) {
             throw new IllegalArgumentException("settlementDate 는 필수입니다");
@@ -135,6 +139,7 @@ public class SalesCommissionSettlement extends BaseEntity {
         this.settlementDate = settlementDate;
         this.status = SalesCommissionSettlementStatus.DRAFT;
         this.version = 0L;
+        this.lastCalculationRequestSequence = 0L;
     }
 
     /** 번호 없는 최초 DRAFT 정산서를 만든다. */
@@ -204,7 +209,8 @@ public class SalesCommissionSettlement extends BaseEntity {
     public SalesCommissionSettlement recordCalculation(
             SalesCommissionRateContract rateContract,
             SalesCommissionSettlementCalculationInput input,
-            SalesCommissionSettlementCalculationResult result) {
+            SalesCommissionSettlementCalculationResult result,
+            long requestSequence) {
         if (this.status != SalesCommissionSettlementStatus.DRAFT) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "DRAFT 상태에서만 영업수수료 정산을 재계산할 수 있습니다");
@@ -232,8 +238,18 @@ public class SalesCommissionSettlement extends BaseEntity {
         this.payoutAmount = result.payout();
         this.supplyAmount = result.supply();
         this.vatAmount = result.vat();
+        this.lastCalculationRequestSequence = requestSequence;
         this.recalculationRequired = false;
         return this;
+    }
+
+    /** 기존 내부 호출자와의 호환을 위한 첫 sequence 계산 저장. */
+    public SalesCommissionSettlement recordCalculation(
+            SalesCommissionRateContract rateContract,
+            SalesCommissionSettlementCalculationInput input,
+            SalesCommissionSettlementCalculationResult result) {
+        return recordCalculation(rateContract, input, result,
+                lastCalculationRequestSequence == null ? 1L : lastCalculationRequestSequence + 1L);
     }
 
     private void clearCalculationSnapshot() {

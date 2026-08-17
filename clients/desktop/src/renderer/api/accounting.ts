@@ -79,6 +79,7 @@ export interface CalculateSalesCommissionSettlementRequest {
   withholdingApplied: boolean
   manualExpenseRate?: string | null
   rateContractVersion: number
+  requestSequence: number
 }
 
 /** 영업수수료 정산서 목록을 조회한다. */
