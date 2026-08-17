@@ -5184,7 +5184,8 @@ function resolveSingleRemoteRows_(s, opt, excluded){
   if (!opt) return linked.filter(isDefault);
   const variant = opt === '유선리모컨' ? '유선' : opt === '컬러유선리모컨' ? '컬러유선' : '';
   if (!variant) return linked.filter(isDefault);
-  return linked.filter(p => String(p?.component_variant ?? p?.componentVariant ?? p?.feat ?? '').trim() === variant);
+  const selected = linked.filter(p => String(p?.component_variant ?? p?.componentVariant ?? p?.feat ?? '').trim() === variant);
+  return selected.length ? selected : linked.filter(isDefault);
 }
 function allowRemoteChange_(s){
   const rows=getDefaultRemoteRows(s);

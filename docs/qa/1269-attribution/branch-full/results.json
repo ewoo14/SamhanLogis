@@ -1,0 +1,1039 @@
+{
+  "auth": {
+    "authorized": true
+  },
+  "independentAudit": {
+    "sourceCounts": {
+      "setsWithComponents": 207,
+      "componentRows": 1447
+    },
+    "optionTable": {
+      "유선리모컨": 40000,
+      "컬러유선리모컨": 75000,
+      "블랙판넬": 50000,
+      "승강판넬": 60000,
+      "공청판넬": 550000,
+      "1WAY 중형 공청": 215000,
+      "1WAY 대형 공청": 260000,
+      "FPH-1412XS3": 130000,
+      "FPH-1458XS1": 130000,
+      "FPH-3858XS5": 180000,
+      "FPH-3878XS": 360000,
+      "FPC-3858XS2": 180000,
+      "FRH-1412NA3": 60000,
+      "FRH-1438NH3": 50000,
+      "FRH-1412XA3": 60000,
+      "FRC-1438NB2": 50000,
+      "FRC-1438NA2": 50000,
+      "FRC-1412NA2": 60000,
+      "FRC-1458XA2": 60000,
+      "FPC-1458YAF2": 100000,
+      "FPC-1412YAF2": 100000,
+      "FRC-1438XAF2": 50000,
+      "AFR-TC9D": 47000,
+      "AFR-QC3F": 25000,
+      "AFR-BC3F": 34000,
+      "ARR-WK8F": 34000,
+      "ARR-NK3F": 25000,
+      "ARR-PK8F": 34000
+    },
+    "usedRuntimeOptionKeys": [
+      "유선리모컨",
+      "컬러유선리모컨"
+    ],
+    "remote": {
+      "rows": 118,
+      "mismatches": 59,
+      "mismatchesByOption": {
+        "유선리모컨": 0,
+        "컬러유선리모컨": 59
+      },
+      "examples": [
+        {
+          "set": "AC060CS6PBH1SY",
+          "option": "컬러유선리모컨",
+          "canonical": "컬러",
+          "configured": 75000,
+          "expected": 75000,
+          "actual": 0,
+          "expectedModel": "AWR-WG00N",
+          "runtimeModel": null,
+          "activeModels": [],
+          "match": false
+        },
+        {
+          "set": "AC072CS6PBH1SY",
+          "option": "컬러유선리모컨",
+          "canonical": "컬러",
+          "configured": 75000,
+          "expected": 75000,
+          "actual": 0,
+          "expectedModel": "AWR-WG00N",
+          "runtimeModel": null,
+          "activeModels": [],
+          "match": false
+        },
+        {
+          "set": "AC090CS6PBH1SY",
+          "option": "컬러유선리모컨",
+          "canonical": "컬러",
+          "configured": 75000,
+          "expected": 75000,
+          "actual": 0,
+          "expectedModel": "AWR-WG00N",
+          "runtimeModel": null,
+          "activeModels": [],
+          "match": false
+        },
+        {
+          "set": "AC100CS6PBH1SY",
+          "option": "컬러유선리모컨",
+          "canonical": "컬러",
+          "configured": 75000,
+          "expected": 75000,
+          "actual": 0,
+          "expectedModel": "AWR-WG00N",
+          "runtimeModel": null,
+          "activeModels": [],
+          "match": false
+        },
+        {
+          "set": "AC100CS6PHH1SY",
+          "option": "컬러유선리모컨",
+          "canonical": "컬러",
+          "configured": 75000,
+          "expected": 75000,
+          "actual": 0,
+          "expectedModel": "AWR-WG00N",
+          "runtimeModel": null,
+          "activeModels": [],
+          "match": false
+        },
+        {
+          "set": "AC110CS6PBH1SY",
+          "option": "컬러유선리모컨",
+          "canonical": "컬러",
+          "configured": 75000,
+          "expected": 75000,
+          "actual": 0,
+          "expectedModel": "AWR-WG00N",
+          "runtimeModel": null,
+          "activeModels": [],
+          "match": false
+        },
+        {
+          "set": "AC110CS6PHH1SY",
+          "option": "컬러유선리모컨",
+          "canonical": "컬러",
+          "configured": 75000,
+          "expected": 75000,
+          "actual": 0,
+          "expectedModel": "AWR-WG00N",
+          "runtimeModel": null,
+          "activeModels": [],
+          "match": false
+        },
+        {
+          "set": "AC130CS6PBH1SY",
+          "option": "컬러유선리모컨",
+          "canonical": "컬러",
+          "configured": 75000,
+          "expected": 75000,
+          "actual": 0,
+          "expectedModel": "AWR-WG00N",
+          "runtimeModel": null,
+          "activeModels": [],
+          "match": false
+        },
+        {
+          "set": "AC130CS6PHH1SY",
+          "option": "컬러유선리모컨",
+          "canonical": "컬러",
+          "configured": 75000,
+          "expected": 75000,
+          "actual": 0,
+          "expectedModel": "AWR-WG00N",
+          "runtimeModel": null,
+          "activeModels": [],
+          "match": false
+        },
+        {
+          "set": "AC145CS6PHH1SY",
+          "option": "컬러유선리모컨",
+          "canonical": "컬러",
+          "configured": 75000,
+          "expected": 75000,
+          "actual": 0,
+          "expectedModel": "AWR-WG00N",
+          "runtimeModel": null,
+          "activeModels": [],
+          "match": false
+        },
+        {
+          "set": "AC060CS4PBH2SY",
+          "option": "컬러유선리모컨",
+          "canonical": "컬러",
+          "configured": 75000,
+          "expected": 75000,
+          "actual": 0,
+          "expectedModel": "AWR-WG00N",
+          "runtimeModel": null,
+          "activeModels": [],
+          "match": false
+        },
+        {
+          "set": "AC072CS4PBH2SY",
+          "option": "컬러유선리모컨",
+          "canonical": "컬러",
+          "configured": 75000,
+          "expected": 75000,
+          "actual": 0,
+          "expectedModel": "AWR-WG00N",
+          "runtimeModel": null,
+          "activeModels": [],
+          "match": false
+        }
+      ]
+    },
+    "panel": {
+      "rows": 232,
+      "mismatches": 0,
+      "examples": []
+    },
+    "material": {
+      "rows": 145,
+      "mismatches": 0,
+      "examples": []
+    },
+    "remoteExclude": {
+      "rows": 130,
+      "mismatches": 0,
+      "examples": []
+    },
+    "basePath": {
+      "rows": 207,
+      "mismatches": 0,
+      "examples": []
+    },
+    "discounts": {
+      "rows": 97,
+      "mismatches": 1,
+      "byInput": {
+        "ss_disc_360": {
+          "rows": 10,
+          "mismatches": 1
+        },
+        "ss_disc_4way": {
+          "rows": 27,
+          "mismatches": 0
+        },
+        "ss_disc_1way": {
+          "rows": 11,
+          "mismatches": 0
+        },
+        "ss_disc_stand": {
+          "rows": 35,
+          "mismatches": 0
+        },
+        "ss_disc_deluxe": {
+          "rows": 0,
+          "mismatches": 0
+        },
+        "ss_disc_grade1": {
+          "rows": 14,
+          "mismatches": 0
+        }
+      },
+      "examples": [
+        {
+          "set": "AC060CS6PBH1SY",
+          "discount": "ss_disc_360",
+          "expected": 1000,
+          "actual": 0,
+          "match": false
+        }
+      ]
+    },
+    "sweep": {
+      "states": [
+        "기본",
+        "판넬제외",
+        "블랙판넬",
+        "승강판넬",
+        "공청판넬",
+        "유선리모컨",
+        "컬러유선리모컨",
+        "리모컨제외",
+        "자재포함",
+        "360원형",
+        "360사각",
+        "360할인",
+        "4way할인",
+        "1way할인",
+        "스탠드할인",
+        "디럭스할인",
+        "1등급할인",
+        "변동단가해제"
+      ],
+      "stateRuns": 3726,
+      "sumMismatchCount": 0,
+      "sumMismatchExamples": [],
+      "byKind": {
+        "INDOOR": {
+          "activeRows": 3726,
+          "nonThousand": 18
+        },
+        "OUTDOOR": {
+          "activeRows": 3726,
+          "nonThousand": 0
+        },
+        "PANEL": {
+          "activeRows": 986,
+          "nonThousand": 0
+        },
+        "REMOTE": {
+          "activeRows": 2610,
+          "nonThousand": 0
+        },
+        "MATERIAL": {
+          "activeRows": 190,
+          "nonThousand": 0
+        },
+        "ACCESSORY": {
+          "activeRows": 810,
+          "nonThousand": 0
+        }
+      }
+    }
+  },
+  "live": {
+    "panel": {
+      "basic": {
+        "header": 1300000,
+        "rowCount": 9,
+        "activeRowCount": 4,
+        "detailSum": 1300000,
+        "rows": [
+          {
+            "name": "└ [구성] 무풍 4way 냉난방 프리미엄 실내기",
+            "model": "AC060BN4PBH1",
+            "price": 462000,
+            "qty": 1
+          },
+          {
+            "name": "└ [구성] 무풍 4way 냉난방 프리미엄 실외기",
+            "model": "AC060BXAPBH3",
+            "price": 694000,
+            "qty": 1
+          },
+          {
+            "name": "└ [구성] 무선리모컨(냉난방전용)",
+            "model": "AR-EH05",
+            "price": 16000,
+            "qty": 1
+          },
+          {
+            "name": "└ [구성] 유선리모컨(통합)",
+            "model": "AWR-WE13N",
+            "price": 56000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 유선리모컨(컬러)",
+            "model": "AWR-WG00N",
+            "price": 91000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 무풍4Way(블랙 WIFI)",
+            "model": "PC4NBFK1NW",
+            "price": 188000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 4way 무풍 공기청정 WIFI",
+            "model": "PC4NUCK4NW",
+            "price": 678000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 4way 무풍 WIFI 내장",
+            "model": "PC4NUFK1NW",
+            "price": 128000,
+            "qty": 1
+          },
+          {
+            "name": "└ [구성] 판넬 무풍4Way(승강) WIFI내장",
+            "model": "PC4NUXK1NW",
+            "price": 188000,
+            "qty": 0
+          }
+        ],
+        "screenshot": "C:\\dev\\Samhan-Public\\.claude\\worktrees\\wsrd\\docs\\qa\\1269-attribution\\branch-full\\01-판넬-기본-1300000-9행.png"
+      },
+      "black": {
+        "header": 1360000,
+        "rowCount": 9,
+        "activeRowCount": 4,
+        "detailSum": 1360000,
+        "rows": [
+          {
+            "name": "└ [구성] 무풍 4way 냉난방 프리미엄 실내기",
+            "model": "AC060BN4PBH1",
+            "price": 462000,
+            "qty": 1
+          },
+          {
+            "name": "└ [구성] 무풍 4way 냉난방 프리미엄 실외기",
+            "model": "AC060BXAPBH3",
+            "price": 694000,
+            "qty": 1
+          },
+          {
+            "name": "└ [구성] 무선리모컨(냉난방전용)",
+            "model": "AR-EH05",
+            "price": 16000,
+            "qty": 1
+          },
+          {
+            "name": "└ [구성] 유선리모컨(통합)",
+            "model": "AWR-WE13N",
+            "price": 56000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 유선리모컨(컬러)",
+            "model": "AWR-WG00N",
+            "price": 91000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 무풍4Way(블랙 WIFI)",
+            "model": "PC4NBFK1NW",
+            "price": 188000,
+            "qty": 1
+          },
+          {
+            "name": "└ [구성] 판넬 4way 무풍 공기청정 WIFI",
+            "model": "PC4NUCK4NW",
+            "price": 678000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 4way 무풍 WIFI 내장",
+            "model": "PC4NUFK1NW",
+            "price": 128000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 무풍4Way(승강) WIFI내장",
+            "model": "PC4NUXK1NW",
+            "price": 188000,
+            "qty": 0
+          }
+        ],
+        "screenshot": "C:\\dev\\Samhan-Public\\.claude\\worktrees\\wsrd\\docs\\qa\\1269-attribution\\branch-full\\02-판넬-블랙-1360000-9행.png"
+      }
+    },
+    "remote": {
+      "basic": {
+        "header": 1660000,
+        "rowCount": 13,
+        "activeRowCount": 4,
+        "detailSum": 1660000,
+        "rows": [
+          {
+            "name": "└ [구성] 360 CST UV 실내기",
+            "model": "AC060CN6PBH1",
+            "price": 606000,
+            "qty": 1
+          },
+          {
+            "name": "└ [구성] 360 CST UV 실외기",
+            "model": "AC060CXAPBH1",
+            "price": 910000,
+            "qty": 1
+          },
+          {
+            "name": "└ [구성] 무선리모컨(냉난방전용)",
+            "model": "AR-EH05",
+            "price": 16000,
+            "qty": 1
+          },
+          {
+            "name": "└ [구성] 유선리모컨(통합)",
+            "model": "AWR-WE13N",
+            "price": 56000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 유선리모컨(컬러)",
+            "model": "AWR-WG00N",
+            "price": 91000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 (360CST 원형 공기청정)",
+            "model": "PC6EUCK1NW",
+            "price": 678000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 (360CST 원형 승강)",
+            "model": "PC6EUXK1NW",
+            "price": 188000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 (360CST 사각 블랙 WIFI)",
+            "model": "PC6NBDK1NW",
+            "price": 188000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 (360CST 원형 블랙 WIFI)",
+            "model": "PC6NBNK1NW",
+            "price": 188000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 360CST 사각 공기청정 WIFI",
+            "model": "PC6NUCK1NW",
+            "price": 678000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 360CST 사각 WIFI",
+            "model": "PC6NUDK1NW",
+            "price": 128000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 (360CST 원형 WIFI)",
+            "model": "PC6NUNK1NW",
+            "price": 128000,
+            "qty": 1
+          },
+          {
+            "name": "└ [구성] 판넬 (360CST 사각 승강)",
+            "model": "PC6NUXK1NW",
+            "price": 188000,
+            "qty": 0
+          }
+        ],
+        "screenshot": "C:\\dev\\Samhan-Public\\.claude\\worktrees\\wsrd\\docs\\qa\\1269-attribution\\branch-full\\03-리모컨-무선-1660000-13행.png"
+      },
+      "discount360": {
+        "header": 1660000,
+        "rowCount": 13,
+        "activeRowCount": 4,
+        "detailSum": 1660000,
+        "rows": [
+          {
+            "name": "└ [구성] 360 CST UV 실내기",
+            "model": "AC060CN6PBH1",
+            "price": 606000,
+            "qty": 1
+          },
+          {
+            "name": "└ [구성] 360 CST UV 실외기",
+            "model": "AC060CXAPBH1",
+            "price": 910000,
+            "qty": 1
+          },
+          {
+            "name": "└ [구성] 무선리모컨(냉난방전용)",
+            "model": "AR-EH05",
+            "price": 16000,
+            "qty": 1
+          },
+          {
+            "name": "└ [구성] 유선리모컨(통합)",
+            "model": "AWR-WE13N",
+            "price": 56000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 유선리모컨(컬러)",
+            "model": "AWR-WG00N",
+            "price": 91000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 (360CST 원형 공기청정)",
+            "model": "PC6EUCK1NW",
+            "price": 678000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 (360CST 원형 승강)",
+            "model": "PC6EUXK1NW",
+            "price": 188000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 (360CST 사각 블랙 WIFI)",
+            "model": "PC6NBDK1NW",
+            "price": 188000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 (360CST 원형 블랙 WIFI)",
+            "model": "PC6NBNK1NW",
+            "price": 188000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 360CST 사각 공기청정 WIFI",
+            "model": "PC6NUCK1NW",
+            "price": 678000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 360CST 사각 WIFI",
+            "model": "PC6NUDK1NW",
+            "price": 128000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 (360CST 원형 WIFI)",
+            "model": "PC6NUNK1NW",
+            "price": 128000,
+            "qty": 1
+          },
+          {
+            "name": "└ [구성] 판넬 (360CST 사각 승강)",
+            "model": "PC6NUXK1NW",
+            "price": 188000,
+            "qty": 0
+          }
+        ],
+        "screenshot": "C:\\dev\\Samhan-Public\\.claude\\worktrees\\wsrd\\docs\\qa\\1269-attribution\\branch-full\\08-360할인-1000-미반영-전체카드.png"
+      },
+      "wired": {
+        "header": 1700000,
+        "rowCount": 13,
+        "activeRowCount": 4,
+        "detailSum": 1700000,
+        "rows": [
+          {
+            "name": "└ [구성] 360 CST UV 실내기",
+            "model": "AC060CN6PBH1",
+            "price": 606000,
+            "qty": 1
+          },
+          {
+            "name": "└ [구성] 360 CST UV 실외기",
+            "model": "AC060CXAPBH1",
+            "price": 910000,
+            "qty": 1
+          },
+          {
+            "name": "└ [구성] 무선리모컨(냉난방전용)",
+            "model": "AR-EH05",
+            "price": 16000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 유선리모컨(통합)",
+            "model": "AWR-WE13N",
+            "price": 56000,
+            "qty": 1
+          },
+          {
+            "name": "└ [구성] 유선리모컨(컬러)",
+            "model": "AWR-WG00N",
+            "price": 91000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 (360CST 원형 공기청정)",
+            "model": "PC6EUCK1NW",
+            "price": 678000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 (360CST 원형 승강)",
+            "model": "PC6EUXK1NW",
+            "price": 188000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 (360CST 사각 블랙 WIFI)",
+            "model": "PC6NBDK1NW",
+            "price": 188000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 (360CST 원형 블랙 WIFI)",
+            "model": "PC6NBNK1NW",
+            "price": 188000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 360CST 사각 공기청정 WIFI",
+            "model": "PC6NUCK1NW",
+            "price": 678000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 360CST 사각 WIFI",
+            "model": "PC6NUDK1NW",
+            "price": 128000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 (360CST 원형 WIFI)",
+            "model": "PC6NUNK1NW",
+            "price": 128000,
+            "qty": 1
+          },
+          {
+            "name": "└ [구성] 판넬 (360CST 사각 승강)",
+            "model": "PC6NUXK1NW",
+            "price": 188000,
+            "qty": 0
+          }
+        ],
+        "screenshot": "C:\\dev\\Samhan-Public\\.claude\\worktrees\\wsrd\\docs\\qa\\1269-attribution\\branch-full\\04-리모컨-유선-1700000-13행.png"
+      },
+      "color": {
+        "header": 1660000,
+        "rowCount": 13,
+        "activeRowCount": 3,
+        "detailSum": 1660000,
+        "rows": [
+          {
+            "name": "└ [구성] 360 CST UV 실내기",
+            "model": "AC060CN6PBH1",
+            "price": 613000,
+            "qty": 1
+          },
+          {
+            "name": "└ [구성] 360 CST UV 실외기",
+            "model": "AC060CXAPBH1",
+            "price": 919000,
+            "qty": 1
+          },
+          {
+            "name": "└ [구성] 무선리모컨(냉난방전용)",
+            "model": "AR-EH05",
+            "price": 16000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 유선리모컨(통합)",
+            "model": "AWR-WE13N",
+            "price": 56000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 유선리모컨(컬러)",
+            "model": "AWR-WG00N",
+            "price": 91000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 (360CST 원형 공기청정)",
+            "model": "PC6EUCK1NW",
+            "price": 678000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 (360CST 원형 승강)",
+            "model": "PC6EUXK1NW",
+            "price": 188000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 (360CST 사각 블랙 WIFI)",
+            "model": "PC6NBDK1NW",
+            "price": 188000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 (360CST 원형 블랙 WIFI)",
+            "model": "PC6NBNK1NW",
+            "price": 188000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 360CST 사각 공기청정 WIFI",
+            "model": "PC6NUCK1NW",
+            "price": 678000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 360CST 사각 WIFI",
+            "model": "PC6NUDK1NW",
+            "price": 128000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 (360CST 원형 WIFI)",
+            "model": "PC6NUNK1NW",
+            "price": 128000,
+            "qty": 1
+          },
+          {
+            "name": "└ [구성] 판넬 (360CST 사각 승강)",
+            "model": "PC6NUXK1NW",
+            "price": 188000,
+            "qty": 0
+          }
+        ],
+        "screenshot": "C:\\dev\\Samhan-Public\\.claude\\worktrees\\wsrd\\docs\\qa\\1269-attribution\\branch-full\\05-리모컨-컬러-실측-13행.png",
+        "fullCardScreenshot": "C:\\dev\\Samhan-Public\\.claude\\worktrees\\wsrd\\docs\\qa\\1269-attribution\\branch-full\\09-리모컨-컬러-미반영-전체카드.png"
+      },
+      "square": {
+        "header": 1660000,
+        "rowCount": 13,
+        "activeRowCount": 4,
+        "detailSum": 1660000,
+        "rows": [
+          {
+            "name": "└ [구성] 360 CST UV 실내기",
+            "model": "AC060CN6PBH1",
+            "price": 606000,
+            "qty": 1
+          },
+          {
+            "name": "└ [구성] 360 CST UV 실외기",
+            "model": "AC060CXAPBH1",
+            "price": 910000,
+            "qty": 1
+          },
+          {
+            "name": "└ [구성] 무선리모컨(냉난방전용)",
+            "model": "AR-EH05",
+            "price": 16000,
+            "qty": 1
+          },
+          {
+            "name": "└ [구성] 유선리모컨(통합)",
+            "model": "AWR-WE13N",
+            "price": 56000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 유선리모컨(컬러)",
+            "model": "AWR-WG00N",
+            "price": 91000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 (360CST 원형 공기청정)",
+            "model": "PC6EUCK1NW",
+            "price": 678000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 (360CST 원형 승강)",
+            "model": "PC6EUXK1NW",
+            "price": 188000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 (360CST 사각 블랙 WIFI)",
+            "model": "PC6NBDK1NW",
+            "price": 188000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 (360CST 원형 블랙 WIFI)",
+            "model": "PC6NBNK1NW",
+            "price": 188000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 360CST 사각 공기청정 WIFI",
+            "model": "PC6NUCK1NW",
+            "price": 678000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 360CST 사각 WIFI",
+            "model": "PC6NUDK1NW",
+            "price": 128000,
+            "qty": 1
+          },
+          {
+            "name": "└ [구성] 판넬 (360CST 원형 WIFI)",
+            "model": "PC6NUNK1NW",
+            "price": 128000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 (360CST 사각 승강)",
+            "model": "PC6NUXK1NW",
+            "price": 188000,
+            "qty": 0
+          }
+        ]
+      },
+      "excluded": {
+        "header": 1644000,
+        "rowCount": 13,
+        "activeRowCount": 3,
+        "detailSum": 1644000,
+        "rows": [
+          {
+            "name": "└ [구성] 360 CST UV 실내기",
+            "model": "AC060CN6PBH1",
+            "price": 606000,
+            "qty": 1
+          },
+          {
+            "name": "└ [구성] 360 CST UV 실외기",
+            "model": "AC060CXAPBH1",
+            "price": 910000,
+            "qty": 1
+          },
+          {
+            "name": "└ [구성] 무선리모컨(냉난방전용)",
+            "model": "AR-EH05",
+            "price": 16000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 유선리모컨(통합)",
+            "model": "AWR-WE13N",
+            "price": 56000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 유선리모컨(컬러)",
+            "model": "AWR-WG00N",
+            "price": 91000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 (360CST 원형 공기청정)",
+            "model": "PC6EUCK1NW",
+            "price": 678000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 (360CST 원형 승강)",
+            "model": "PC6EUXK1NW",
+            "price": 188000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 (360CST 사각 블랙 WIFI)",
+            "model": "PC6NBDK1NW",
+            "price": 188000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 (360CST 원형 블랙 WIFI)",
+            "model": "PC6NBNK1NW",
+            "price": 188000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 360CST 사각 공기청정 WIFI",
+            "model": "PC6NUCK1NW",
+            "price": 678000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 360CST 사각 WIFI",
+            "model": "PC6NUDK1NW",
+            "price": 128000,
+            "qty": 1
+          },
+          {
+            "name": "└ [구성] 판넬 (360CST 원형 WIFI)",
+            "model": "PC6NUNK1NW",
+            "price": 128000,
+            "qty": 0
+          },
+          {
+            "name": "└ [구성] 판넬 (360CST 사각 승강)",
+            "model": "PC6NUXK1NW",
+            "price": 188000,
+            "qty": 0
+          }
+        ]
+      }
+    },
+    "material": {
+      "separate": {
+        "header": 1200000,
+        "rowCount": 3,
+        "activeRowCount": 2,
+        "detailSum": 1200000,
+        "rows": [
+          {
+            "name": "└ [구성] 무풍 4way 냉난방 프리미엄 실외기",
+            "model": "AC060BXAPBH3",
+            "price": 720000,
+            "qty": 1
+          },
+          {
+            "name": "└ [구성] 냉난방 프리미엄 스탠드 실내기",
+            "model": "AP060RNPPBH1",
+            "price": 480000,
+            "qty": 1
+          },
+          {
+            "name": "└ [구성] 냉난방 스탠드 자재",
+            "model": "FPH-1412XS3",
+            "price": 130000,
+            "qty": 0
+          }
+        ],
+        "screenshot": "C:\\dev\\Samhan-Public\\.claude\\worktrees\\wsrd\\docs\\qa\\1269-attribution\\branch-full\\06-자재-별도-1200000-3행.png"
+      },
+      "included": {
+        "header": 1330000,
+        "rowCount": 3,
+        "activeRowCount": 3,
+        "detailSum": 1330000,
+        "rows": [
+          {
+            "name": "└ [구성] 무풍 4way 냉난방 프리미엄 실외기",
+            "model": "AC060BXAPBH3",
+            "price": 720000,
+            "qty": 1
+          },
+          {
+            "name": "└ [구성] 냉난방 프리미엄 스탠드 실내기",
+            "model": "AP060RNPPBH1",
+            "price": 480000,
+            "qty": 1
+          },
+          {
+            "name": "└ [구성] 냉난방 스탠드 자재",
+            "model": "FPH-1412XS3",
+            "price": 130000,
+            "qty": 1
+          }
+        ],
+        "screenshot": "C:\\dev\\Samhan-Public\\.claude\\worktrees\\wsrd\\docs\\qa\\1269-attribution\\branch-full\\07-자재-포함-1330000-3행.png"
+      }
+    },
+    "toggles": {
+      "toggleBaseHeader": 1300000,
+      "baseToggleHeader": "1,300,000",
+      "baseCheckedBefore": false,
+      "baseCheckedAfter": true,
+      "footBefore": {
+        "roundId": "원형발통 세트||219",
+        "flatId": "실외기 일자발 (전면 8~12HP)||221",
+        "roundQty": 0,
+        "flatQty": 0
+      },
+      "footAfter": {
+        "roundId": "원형발통 세트||219",
+        "flatId": "실외기 일자발 (전면 8~12HP)||221",
+        "roundQty": 0,
+        "flatQty": 0
+      },
+      "expansionBefore": false,
+      "expansionAfter": true,
+      "expansionHeader": "1,300,000"
+    }
+  }
+}

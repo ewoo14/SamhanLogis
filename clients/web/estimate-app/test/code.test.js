@@ -201,6 +201,20 @@ describe('순수 유틸 (Apps Script 호환)', () => {
       .map((row) => row.model)).toEqual(['AR-EH05']);
   });
 
+  test('컬러유선리모컨 후보를 해석하지 못하면 기본 무선 행을 유지한다', () => {
+    const context = loadCurrentEstimateViewFunction('resolveSingleRemoteRows_', {
+      partsForSetStrict_: () => [
+        { model: 'AR-EH05', kind: '리모컨', name: '무선리모컨', component_variant: '기본', isDefault: true },
+        { model: 'AWR-WG00N', kind: '리모컨', name: '유선리모컨(컬러)', component_variant: '컬러', isDefault: false },
+      ],
+    });
+
+    expect(context.resolveSingleRemoteRows_({ model: 'AC060CS6PBH1SY' }, '컬러유선리모컨', false)
+      .map((row) => row.model)).toEqual(['AR-EH05']);
+    expect(context.resolveSingleRemoteRows_({ model: 'AC060CS6PBH1SY' }, '', false)
+      .map((row) => row.model)).toEqual(['AR-EH05']);
+  });
+
   test('싱글 구성품 납품가는 옵션 계산가가 아니라 유선 56000원·무선 16000원 원천을 반환한다', () => {
     const context = loadCurrentEstimateViewFunction('componentDeliveryPrice_', {
       PRICE_INC: { single: {
