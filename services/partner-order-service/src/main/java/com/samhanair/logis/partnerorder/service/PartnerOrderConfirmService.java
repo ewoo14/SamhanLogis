@@ -204,8 +204,13 @@ public class PartnerOrderConfirmService {
             // 주문 라인 modelName 컬럼은 화면 표시 modelCode snapshot 으로 사용한다.
             String lineModelCode = modelCodeSnapshot(p);
             PartnerOrderLine entity = PartnerOrderLine.createFromLegacyPrice(
-                    p.id(), lineModelCode, p.name(), line.categoryKey(),
+                    p.id(), lineModelCode,
+                    line.productName() == null || line.productName().isBlank() ? p.name() : line.productName(),
+                    line.categoryKey(),
                     line.quantity(), priceVat, line.remark());
+            if (line.bundleSetOptions() != null) {
+                entity.withBundleSetOptions(new ObjectMapper().valueToTree(line.bundleSetOptions()));
+            }
             order.addLine(entity); // totalAmount 자동 누적
         }
         order.recomputeTotal();

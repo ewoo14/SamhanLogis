@@ -198,9 +198,14 @@ function fetchQuantitySyncRules(): Promise<unknown[]> {
 type LegacyOrderItem = {
   section?: unknown
   model?: unknown
+  name?: unknown
+  productName?: unknown
+  categoryKey?: unknown
   qty?: unknown
   price?: unknown
   setAllocation?: unknown
+  bundleSetOptions?: unknown
+  setOptions?: unknown
   remarks?: unknown
 }
 
@@ -213,8 +218,12 @@ const CONFIRM_CATEGORY_BY_SECTION: Record<string, string> = {
 
 function confirmLines(itemsArg: unknown): Array<{
   modelCode: string
+  productName?: string
   categoryKey: string
   quantity: number
+  unitPrice?: number
+  setAllocation?: true
+  bundleSetOptions?: unknown
   remark: string | null
 }> {
   if (!Array.isArray(itemsArg) || itemsArg.length === 0) {
@@ -225,7 +234,7 @@ function confirmLines(itemsArg: unknown): Array<{
     const item = (rawItem || {}) as LegacyOrderItem
     const modelCode = String(item.model ?? '').trim()
     const section = String(item.section ?? '').trim().toUpperCase()
-    const categoryKey = CONFIRM_CATEGORY_BY_SECTION[section]
+    const categoryKey = String(item.categoryKey ?? '').trim() || CONFIRM_CATEGORY_BY_SECTION[section]
     const quantity = Number(item.qty)
 
     if (!modelCode) throw new Error(`주문 ${index + 1}번째 품목의 모델코드가 없습니다`)
@@ -238,12 +247,16 @@ function confirmLines(itemsArg: unknown): Array<{
       ? item.remarks.trim()
       : null
     const unitPrice = Number(item.price)
+    const productName = String(item.productName ?? item.name ?? '').trim()
+    const options = item.bundleSetOptions ?? item.setOptions
     return {
       modelCode,
       categoryKey,
       quantity,
+      ...(productName ? { productName } : {}),
       ...(item.setAllocation === true && Number.isFinite(unitPrice) && unitPrice > 0
         ? { unitPrice, setAllocation: true } : {}),
+      ...(options && typeof options === 'object' ? { bundleSetOptions: options } : {}),
       remark,
     }
   })

@@ -123,10 +123,18 @@ function buildSlipRequest(legacyOrder, saleList) {
 
     lines: saleList.map((row, idx) => {
       const b = row.BulkDatas || {};
+      let bundleSetOptions;
+      const rawOptions = b.BUNDLE_SET_OPTIONS ?? b.bundleSetOptions;
+      if (rawOptions && typeof rawOptions === 'object') bundleSetOptions = rawOptions;
+      else if (typeof rawOptions === 'string' && rawOptions.trim()) {
+        try { bundleSetOptions = JSON.parse(rawOptions); } catch (_) { /* 기존 malformed 입력은 무시 */ }
+      }
+      const categoryKey = String(b.CATEGORY_KEY ?? b.categoryKey ?? '').trim();
       return {
         lineNo: idx + 1,
         productCode: b.PROD_CD,
         productName: b.PROD_DES || '',
+        ...(categoryKey ? { categoryKey } : {}),
         spec: b.SIZE_DES || '',
         // PublishLineRequest.qty 는 String 계약 (서비스 레이어 parse)
         qty: String(Number(b.QTY) || 0),
@@ -135,6 +143,7 @@ function buildSlipRequest(legacyOrder, saleList) {
         supplyAmount: Number(b.SUPPLY_AMT) || 0,
         vatAmount: Number(b.VAT_AMT) || 0,
         remarks: b.REMARKS || '',
+        ...(bundleSetOptions ? { bundleSetOptions } : {}),
       };
     }),
   };

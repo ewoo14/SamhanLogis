@@ -799,7 +799,8 @@ public class SlipPublishService {
                     l.unitPriceVat() != null,
                     l.remarks(),
                     l.sourceOrderLineId(),
-                    l.categoryKey()));
+                    l.categoryKey(),
+                    l.bundleSetOptions()));
             if (l.supplyAmount() != null) {
                 resolved.totalSupplyAmount = resolved.totalSupplyAmount.add(l.supplyAmount());
             }
@@ -1099,20 +1100,27 @@ public class SlipPublishService {
          */
         List<SlipLine> toEntityLines(Slip slip) {
             return entries.stream()
-                    .map(e -> e.vatInclusive
-                            ? SlipLine.createFromVatInclusive(slip, e.productId, e.productName, e.modelName,
-                                    e.specification, e.quantity, e.unitPrice, e.note, e.sourceOrderLineId,
-                                    e.categoryKey)
-                            : SlipLine.create(slip, e.productId, e.productName, e.modelName,
-                                    e.specification, e.quantity, e.unitPrice, e.note, e.sourceOrderLineId,
-                                    e.categoryKey))
+                    .map(e -> {
+                        SlipLine line = e.vatInclusive
+                                ? SlipLine.createFromVatInclusive(slip, e.productId, e.productName, e.modelName,
+                                        e.specification, e.quantity, e.unitPrice, e.note, e.sourceOrderLineId,
+                                        e.categoryKey)
+                                : SlipLine.create(slip, e.productId, e.productName, e.modelName,
+                                        e.specification, e.quantity, e.unitPrice, e.note, e.sourceOrderLineId,
+                                        e.categoryKey);
+                        if (e.bundleSetOptions != null) {
+                            line.assignBundleComponent(null, false, e.bundleSetOptions);
+                        }
+                        return line;
+                    })
                     .toList();
         }
 
         record Entry(UUID productId, String productName, String modelName, String specification,
                      int quantity, BigDecimal unitPrice, boolean vatInclusive, String note,
                      UUID sourceOrderLineId,
-                     String categoryKey) {
+                     String categoryKey,
+                     com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions bundleSetOptions) {
         }
     }
 

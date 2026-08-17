@@ -5,6 +5,7 @@ import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.util.UUID;
+import com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions;
 
 /**
  * Phase 6 M5 (slip-service-integration) 발행 endpoint 의 라인 요청 — 양식 1종 공통.
@@ -39,5 +40,14 @@ public record PublishLineRequest(
         @PositiveOrZero BigDecimal vatAmount,
         @Size(max = 200) String remarks,
         UUID sourceOrderLineId,
-        @Size(max = 40) String categoryKey) {
+        @Size(max = 40) String categoryKey,
+        BundleSetOptions bundleSetOptions) {
+
+    public PublishLineRequest(Integer lineNo, String productCode, String productName, String spec,
+                              String qty, BigDecimal unitPriceExVat, BigDecimal unitPriceVat,
+                              BigDecimal supplyAmount, BigDecimal vatAmount, String remarks,
+                              UUID sourceOrderLineId, String categoryKey) {
+        this(lineNo, productCode, productName, spec, qty, unitPriceExVat, unitPriceVat,
+                supplyAmount, vatAmount, remarks, sourceOrderLineId, categoryKey, null);
+    }
 }
