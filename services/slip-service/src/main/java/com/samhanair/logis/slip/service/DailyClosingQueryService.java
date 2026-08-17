@@ -54,7 +54,7 @@ public class DailyClosingQueryService {
                             var line = slip.getLines().get(index);
                             DailyClosingRowResponse row = DailyClosingRowResponse.from(
                                     slip, line, sourceResolver.resolve(slip, line), index + 1,
-                                    productsByModelName.get(line.getModelName()));
+                                    line.getModelName() == null ? null : productsByModelName.get(line.getModelName()));
                             boolean dateOpen = closedDateGuard == null
                                     || closedDateGuard.isAmountEditAllowed(slip.getSlipType(), slip.getSlipDate());
                             return row.withAmountEditability(dateOpen,
@@ -77,7 +77,11 @@ public class DailyClosingQueryService {
         if (modelNames.isEmpty()) {
             return Map.of();
         }
-        return productClient.lookupByModelNames(modelNames).stream()
+        List<ProductSummary> resolvedProducts = productClient.lookupByModelNames(modelNames);
+        if (resolvedProducts == null) {
+            return Map.of();
+        }
+        return resolvedProducts.stream()
                 .filter(summary -> summary != null && summary.modelName() != null)
                 .collect(Collectors.toMap(ProductSummary::modelName, Function.identity(), (first, ignored) -> first));
     }
