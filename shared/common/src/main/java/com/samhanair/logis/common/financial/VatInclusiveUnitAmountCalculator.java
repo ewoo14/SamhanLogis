@@ -6,13 +6,11 @@ import java.math.RoundingMode;
 /**
  * VAT 포함 단가 기준의 일마감 금액 계약.
  *
- * <p>단가를 먼저 원 단위 HALF_UP 반올림하고, 그 단가에서 공급가액·부가세를
- * 분리한 뒤 수량을 곱한다. 라인 합계를 먼저 분리하면 수량 2 이상에서 화면과
- * 저장 후 재조회 값이 달라질 수 있으므로 이 클래스 외의 순서를 사용하지 않는다.
+ * <p>VAT 포함 단가와 수량으로 라인 VAT 포함 합계를 먼저 원 단위 HALF_UP 반올림한 뒤,
+ * 레거시 {@link VatAmountCalculator} 규칙으로 공급가액·부가세를 분리한다. 개당 공급가액을
+ * 먼저 소수 변환하고 수량을 곱하면 소수 금액이 수량만큼 증폭되므로 금지한다.
  */
 public final class VatInclusiveUnitAmountCalculator {
-
-    private static final BigDecimal VAT_DENOMINATOR = new BigDecimal("1.1");
 
     private VatInclusiveUnitAmountCalculator() {
     }
@@ -24,13 +22,14 @@ public final class VatInclusiveUnitAmountCalculator {
         if (quantity <= 0) {
             throw new IllegalArgumentException("수량은 양수여야 합니다");
         }
-        BigDecimal unit = unitPriceWithVat.setScale(0, RoundingMode.HALF_UP);
-        BigDecimal supplyPerUnit = unit.divide(VAT_DENOMINATOR, 0, RoundingMode.HALF_UP);
-        BigDecimal vatPerUnit = unit.subtract(supplyPerUnit);
-        return new Breakdown(unit, supplyPerUnit, vatPerUnit,
-                supplyPerUnit.multiply(BigDecimal.valueOf(quantity)),
-                vatPerUnit.multiply(BigDecimal.valueOf(quantity)),
-                unit.multiply(BigDecimal.valueOf(quantity)));
+        BigDecimal unit = unitPriceWithVat.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal total = unit.multiply(BigDecimal.valueOf(quantity))
+                .setScale(0, RoundingMode.HALF_UP);
+        VatAmountCalculator.Split split = VatAmountCalculator.splitVatInclusive(total);
+        return new Breakdown(unit, split.supplyAmount().divide(BigDecimal.valueOf(quantity), 2,
+                        RoundingMode.HALF_UP),
+                split.vatAmount().divide(BigDecimal.valueOf(quantity), 2, RoundingMode.HALF_UP),
+                split.supplyAmount(), split.vatAmount(), split.lineTotal());
     }
 
     public record Breakdown(BigDecimal unitPriceWithVat, BigDecimal supplyPerUnit,
