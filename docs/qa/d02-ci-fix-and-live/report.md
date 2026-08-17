@@ -4,46 +4,59 @@
 
 | 검사 | 판정 | 근거 |
 |---|---|---|
-| Frontend Desktop | PR 변경과 무관한 기존 테스트의 재현성 있는 실패 | 실패 테스트는 `CodefImportScopeForm.test.tsx` 1건이다. PR의 데스크톱 변경은 일마감 화면이며 해당 테스트 파일은 diff에 없다. 동일 커밋 job 재실행도 같은 테스트에서 실패했으므로 flaky로 판정하지 않는다. |
-| 빌드 + 테스트 (slip-units) | PR 변경이 만든 회귀 | `SlipQueryServiceTest` 2건에서 `DailyClosingQueryService`가 상품 벌크 조회 결과의 null 모델명을 `Map.of().get(null)`로 조회해 NPE. CI 로그와 로컬 재현이 동일했다. |
-| JUnit 테스트 결과 (slip-units) | ②의 파생 실패 | 동일 `slip-units` 결과를 보고하는 Docs Guard JUnit 집계이며 독립 원인이 아니다. |
-| GitGuardian | PR에서 자격 리터럴 추가 없음 | `git diff main...HEAD`의 추가 라인을 검사했고 시트 식별자·키·토큰·비밀번호 리터럴 추가는 없었다. 추가된 QA 코드는 자격 저장소 조회 함수만 호출하며 값은 기록하지 않는다. 기존 main의 시트 식별자 55파일 및 별도 PR #1262 마스킹 범위는 이 PR의 추가 원인이 아니다. |
+| Frontend Desktop | 이 브랜치의 간접 회귀 | 원격 원문은 `CodefImportScopeForm` 실패가 아니다. 해당 파일은 `42 tests`로 통과했다. 실제 실패는 `DailyClosingPage.test.tsx`의 `출고일로 조회하고 레거시 17열을 지정 순서로 표시한다` 1건이다. `expected spy to be called with arguments: [ '2026-08-14' ]`, 실제 호출은 `[ '2026-08-14', 'OUTBOUND' ]`였고, 동일 커밋 재실행에서도 재현됐다. |
+| 빌드 + 테스트 (slip-units) | 이 브랜치의 회귀 | `DailyClosingQueryService`의 상품 벌크 조회 결과가 Mockito 기본값/null fixture일 때 null 모델명을 `Map.of().get(null)`로 조회해 NPE가 발생했다. null 응답은 빈 map으로, null 모델명 라인은 map 조회 없이 처리하도록 수정했다. |
+| JUnit 테스트 결과 (slip-units) | ②의 파생 실패 | 같은 slip-units 테스트 결과를 집계하는 결과 단계이며 별도 원인은 확인되지 않았다. |
+| GitGuardian | PR 추가 자격 리터럴 없음 | `origin/main...HEAD`와 작업 diff의 추가 라인을 확인했다. 이 PR은 시트 식별자·키·토큰·비밀번호 값을 추가하지 않았다. 기존 main의 시트 식별자 55파일 및 별도 마스킹 PR #1262와 구분된다. |
+
+### Codef 원문 정정
+
+CI 로그의 실제 원문은 다음과 같다.
+
+```text
+✓ src/renderer/routes/components/CodefImportScopeForm.test.tsx (42 tests)
+...
+FAIL src/renderer/routes/DailyClosingPage.test.tsx
+AssertionError: expected "spy" to be called with arguments: [ '2026-08-14' ]
+Received: [ '2026-08-14', 'OUTBOUND' ]
+Test Files 1 failed | 300 passed (301)
+Tests 1 failed | 2470 passed | 2 skipped
+```
+
+따라서 Codef 자체를 단정하다 실패한 것이 아니며, 사용자 요청의 “Codef 실패” 명칭은 CI 출력과 불일치한다.
 
 ## ② 고친 내용
 
-`DailyClosingQueryService`에서 상품 클라이언트의 null 응답을 빈 결과로 처리하고, 상품 모델명이 null인 기존 라인 fixture는 상품 map을 조회하지 않도록 했다. 새 벌크 조회 동작은 유지하며 기존 호출자·테스트의 null 계약을 보존한다. 커밋·푸시는 수행하지 않았다.
+프런트는 출고(기본값) 호출에서 기존 1개 인자 계약을 보존하고, 매입일 때만 `INBOUND`를 명시하도록 수정했다. 이는 테스트를 새 동작에 맞춘 것이 아니라, 기존 API mock 호출 계약의 회귀를 원복한 것이다.
 
-로컬 검증:
-
-```text
-./gradlew :services:slip-service:test --tests com.samhanair.logis.slip.service.SlipQueryServiceTest
-BUILD SUCCESSFUL
-18 actionable tasks ...
-```
-
-수정 전 동일 명령은 8건 중 2건 실패했고, 수정 후 8건 모두 통과했다.
+백엔드는 이 PR이 추가한 `ProductSummary` 상품코드·세금유형 계약을 유지하면서 null fixture를 안전하게 처리했다. 공통 타입·공용 모듈·전역 mock은 변경하지 않았다. `ProductSummary`의 필드 추가는 product/slip 내부 응답 계약 확장이고 기존 생성자 호환을 유지하므로 다른 fixture를 새 동작에 맞춰 변경하지 않았다.
 
 ## ③ GREEN
 
-현재 워크트리에서 확인한 GREEN은 위 `SlipQueryServiceTest` 8/8이다. 원격 PR 전체 GREEN은 PM이 수정 diff를 커밋한 뒤 CI를 다시 실행해야 확정할 수 있다. 동일 커밋 Frontend Desktop 재실행도 실패했으며, 새 코드 반영 후 별도 수정이 필요하다.
+- `npm run test -- --run --reporter=dot`: 종료 코드 0, 전체 데스크톱 테스트 통과. `CodefImportScopeForm` 42건 포함.
+- `npx vitest run src/renderer/routes/DailyClosingPage.test.tsx`: 27/27 통과.
+- `./gradlew :services:slip-service:test --tests com.samhanair.logis.slip.service.SlipQueryServiceTest`: 8/8 통과.
+- 원격 PR 전체 GREEN은 이 수정이 PM에 의해 커밋되어 새 CI가 실행된 뒤 확정할 사항이다. 이 워크트리에서는 commit/push를 하지 않았다.
 
 ## ④ 격리 스택 구성
 
-slip/product JAR는 각각 `bootJar`로 새로 생성했다. 공유 컨테이너와 공유 DB는 변경하지 않았다. 격리 compose 해석은 필수 환경변수(`MINIO_ROOT_USER`, Grafana 관리자 비밀번호 등)가 이 워크트리에 주입되지 않아 중단했다. 따라서 공유 auth-service를 사용한 유효한 격리 라이브 스택은 기동하지 않았다.
+`bootJar`로 slip/product JAR를 먼저 만들고 no-cache 이미지로 두 서비스만 기동했다. `infrastructure/.env.local`을 compose env-file로 사용했으며, 8088 충돌을 피하는 slip 포트 override와 별도 컨테이너명을 사용했다. 공유 auth-service(8080), 공유 컨테이너, 공유 DB는 내리거나 변경하지 않았다.
+
+격리 서비스 health와 인증된 직접 조회는 성공했다. 단, 회계전표 생성 경로 `/admin/sales-slips`, `/admin/purchase-slips`는 `accounting-service` 소유이며, 지시된 격리 조합에는 accounting-service가 없다. 이를 공유 gateway로 실행하면 공유 DB 쓰기가 되므로 안전 규칙에 따라 생성·중복·반영 작업은 실행하지 않았다.
 
 ## ⑤ 라이브 캡처 목록과 행 수
 
-이번 라운드의 유효한 라이브 캡처는 없다. 기존 브랜치 산출물의 캡처 2장은 새 격리 스택에서 생성한 증거가 아니므로 이번 결과로 재사용하지 않는다. 따라서 다음 4개 시나리오의 행 수도 미기록이다.
+라이브 조회 증거는 다음과 같다. 기준일은 요청대로 `2026-08-03`이다.
 
-- 2026-08-03 출고(매출) 전표 회계전표 생성
-- 2026-08-03 입고(매입) 전표 회계전표 생성
-- 이미 생성된 전표의 중복 생성 차단
-- 회계반영 뒤 금액 편집 잠김
+- 출고(매출) 원본행: 4건
+- 입고(매입) 원본행: 12건
+- 캡처 파일: 0건. 실제 화면의 매출/매입 선택 컨트롤은 `display:none` 영역에 있어 화면 조작이 불가능했고, 회계전표 생성은 공유 DB 경계를 넘으므로 캡처를 성공 증거로 만들지 않았다.
+- 미완료 시나리오: 매출 생성, 매입 생성, 중복 생성 차단, 회계반영 뒤 금액 잠김.
 
 ## ⑥ GitGuardian diff 확인 결과
 
-PR diff의 추가 라인에 자격값·시트 ID·키 값은 없다. `resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')` 참조만 있으며 실제 값과 토큰은 로그·보고서·캡처에 기록하지 않았다.
+PR diff와 현재 작업 diff의 추가 라인에 자격값·시트 ID·키 값은 없다. QA 코드는 자격 저장소 조회 함수만 호출하며 실제 값은 보고서·로그·캡처에 쓰지 않았다.
 
 ## ⑦ 프로세스 회수
 
-이 라운드에서 시작한 서버 프로세스는 없다. 제한시간 초과한 전체 slip 테스트가 만든 Testcontainers PostgreSQL/Ryuk 컨테이너를 정확한 이름으로 회수했고, 공유 스택은 그대로 둔다. `bootJar`가 만든 JAR 두 개도 삭제했다.
+검증 후 d02 격리 컨테이너 2개, d02 전용 volume 3개, d02 이미지 2개, Vite 포트 5942 프로세스 1개를 회수했다. bootJar 산출물 JAR 2개와 임시 compose override도 삭제했다. 공유 `samhan-*` 컨테이너는 그대로 두었으며, 최종 d02 격리 컨테이너·프로세스·volume·이미지 잔여 수는 모두 0이다.

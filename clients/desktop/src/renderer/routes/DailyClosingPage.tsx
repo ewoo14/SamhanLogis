@@ -655,7 +655,9 @@ function EditableLegacyDailyClosingTable({
   const previousSlipDate = useRef(slipDate)
   const query = useQuery({
     queryKey: ['daily-closing-source-rows', slipDate, closingKind],
-    queryFn: () => getDailyClosingRows(slipDate, closingKind === 'PURCHASE' ? 'INBOUND' : 'OUTBOUND'),
+    queryFn: () => closingKind === 'PURCHASE'
+      ? getDailyClosingRows(slipDate, 'INBOUND')
+      : getDailyClosingRows(slipDate),
   })
   const rows = (Array.isArray(query.data) ? query.data : []).filter((row) => !dailyClosingIsDeleted(row))
   const [viewStates, setViewStates] = useState<Record<'RESULT' | 'PRE_ISSUED', DailyClosingViewState>>({
