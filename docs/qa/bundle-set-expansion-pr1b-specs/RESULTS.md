@@ -1,6 +1,6 @@
 # PR #436 (feat/bundle-set-expansion-pr1b-specs) — 실 Docker 사양 적재 QA 결과
 
-> 목표: `ProductSheetSyncService` 가 실 구글시트(`1RJqO3jT…`)에서 사양을 실제로
+> 목표: `ProductSheetSyncService` 가 실 구글시트(`<SHEET_ID>`)에서 사양을 실제로
 > `product_spec` 테이블에 적재하는지 실증(개발책임자 "사양도 제대로 적재").
 > 방식: standalone-boot 실 QA ([[standalone-boot-real-qa]]) — product-service jar 를
 > 실 SA key + 실 시트 + docker Postgres(`samhan-postgres` / `product_db`) 로 부팅,
@@ -13,7 +13,7 @@
 |---|---|
 | 브랜치 | `feat/bundle-set-expansion-pr1b-specs` (HEAD `02a8edf3` — PR-1b FEAT `ce8c646d` + 리뷰-fix `02a8edf3`) |
 | SA key | 로컬 SA key (`C:\dev\` 하위, repo 밖) — 파일명·client_email·private_key·project 미기록, [[lookup-seed-source]] 참조 |
-| 시트 ID | `1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ` (default, 실 read 확인) |
+| 시트 ID | `<SHEET_ID>` (default, 실 read 확인) |
 | DB | docker `samhan-postgres` → `product_db` (PostgreSQL), Flyway V1~**V12** |
 | 부팅 | `product-service.jar` standalone, SERVER_PORT=8184, eureka off, cron 비활성화(`0 0 5 31 12 *`)로 부팅 1회 sync 단독 |
 | 부팅 시각 | 2026-06-09 14:27, Started in 12.13s, syncAll(상품) duration 80,206ms |

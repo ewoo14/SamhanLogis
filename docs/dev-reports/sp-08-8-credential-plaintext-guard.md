@@ -138,7 +138,7 @@ credential-plaintext-guard:
 
 ### Google Sheet ID 판정 근거
 
-`1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ` (종합견적서)는 다음 위치에 존재한다.
+`<SHEET_ID>` (종합견적서)는 다음 위치에 존재한다.
 
 - `services/partner-order-service/src/main/resources/application.yml`: `${BOOTSTRAP_SHEET_ID:1RJqO3...}` 형태 — ENV 오버라이드 가능. 허용.
 - `docs/operational-validation/*.md`, `docs/dev-reports/migration-*.md`: 문서 mention. 허용.

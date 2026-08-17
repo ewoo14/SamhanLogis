@@ -2,7 +2,7 @@
 
 - 수집일: 2026-08-08 (Asia/Seoul)
 - 작업 성격: 읽기 전용 수집 라운드
-- 주 스프레드시트 ID: `1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ`
+- 주 스프레드시트 ID: `<SHEET_ID>`
 - 주 스프레드시트 제목: `종합 견적서`
 - 인증: 저장소 밖 서비스 계정 키 경로를 `GOOGLE_SERVICE_ACCOUNT_KEY`로만 주입했다. 키 내용은 출력·복사하지 않았다.
 - 금지사항 준수: Sheets 쓰기, DB 쓰기, 애플리케이션 코드 수정, Git 명령, Docker 작업을 하지 않았다.
