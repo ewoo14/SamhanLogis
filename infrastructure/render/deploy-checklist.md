@@ -32,8 +32,6 @@
 | `ESTIMATE_SERVICE_URL` | backend 호스팅 결정 (estimate-service) | [ ] |
 | `AUDIT_LOG_URL` | backend 호스팅 결정 (audit-log endpoint) | [ ] |
 | `SLIP_SERVICE_URL` | backend 호스팅 결정 (slip-service M5) | [ ] |
-| `GOOGLE_SERVICE_ACCOUNT_KEY` | Google Cloud Console (JSON 파일 경로 또는 base64) | [ ] |
-| `SRC_SHEET_ID` | legacy 견적 spreadsheet ID | [ ] |
 
 ## DNS 연결
 
@@ -53,19 +51,18 @@
 
 - [ ] `curl -fsS https://quote.samhan-air.com/healthz` → `{"ok":true,...}`
 - [ ] 브라우저로 `https://quote.samhan-air.com/` 진입 → legacy 견적 UI 정상 렌더링
-- [ ] Google Sheets 데이터 연동 정상 (모델 목록 / 단가 표시)
+- [ ] product-service DB 카탈로그 연동 정상 (모델 목록 / 단가 표시)
 - [ ] backend RPC 호출 1건 성공 (`POST /rpc/<fn>` → 200)
 
 ## QA 시나리오 PASS
 
 - [ ] `qa/playwright/tests/` 의 `web-estimate-app` project 시나리오 60 cell PASS (Phase 7 staging 환경)
 
-## Phase 11 카탈로그 DB cutover
+## 카탈로그 DB 원천 고정
 
 - [ ] 백엔드 `product-service` 와 `dc-config-service` 배포 완료
 - [ ] estimate-app 운영 환경변수 등록: `PRODUCT_SERVICE_URL`, `DC_CONFIG_SERVICE_URL`, `SAMHAN_INTERNAL_TOKEN` (또는 표준 internal token alias)
-- [ ] Render `samhan-estimate-app` 에서 `CATALOG_SOURCE=sheet` override 제거
-- [ ] 수동 deploy 후 `CATALOG_SOURCE` 미설정 기본값으로 프로덕션 DB 카탈로그 로드 확인
+- [ ] `CATALOG_SOURCE` 설정 여부와 무관하게 프로덕션 DB 카탈로그 로드 확인
 
 ## Rollback 절차
 

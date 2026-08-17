@@ -137,6 +137,29 @@ class PartnerAdminControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    void quick_search_with_sales_role_returns_customer_rows() throws Exception {
+        PartnerAdminRequest req = sampleRequest("P-2026-QUICK-001", "999-88-77783");
+        mockMvc.perform(MockMvcRequestBuilders.post("/admin/partners")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
+                        .header("X-User-Role", "MANAGER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(MockMvcResultMatchers.status().isOk());
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/partners/quick-search")
+                        .param("q", "P-2026-QUICK")
+                        .param("size", "20")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].id").exists())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].partnerCode")
+                        .value("P-2026-QUICK-001"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].partnerName")
+                        .value("(주)샘플"));
+    }
+
+    @Test
     void search_with_sales_role_returns_partner_code_items_without_uuid() throws Exception {
         PartnerAdminRequest req = sampleRequest("P-2026-0016", "999-88-77783");
         mockMvc.perform(MockMvcRequestBuilders.post("/admin/partners")

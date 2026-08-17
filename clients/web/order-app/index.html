@@ -241,7 +241,7 @@ body.branch-active #pageBranch{ display:block !important; padding:8px 12px } bod
 .btn-close-large { width: 100%; height: 80px; background: #1f2937; color: #fff; font-size: 24px; font-weight: bold; border: none; border-top: 1px solid #374151; cursor: pointer; flex-shrink: 0; } #btnShowGateImages { margin-top: 12px; background: #4b5563; color: #fff; border-radius: 12px; font-size: 24px; height: 60px; width: 100%; display: none; } .emoji-octagon { color: #ef4444; }
 #pageHistory { padding: 0 16px; display: flex; flex-direction: column; height: 100%; overflow: hidden; } body.no-active #btnHistory { display: none !important; } #historyLoading .biz-box { width: auto; max-width: 90vw; height: auto; aspect-ratio: auto; background: #0b1120; color: #e5e7eb; text-align: center; border-radius: 16px; padding: 40px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5); }
 .history-filter { width: 100%; max-width: 1280px; margin: 0 auto 12px auto; display: flex; gap: 10px; align-items: center; justify-content: center; background: #fff; padding: 12px; border-radius: 12px; border: 1px solid var(--c-line); } .history-filter input[type="date"] { height: 36px; border: 1px solid var(--c-line); border-radius: 8px; padding: 0 10px; font-family: inherit; } .filter-info { font-size: 12px; color: #6b7280; margin-left: 4px; font-weight: 500; }
-.history-list-wrap { width: 100%; max-width: 1280px; margin: 0 auto; flex: 1; overflow-y: auto; max-height: calc(100vh - 180px); border: 1px solid var(--c-line); border-radius: 12px; background: #fff; } .history-table th { position: sticky; top: 0; background: #f3f4f6; z-index: 2; padding: 10px; text-align: center; border-bottom: 1px solid #e5e7eb; } .history-table td { padding: 10px; text-align: center; border-bottom: 1px solid #f3f4f6; }
+.history-list-wrap { width: 100%; max-width: 1280px; margin: 0 auto; flex: 1; overflow-y: auto; max-height: calc(100vh - 180px); border: 1px solid var(--c-line); border-radius: 12px; background: #fff; } .history-table th { position: sticky; top: 0; background: #f3f4f6; z-index: 2; padding: 10px; text-align: center; border-bottom: 1px solid #e5e7eb; } .history-table td { padding: 10px; text-align: center; border-bottom: 1px solid #f3f4f6; } .history-table tr.history-deleted-row { color: #9ca3af; text-decoration: line-through; text-decoration-thickness: 1px; } .history-table tr.history-deleted-row button { pointer-events: none; opacity: .55; text-decoration: none; }
 .detail-biz-box { border: 2px solid #000; padding: 12px; text-align: center; font-size: 20px; font-weight: 800; margin-bottom: 16px; background: #f9fafb; } .detail-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; } .detail-table th, .detail-table td { border: 1px solid #000; padding: 6px; text-align: center; } .detail-table th { background: #eee; font-weight: 700; } .detail-sum-row td { background: #fffbeb; font-weight: 700; text-align: right; }
 .detail-info-box { border: 1px solid #000; padding: 10px; margin-bottom: 6px; } .detail-label { font-size: 11px; color: #666; font-weight: 700; display: block; margin-bottom: 2px; }
 body.history-active .grid { display: none !important; } body.history-active #pageHistory { display: flex !important; } body.history-active #btnGoHome, body.history-active #btnGoSingle, body.history-active #btnGoComm { display: inline-block !important; }
@@ -3252,12 +3252,13 @@ function updateCommRatio(){
 function setPreviewFoot(sum){
   const tr=el('#pvFoot');
   if(tr){
+    const displaySum = sum == null ? '—' : fmt(sum);
     // 여백조정
     tr.innerHTML=`
       <td class="pc-spacer" colspan="4"></td>
       <td class="mo-spacer" colspan="2"></td>
       <td><strong>합계</strong></td>
-      <td><strong id="pvSubtotal">${fmt(sum)}</strong></td>
+      <td><strong id="pvSubtotal">${displaySum}</strong></td>
     `;
   }
 }
@@ -6815,8 +6816,14 @@ function initEvents(){
   el('#btnSendOrder').addEventListener('click',()=>{
     sendLog('주문전송', '최종 주문 확인창(Final) 열기');
     const itemsRaw = buildSendRows();
+    const serverPricePayload = window.__SAMHAN_LATEST_SERVER_PRICE_PAYLOAD__;
+    if (!serverPricePayload || typeof window.__SAMHAN_PRICE_AUTHORITY__ !== 'function') {
+      console.warn('[order-app] 서버 가격 미리보기 없이 최종 확인창을 열 수 없습니다');
+      return;
+    }
+    const authoritativeItems = window.__SAMHAN_PRICE_AUTHORITY__(itemsRaw, serverPricePayload);
     // 모델명+납품가 기준으로 병합
-    const items = aggregateSendRows(itemsRaw);
+    const items = aggregateSendRows(authoritativeItems);
 
     const addrShip = (el('#addrBase').value.trim() + ' ' + el('#addrDetail').value.trim()).trim();
     const addrAuditRaw = (el('#addrAuditBase')?.value.trim() + ' ' + el('#addrAuditDetail')?.value.trim()).trim();
@@ -8156,6 +8163,7 @@ function updateImgSlide() {
 (function() {
   /* 원본 전송행 생성만 보존 — 40% 판정은 이 파일에서 하지 않는다. */
   const originBuildSendRows = window.buildSendRows;
+  window.__SAMHAN_LATEST_SERVER_PRICE_PAYLOAD__ = null;
 
   /* 보너스율계산 */
   function getTierBonusRate(sum) {
@@ -8244,6 +8252,42 @@ function updateImgSlide() {
   let previewDebounceTimer = null;
   let previewQueued = null;
 
+  function applyServerPricesToCatalogTables(items, lines) {
+    lines.forEach((line, index) => {
+      const item = items[index] || {};
+      const model = String(line?.modelCode || item.model || '').trim();
+      const price = Number(line?.finalPrice);
+      const quantity = Number(line?.quantity) || Number(item.qty) || 0;
+      if (!model || !Number.isFinite(price) || price < 0) return;
+
+      const escapedModel = CSS.escape(model);
+      const priceCells = [
+        ...document.querySelectorAll(`#homeBody [data-unit="${escapedModel}"], #commBody [data-cunit="${escapedModel}"], #singleBody [data-ssu="${escapedModel}"]`),
+      ];
+      priceCells.forEach((cell) => {
+        cell.textContent = fmt(price);
+        cell.setAttribute('data-unitraw', String(price));
+      });
+
+      const subtotalCells = [
+        ...document.querySelectorAll(`#homeBody [data-sub="${escapedModel}"], #commBody [data-csub="${escapedModel}"], #singleBody [data-ss="${escapedModel}"]`),
+      ];
+      subtotalCells.forEach((cell) => { cell.textContent = fmt(price * quantity); });
+    });
+  }
+
+  /** 서버 가격을 받지 못한 화면에는 클라이언트 계산 금액을 남기지 않는다. */
+  function clearServerPricesFromCatalogTables() {
+    document.querySelectorAll(
+      '#homeBody [data-unit], #commBody [data-cunit], #singleBody [data-ssu], ' +
+      '#homeBody [data-sub], #commBody [data-csub], #singleBody [data-ss]'
+    ).forEach((cell) => {
+      cell.textContent = '—';
+      cell.removeAttribute('data-unitraw');
+    });
+    setPreviewFoot(null);
+  }
+
   function previewOrderContext() {
     const partnerCode = window.CURRENT_BIZNO || window.AUTH_BIZ ||
       (document.getElementById('bizGateInput')?.value || '').replace(/[^\d]/g, '');
@@ -8280,6 +8324,9 @@ function updateImgSlide() {
     if (lines.length !== items.length) {
       throw new Error('가격 미리보기 라인 수가 주문 입력과 다릅니다');
     }
+    // 최종 확인창과 전송도 이 동일한 서버 응답을 가격 원천으로 사용한다.
+    window.__SAMHAN_LATEST_SERVER_PRICE_PAYLOAD__ = data;
+    applyServerPricesToCatalogTables(items, lines);
     const body = el('#previewBody');
     body.innerHTML = '';
     const thead = document.querySelector('#dlgPreview thead tr');
@@ -8316,6 +8363,8 @@ function updateImgSlide() {
   }
 
   function renderPreviewError(error) {
+    window.__SAMHAN_LATEST_SERVER_PRICE_PAYLOAD__ = null;
+    clearServerPricesFromCatalogTables();
     const body = el('#previewBody');
     body.innerHTML = `<tr><td colspan="7" style="padding:20px;text-align:center;color:#b91c1c">`+
       `서버에서 가격을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.</td></tr>`;
@@ -8327,6 +8376,7 @@ function updateImgSlide() {
   /* 미리보기는 250ms 디바운스 + 최신 요청만 반영한다. 실패 시 자체 계산하지 않는다. */
   window.openPreview = function() {
     const sequence = ++previewSequence;
+    window.__SAMHAN_LATEST_SERVER_PRICE_PAYLOAD__ = null;
     const body = el('#previewBody');
     body.innerHTML = '<tr><td colspan="7" style="padding:20px;text-align:center">서버 가격을 확인하는 중...</td></tr>';
     el('#btnProceed').disabled = true;
@@ -9012,13 +9062,16 @@ function renderHistory(data) {
     const outDateStr = row.outDate ? row.outDate.slice(0, 10) : '-';
     const orderDateStr = row.orderDate ? row.orderDate.slice(0, 16).replace('T', ' ') : '-';
     
+    const deleted = row.isDeleted === true;
+    const deletedNote = [row.orderNo, row.note].filter(Boolean).join(' · ');
     const tr = document.createElement('tr');
+    if (deleted) tr.className = 'history-deleted-row';
     tr.innerHTML = `
       <td>${escapeLegacyHtml(outDateStr)}</td>
       <td>${escapeLegacyHtml(orderDateStr)}</td>
       <td style="text-align:left">${escapeLegacyHtml(row.addr)}</td>
-      <td>${escapeLegacyHtml(row.note)}</td>
-      <td><button class="btn-mini" onclick="openDetail(${i})">자세히</button></td>
+      <td>${escapeLegacyHtml(deleted ? deletedNote : row.note)}</td>
+      <td>${deleted ? '<span aria-label="삭제된 원본">삭제됨</span>' : `<button class="btn-mini" onclick="openDetail(${i})">자세히</button>`}</td>
     `;
     tb.appendChild(tr);
   });

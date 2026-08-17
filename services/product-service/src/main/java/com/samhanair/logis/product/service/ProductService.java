@@ -30,6 +30,7 @@ import com.samhanair.logis.product.web.dto.CreateProductRequest;
 import com.samhanair.logis.product.web.dto.LabelResolutionResult;
 import com.samhanair.logis.product.web.dto.ProductResponse;
 import com.samhanair.logis.product.web.dto.ProductSummaryResponse;
+import com.samhanair.logis.product.web.dto.ProductClassificationLookupResponse;
 import com.samhanair.logis.product.web.dto.ProductItemKind;
 import com.samhanair.logis.product.web.dto.ProductSpecRequest;
 import com.samhanair.logis.product.web.dto.ProductSpecResponse;
@@ -463,6 +464,28 @@ public class ProductService {
         return matches.stream()
                 .map(ProductSummaryResponse::from)
                 .toList();
+    }
+
+    /** 주문서웹 확정 시 사용하는 분류 전용 snapshot 조회. */
+    @Transactional(readOnly = true)
+    public List<ProductClassificationLookupResponse> lookupClassificationsByModelCodes(List<String> modelCodes) {
+        if (modelCodes == null || modelCodes.isEmpty() || modelCodes.size() > LOOKUP_MAX) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "조회할 modelCode가 올바르지 않습니다");
+        }
+        List<String> normalized = modelCodes.stream().filter(Objects::nonNull).map(String::trim)
+                .filter(s -> !s.isBlank()).distinct().toList();
+        if (normalized.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "조회할 modelCode가 비어있습니다");
+        }
+        List<Product> codeMatches = productRepository.findByModelCodeInAndIsDeletedFalse(normalized);
+        Set<String> matched = codeMatches.stream().map(Product::getModelCode).filter(Objects::nonNull)
+                .map(String::trim).collect(java.util.stream.Collectors.toSet());
+        List<String> unresolved = normalized.stream().filter(code -> !matched.contains(code)).toList();
+        List<Product> nameMatches = unresolved.isEmpty() ? List.of()
+                : productRepository.findByModelNameInAndIsDeletedFalse(unresolved);
+        List<Product> all = new ArrayList<>(codeMatches);
+        all.addAll(nameMatches);
+        return all.stream().map(ProductClassificationLookupResponse::from).toList();
     }
 
     /**

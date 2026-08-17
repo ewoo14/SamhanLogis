@@ -63,6 +63,10 @@ samhan:
 # 재리뷰 #4/#11/#12 — 토큰은 환경변수로만 주입한다. prod 및 통합테스트는
 #   SAMHAN_INTERNAL_TOKEN 을 명시해야 하며, 미설정 상태를 기본 자격으로 우회하지 않는다.
 app:
+  qa:
+    partner:
+      # dev/local 프로파일에서만 QA 거래처 시더를 켠다. 운영 기본값은 false.
+      seed: ${SAMHAN_QA_PARTNER_SEED:false}
   security:
     internal:
       token: ${SAMHAN_INTERNAL_TOKEN}

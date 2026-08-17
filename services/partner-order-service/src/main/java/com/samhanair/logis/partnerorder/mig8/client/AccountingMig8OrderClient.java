@@ -1,6 +1,7 @@
 package com.samhanair.logis.partnerorder.mig8.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.samhanair.logis.partnerorder.client.OpaqueUuidDecoder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
@@ -150,7 +151,7 @@ public class AccountingMig8OrderClient {
 
     private static UUID uuid(JsonNode node, String key) {
         String value = text(node, key);
-        return value == null ? null : UUID.fromString(value);
+        return value == null ? null : OpaqueUuidDecoder.decode(value);
     }
 
     private static LocalDate date(JsonNode node, String key) {

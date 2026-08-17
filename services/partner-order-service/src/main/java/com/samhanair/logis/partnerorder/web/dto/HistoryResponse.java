@@ -13,15 +13,35 @@ public record HistoryResponse(
         String status,
         String slipPublishStatus,
         BigDecimal totalAmount,
-        LocalDateTime confirmedAt) {
+        LocalDateTime outDate,
+        LocalDateTime orderDate,
+        String addr,
+        String note,
+        boolean isDeleted) {
+
+    /** 기존 내부 테스트/호출자의 confirmedAt 계약을 새 화면 필드로 연결한다. */
+    public HistoryResponse(String orderNo, String slipNo, String status, String slipPublishStatus,
+                           BigDecimal totalAmount, LocalDateTime confirmedAt, boolean isDeleted) {
+        this(orderNo, slipNo, status, slipPublishStatus, totalAmount,
+                confirmedAt, null, null, null, isDeleted);
+    }
 
     public static HistoryResponse from(PartnerOrder order) {
+        return from(order, order.getConfirmedAt());
+    }
+
+    /** confirmed_at 결측 레거시 주문은 CONFIRMED 이벤트 시각을 발송시각으로 사용한다. */
+    public static HistoryResponse from(PartnerOrder order, LocalDateTime effectiveOutDate) {
         return new HistoryResponse(
                 order.getOrderNo(),
                 order.getSlipNo(),
                 order.getStatus().name(),
                 order.getSlipPublishStatus().name(),
                 order.getTotalAmount(),
-                order.getConfirmedAt());
+                effectiveOutDate,
+                order.getCreatedAt(),
+                order.getDeliveryAddress(),
+                order.getMemo(),
+                Boolean.TRUE.equals(order.getIsDeleted()));
     }
 }

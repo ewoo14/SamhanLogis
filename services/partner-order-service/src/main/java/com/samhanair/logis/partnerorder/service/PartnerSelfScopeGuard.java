@@ -46,7 +46,9 @@ public class PartnerSelfScopeGuard {
             }
             HttpServletRequest request = attrs.getRequest();
             String isPartner = request.getHeader(HttpHeaderConstants.IS_PARTNER_HEADER);
-            return "true".equalsIgnoreCase(isPartner);
+            String role = request.getHeader(HttpHeaderConstants.CALLER_ROLE_HEADER);
+            return "true".equalsIgnoreCase(isPartner)
+                    && (role == null || role.isBlank() || "PARTNER".equalsIgnoreCase(role.trim()));
         } catch (Exception e) {
             return false;
         }
