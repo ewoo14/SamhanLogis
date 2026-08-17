@@ -9,6 +9,7 @@ const {
   resolveSingleRemoteOption,
   configuredOptionVariants,
   configuredOptionShapes,
+  deriveInfinitePanelVariant,
 } = require('../../option-naming/optionNaming');
 
 test('D-03 옵션 명칭 DB 속성축 통일', async (t) => {
@@ -39,6 +40,23 @@ test('D-03 옵션 명칭 DB 속성축 통일', async (t) => {
     assert.deepEqual(['', '기본판넬', '블랙판넬', '승강판넬', '공청판넬'].map(normalizePanelOption), [
       '기본', '기본', '블랙', '승강', '공청',
     ]);
+  });
+
+  await t.test('품목명에서 인피니트 판넬 4종을 구분한다', () => {
+    const rows = [
+      ['판넬 1way 무풍대형 인피니트', '일반', '인피니트 기본'],
+      ['판넬 1way 무풍대형 인피니트 25년형', '일반', '인피니트 25년형'],
+      ['판넬 1way 무풍대형 인피니트 / 공청', '공청', '인피니트 공청'],
+      ['판넬 1way 무풍대형 인피니트 / 공청+동작감지', '공청', '인피니트 공청+동작감지 AI'],
+    ];
+    for (const [name, panelType, expected] of rows) {
+      assert.equal(deriveInfinitePanelVariant(name, panelType), expected, name);
+    }
+  });
+
+  await t.test('인피니트가 아닌 기존 판넬은 도출 대상이 아니다', () => {
+    assert.equal(deriveInfinitePanelVariant('판넬 360 원형', '일반'), null);
+    assert.equal(deriveInfinitePanelVariant('판넬 1way 일반 공청', '공청'), null);
   });
 
   await t.test('싱글은 리모컨 선택보다 제외를 우선한다', () => {

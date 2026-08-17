@@ -30,6 +30,23 @@ class ProductAttributeClassifierTest {
     }
 
     @Test
+    void classifyInfinitePanelVariant_품목명에서_네_종을_구분한다() {
+        assertThat(classifier.classifyInfinitePanelVariant("판넬 1way 무풍대형 인피니트", "일반"))
+                .isEqualTo("인피니트 기본");
+        assertThat(classifier.classifyInfinitePanelVariant("판넬 1way 무풍대형 인피니트 25년형", "일반"))
+                .isEqualTo("인피니트 25년형");
+        assertThat(classifier.classifyInfinitePanelVariant("판넬 1way 무풍대형 인피니트 / 공청", "공청"))
+                .isEqualTo("인피니트 공청");
+        assertThat(classifier.classifyInfinitePanelVariant("판넬 1way 무풍대형 인피니트 / 공청+동작감지", "공청"))
+                .isEqualTo("인피니트 공청+동작감지 AI");
+    }
+
+    @Test
+    void classifyInfinitePanelVariant_인피니트_아닌_판넬은_null() {
+        assertThat(classifier.classifyInfinitePanelVariant("판넬 360 원형", "일반")).isNull();
+    }
+
+    @Test
     void classifyRemoteType_F4_옵션_vocab으로_분류한다() {
         // GAS ground-truth: comm_remote 셀렉터 ['제외','무선','유선','컬러유선'] + /유선.*리모컨/ 옵션 감지.
         assertThat(classifier.classifyRemoteType("유선리모컨")).isEqualTo("유선");

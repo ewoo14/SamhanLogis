@@ -8,7 +8,7 @@ export const SINGLE_PANEL_OPTIONS = ['', '판넬제외', '블랙판넬', '승강
 
 /** 구성품/수량 동기화 target이 공유하는 특징 후보. */
 export const COMPONENT_FEATURE_OPTIONS = {
-  PANEL: ['기본', '블랙', '승강', '공청'],
+  PANEL: ['기본', '블랙', '승강', '공청', '인피니트 기본', '인피니트 25년형', '인피니트 공청', '인피니트 공청+동작감지 AI'],
   REMOTE: ['기본', '유선', '컬러'],
 } as const
 

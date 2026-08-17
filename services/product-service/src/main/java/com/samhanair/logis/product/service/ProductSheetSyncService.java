@@ -400,6 +400,13 @@ public class ProductSheetSyncService {
                     && child.getProductCategory() == ProductCategory.COMMERCIAL_MULTI) {
                 kind = BundleComponent.ComponentKind.OUTDOOR;
             }
+            if (kind == BundleComponent.ComponentKind.PANEL) {
+                String infiniteVariant = attributeClassifier.classifyInfinitePanelVariant(
+                        child.getName(), child.getPanelType());
+                if (infiniteVariant != null) {
+                    variant = infiniteVariant;
+                }
+            }
             QtyAndMode qm = resolveQty(mapping.hasQtyColumn, qtyRaw);
 
             // ① 부모 BUNDLE 마킹(중복 회피).

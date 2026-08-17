@@ -20,6 +20,15 @@ function normalizePanelOption(value) {
   return raw;
 }
 
+function deriveInfinitePanelVariant(name, panelType) {
+  const text = String(name ?? '').trim();
+  if (!/인피니트/i.test(text)) return null;
+  if (/공청.*동작감지|동작감지.*공청/i.test(text)) return '인피니트 공청+동작감지 AI';
+  if (/공기청정|공청/i.test(text) || String(panelType ?? '').trim() === '공청') return '인피니트 공청';
+  if (/25년형/i.test(text)) return '인피니트 25년형';
+  return '인피니트 기본';
+}
+
 function add(target, model, quantity) {
   if (!model || !quantity) return;
   target[model] = (target[model] || 0) + quantity;
@@ -67,6 +76,7 @@ module.exports = {
   expandHomeRemoteOption,
   normalizeRemoteOption,
   normalizePanelOption,
+  deriveInfinitePanelVariant,
   resolveSingleRemoteOption,
   configuredOptionVariants,
   configuredOptionShapes,
