@@ -13,20 +13,24 @@ import java.util.UUID;
  * 사용자 표시 식별자는 authorName 만 사용한다.
  */
 public record SlipCollabCommentResponse(
+        UUID id,
         String anchor,
         String authorName,
         String body,
+        UUID parentId,
         CollabCommentStatus status,
         LocalDateTime createdAt
 ) {
 
     public static SlipCollabCommentResponse from(SlipCollabComment comment) {
         return new SlipCollabCommentResponse(
+                comment.getId(),
                 comment.getAnchor(),
                 ActorDisplayName.resolveNullable(
                         comment.getAuthorId() == null ? null : comment.getAuthorId().toString(),
                         comment.getAuthorName()),
                 comment.getBody(),
+                comment.getParentId(),
                 comment.getStatus(),
                 comment.getCreatedAt());
     }

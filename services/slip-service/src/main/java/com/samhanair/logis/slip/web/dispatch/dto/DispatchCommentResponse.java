@@ -13,20 +13,24 @@ import java.util.UUID;
  * 댓글 key 용도로만 제공하고, 사용자 표시 식별자는 {@code authorName} 만 사용한다.
  */
 public record DispatchCommentResponse(
+        UUID id,
         String anchor,
         String authorName,
         String body,
+        UUID parentId,
         CollabCommentStatus status,
         LocalDateTime createdAt
 ) {
 
     public static DispatchCommentResponse from(DispatchCollabComment comment) {
         return new DispatchCommentResponse(
+                comment.getId(),
                 comment.getAnchor(),
                 ActorDisplayName.resolveNullable(
                         comment.getAuthorId() == null ? null : comment.getAuthorId().toString(),
                         comment.getAuthorName()),
                 comment.getBody(),
+                comment.getParentId(),
                 comment.getStatus(),
                 comment.getCreatedAt()
         );

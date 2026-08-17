@@ -12,18 +12,22 @@ import java.util.UUID;
  * <p>UUID 비공개 가드: authorId 는 응답하지 않는다. 사용자 표시 식별자는 authorName 만 사용한다.
  */
 public record ApprovalCollabCommentResponse(
+        UUID id,
         String anchor,
         String authorName,
         String body,
+        UUID parentId,
         CollabCommentStatus status,
         LocalDateTime createdAt
 ) {
 
     public static ApprovalCollabCommentResponse from(ApprovalCollabComment comment) {
         return new ApprovalCollabCommentResponse(
+                comment.getId(),
                 comment.getAnchor(),
                 ActorDisplayName.resolve(comment.getAuthorId() == null ? null : comment.getAuthorId().toString(), comment.getAuthorName()),
                 comment.getBody(),
+                comment.getParentId(),
                 comment.getStatus(),
                 comment.getCreatedAt());
     }

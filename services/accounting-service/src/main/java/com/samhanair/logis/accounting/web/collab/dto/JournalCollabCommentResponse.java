@@ -13,18 +13,22 @@ import java.util.UUID;
  * 사용자 표시 식별자는 authorName 만 사용한다.
  */
 public record JournalCollabCommentResponse(
+        UUID id,
         String anchor,
         String authorName,
         String body,
+        UUID parentId,
         CollabCommentStatus status,
         LocalDateTime createdAt
 ) {
 
     public static JournalCollabCommentResponse from(JournalCollabComment comment) {
         return new JournalCollabCommentResponse(
+                comment.getId(),
                 comment.getAnchor(),
                 ActorDisplayName.resolve(comment.getAuthorId() == null ? null : comment.getAuthorId().toString(), comment.getAuthorName()),
                 comment.getBody(),
+                comment.getParentId(),
                 comment.getStatus(),
                 comment.getCreatedAt());
     }
