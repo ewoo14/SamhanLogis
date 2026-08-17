@@ -158,7 +158,7 @@ $ node --check lib/google-sheets-client.js && \
 ALL OK
 
 $ node -e "const c = require('./lib/code'); console.log(Object.keys(c).length, typeof c.bootstrap, c._constants.SRC_SHEET_ID);"
-73 function 1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ
+73 function <SHEET_ID>
 
 $ PORT=15183 node server.js & sleep 3 && curl -s http://localhost:15183/healthz
 {"ok":true,"app":"estimate-app","version":"2.0.0"}
@@ -184,7 +184,7 @@ PWA v0.20.5 — precache 6 entries (422.73 KiB)
 
 ## 6. legacy 보존 검증
 
-- ✓ 시트 ID `1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ` 그대로 (lib/code.js §0 SRC_SHEET_ID + .env.example)
+- ✓ 시트 ID `<SHEET_ID>` 그대로 (lib/code.js §0 SRC_SHEET_ID + .env.example)
 - ✓ legacy 16종 bootstrap 항목 (homemulti / singleSets / singleParts / homeDefaults / singleDefaults / singleMatPrices / commercialMulti / commercialParts / oldProducts / recommendData / specDetailMap / priceInc / logoData / config / userEmail / authData) 그대로 EJS render context 에 전달
 - ✓ `sendOrderFromUi` → slip-bridge.postSlip 흐름 그대로 (e-Count proxy 폐기, slip-service POST 로 대체)
 - ✓ legacy 시트 탭 이름 그대로 (HOME_NAME / SINGLE_NAME / SINGLE_PARTS_NAME / COMM_NAME / COMM_PARTS_NAME / CUSTOMERS_NAME / MANAGERS_NAME / 싱글 자재가격 / 구형 / 추천실외기 / 홈멀티 / 상업멀티 / 상업멀티 구성 / 싱글 세트 / 싱글 구성품)

@@ -6,7 +6,7 @@
 
 | 영역 | 내용 |
 |---|---|
-| live snapshot | connector로 spreadsheet `1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ` metadata와 안전 range를 확인했다. |
+| live snapshot | connector로 spreadsheet `<SHEET_ID>` metadata와 안전 range를 확인했다. |
 | partner-order | bootstrap `range-map`에서 존재하지 않는 `설정!A1:Z` config read를 제거하고, 거래처 발송 주문서 GAS처럼 base payload + `*_단가인상` helper map을 모두 prefetch한다. |
 | product-service | 종합견적서 기본값은 `*_단가인상`으로 DB sync하고, 붙지 않은 base tab은 `인상 전 단가`용 `PriceHistory`로 보존한다. |
 | 보안 가드 | `전표생성폼`은 credential-bearing 제어 폼, `전표업로드목록`/`종합견적서`는 output/form으로 문서화했다. |

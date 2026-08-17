@@ -110,7 +110,7 @@
 
 ## 3. 대조 방법
 
-1. GAS 상수 `SOURCE_SHEET_URL`이 가리키는 실 Google Spreadsheet `1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ`의 `싱글 구성품!A1:N1737`을 읽기 전용으로 읽었다.
+1. GAS 상수 `SOURCE_SHEET_URL`이 가리키는 실 Google Spreadsheet `<SHEET_ID>`의 `싱글 구성품!A1:N1737`을 읽기 전용으로 읽었다.
 2. 원본 열 `C=모델명`, `D=구분`, `M=세트`를 사용했다. 합성 행이나 테스트 fixture는 넣지 않았다.
 3. GAS `Code.js:621-646`과 현행 `optionDiscountFor`의 선택 규칙을 각각 그대로 적용했다.
 4. 세트 완성에 쓰이는 실내기·실외기 행 가운데 레거시 `setName`이 옵션 6종 중 하나를 선택하는 200행을 비교했다.

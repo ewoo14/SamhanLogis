@@ -23,7 +23,7 @@
 | single | 1WAY할인 | 0 |
 | single | 자재 포함 여부 | '별도' |
 
-> 근거: `1RJqO3jT...` 홈멀티_단가인상/싱글 세트_단가인상 Row2 read. 전 항목 코드 fallback 일치 → 시드 = 이 값.
+> 근거: `<SHEET_ID>` 홈멀티_단가인상/싱글 세트_단가인상 Row2 read. 전 항목 코드 fallback 일치 → 시드 = 이 값.
 
 ## 2. 핵심 설계 (PM, 비정책 — 브리프 §2 전역 default 가정·GAS parity)
 - **저장 = estimate_configs 확장**(Phase1 EstimateConfig 싱글톤, dc-config-service). 전역 default(GAS Row2도 전역). per-partner/품목 세분화는 **F3 범위 외**(향후).
