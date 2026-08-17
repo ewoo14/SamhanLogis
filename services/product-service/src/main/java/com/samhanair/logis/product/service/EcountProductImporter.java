@@ -347,6 +347,7 @@ public class EcountProductImporter {
 
     private UpsertProductResult upsertProduct(ItemRow row, String categoryGroup, String actor) {
         MapSqlParameterSource params = productParams(row, categoryGroup, actor);
+        assertImportNameAvailable(row, params);
         List<UUID> modelNameMerged = jdbcTemplate.queryForList(UPDATE_ACTIVE_MODEL_NAME_SQL, params, UUID.class);
         if (modelNameMerged != null && !modelNameMerged.isEmpty()) {
             return new UpsertProductResult(modelNameMerged.get(0), false);
@@ -363,6 +364,26 @@ public class EcountProductImporter {
         }
         UUID productId = jdbcTemplate.queryForObject(UPSERT_PRODUCT_SQL, params, UUID.class);
         return new UpsertProductResult(productId, !activeExists);
+    }
+
+    /**
+     * 이카운트 importer도 수동 기초품목 등록과 동일하게 활성 품목명 동명을 차단한다.
+     * 같은 품목코드의 재수입/갱신은 허용하고, 견적품목 테이블은 조회하지 않는다.
+     */
+    private void assertImportNameAvailable(ItemRow row, MapSqlParameterSource params) {
+        boolean duplicate = exists("""
+                SELECT COUNT(1)
+                  FROM products
+                 WHERE name = :name
+                   AND status = 'ACTIVE'
+                   AND is_deleted = FALSE
+                   AND product_code <> :code
+                """, params);
+        if (duplicate) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "이미 사용 중인 품목명입니다: " + row.name()
+                            + " (이카운트 import 품목코드: " + row.code() + ")");
+        }
     }
 
     private MapSqlParameterSource productParams(ItemRow row, String categoryGroup, String actor) {
