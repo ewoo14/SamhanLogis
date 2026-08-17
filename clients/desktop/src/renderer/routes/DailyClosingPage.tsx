@@ -809,10 +809,11 @@ function EditableLegacyDailyClosingTable({
       return next
     })
   }
+  // 레거시 의미: 회계반영일자가 없는 행은 결과, 있는 행은 선발행이다.
   const baseVisible = useMemo(
     () => rows.filter((row) => tab === 'RESULT'
-      ? Boolean(row.accountingPostedAt)
-      : !row.accountingPostedAt),
+      ? !row.accountingPostedAt
+      : Boolean(row.accountingPostedAt)),
     [rows, tab],
   )
   const visible = useMemo(

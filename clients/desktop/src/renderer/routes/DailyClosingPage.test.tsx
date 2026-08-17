@@ -66,7 +66,7 @@ const parityRows = [
     productName: '병합 라인 1', quantity: 1, unitPriceWithVat: 100, supplyAmount: 91,
     vatAmount: 9, total: 100, partnerName: '병합 거래처', partnerCode: 'P-MERGE',
     productPrice: 200, discountRate: 47, grandTotal: 100, confirmation: 'CONFIRMED',
-    confirmationReason: null, accountingPostedAt: '2026-08-14T10:00:00', dcAmount: 0,
+    confirmationReason: null, accountingPostedAt: null, dcAmount: 0,
     sourceStatus: 'CONFIRMED', modelName: null, categoryKey: null, deliveryPrice: null, expectedRate: null,
   },
   {
@@ -74,7 +74,7 @@ const parityRows = [
     productName: '병합 라인 2', quantity: 2, unitPriceWithVat: 200, supplyAmount: 182,
     vatAmount: 18, total: 200, partnerName: '병합 거래처', partnerCode: 'P-MERGE',
     productPrice: 300, discountRate: 47, grandTotal: 200, confirmation: 'CONFIRMED',
-    confirmationReason: null, accountingPostedAt: '2026-08-14T10:00:00', dcAmount: 0,
+    confirmationReason: null, accountingPostedAt: null, dcAmount: 0,
     sourceStatus: 'CONFIRMED', modelName: null, categoryKey: null, deliveryPrice: null, expectedRate: null,
   },
 ]
@@ -152,7 +152,7 @@ describe('DailyClosingPage 서버 정본 재진입 잠금', () => {
     })
 
     renderPage()
-    fireEvent.click(await screen.findByTestId('daily-closing-tab-pre_issued'))
+    fireEvent.click(await screen.findByTestId('daily-closing-tab-result'))
     const salesButton = await screen.findByTestId('daily-closing-accounting-create-6')
     await waitFor(() => expect((salesButton as HTMLButtonElement).disabled).toBe(false))
     fireEvent.click(salesButton)
@@ -160,7 +160,7 @@ describe('DailyClosingPage 서버 정본 재진입 잠금', () => {
     await waitFor(() => expect((salesButton as HTMLButtonElement).disabled).toBe(true))
 
     fireEvent.click(within(screen.getByTestId('closing-kind-toggle')).getByRole('radio', { name: '매입', hidden: true }))
-    fireEvent.click(await screen.findByTestId('daily-closing-tab-pre_issued'))
+    fireEvent.click(await screen.findByTestId('daily-closing-tab-result'))
     const purchaseButton = await screen.findByTestId('daily-closing-accounting-create-6')
     await waitFor(() => expect((purchaseButton as HTMLButtonElement).disabled).toBe(false))
     expect(createPurchaseSlipDraftMock).not.toHaveBeenCalled()
@@ -190,7 +190,7 @@ describe('DailyClosingPage 서버 정본 재진입 잠금', () => {
       : [{ sourceSlipNo: '2026/08/14-91', readModel: { linkedSlips: [] } }])
 
     const first = renderPage()
-    fireEvent.click(await screen.findByTestId('daily-closing-tab-pre_issued'))
+    fireEvent.click(await screen.findByTestId('daily-closing-tab-result'))
     await waitFor(() => expect(listAccountingSlipLinkEligibilityMock).toHaveBeenCalledTimes(1))
     const createButton = await screen.findByTestId('daily-closing-accounting-create-91')
     expect((createButton as HTMLButtonElement).disabled).toBe(false)
@@ -199,7 +199,7 @@ describe('DailyClosingPage 서버 정본 재진입 잠금', () => {
 
     first.unmount()
     renderPage()
-    fireEvent.click(await screen.findByTestId('daily-closing-tab-pre_issued'))
+    fireEvent.click(await screen.findByTestId('daily-closing-tab-result'))
 
     await waitFor(() => expect(listAccountingSlipLinkEligibilityMock).toHaveBeenCalledTimes(2))
     expect((await screen.findByTestId('daily-closing-accounting-create-91') as HTMLButtonElement).disabled).toBe(true)
@@ -212,10 +212,10 @@ describe('DailyClosingPage 서버 정본 재진입 잠금', () => {
     listAccountingSlipLinkEligibilityMock.mockResolvedValue([{ sourceSlipNo: '2026/08/14-92', readModel: { linkedSlips: [] } }])
 
     const first = renderPage()
-    fireEvent.click(await screen.findByTestId('daily-closing-tab-pre_issued'))
+    fireEvent.click(await screen.findByTestId('daily-closing-tab-result'))
     first.unmount()
     renderPage()
-    fireEvent.click(await screen.findByTestId('daily-closing-tab-pre_issued'))
+    fireEvent.click(await screen.findByTestId('daily-closing-tab-result'))
 
     const createButton = await screen.findByTestId('daily-closing-accounting-create-92')
     expect((createButton as HTMLButtonElement).disabled).toBe(false)
@@ -234,28 +234,28 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
       .toEqual([...DAILY_CLOSING_HEADERS])
     expect(screen.getByRole('tab', { name: /^결과/ })).toBeTruthy()
     expect(screen.getByRole('tab', { name: /^선발행/ })).toBeTruthy()
+    fireEvent.click(screen.getByRole('tab', { name: /^선발행/ }))
     expect(screen.getByText('확보 품목')).toBeTruthy()
   })
 
-  it('posted_at 유무로 결과와 선발행을 분리한다', async () => {
+  it('레거시처럼 회계반영일자 유무로 결과와 선발행을 분리한다', async () => {
     getDailyClosingRowsMock.mockResolvedValue(rows)
     renderPage()
 
-    await screen.findByText('확보 품목')
-    expect(screen.queryByText('미확보 품목')).toBeNull()
+    await screen.findByText('미확보 품목')
+    expect(screen.queryByText('확보 품목')).toBeNull()
     fireEvent.click(screen.getByRole('tab', { name: /^선발행/ }))
-    expect(screen.getByText('미확보 품목')).toBeTruthy()
-    expect(screen.getByText('출고가·DC조건 원천 미확보')).toBeTruthy()
-    fireEvent.click(screen.getByRole('tab', { name: /^결과/ }))
     expect(screen.getByText('확보 품목')).toBeTruthy()
     expect(screen.queryByText('미확보 품목')).toBeNull()
+    fireEvent.click(screen.getByRole('tab', { name: /^결과/ }))
+    expect(screen.getByText('미확보 품목')).toBeTruthy()
+    expect(screen.getByText('출고가·DC조건 원천 미확보')).toBeTruthy()
   })
 
   it('null과 빈 원천값을 레거시처럼 0으로 표시한다', async () => {
     getDailyClosingRowsMock.mockResolvedValue(rows)
     renderPage()
-    await screen.findByText('확보 품목')
-    fireEvent.click(screen.getByRole('tab', { name: /^선발행/ }))
+    await screen.findByText('미확보 품목')
     const table = screen.getByTestId('daily-closing-table')
     expect(table.textContent).toContain('0')
   })
@@ -263,6 +263,7 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
   it('확장행에서 현대 검증값과 DC액을 표시한다', async () => {
     getDailyClosingRowsMock.mockResolvedValue(rows)
     renderPage()
+    fireEvent.click(screen.getByRole('tab', { name: /^선발행/ }))
     await screen.findByText('확보 품목')
     fireEvent.click(screen.getByRole('button', { name: '상세 펼치기 17' }))
     expect(await screen.findByTestId('daily-closing-expanded-17')).toBeTruthy()
@@ -302,8 +303,8 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
   it('단가 변경 시 할인율과 공급가액·부가세·합계·총계가 화면에서 바뀐다', async () => {
     getDailyClosingRowsMock.mockResolvedValue(editableRows)
     renderPage()
-    fireEvent.click(await screen.findByRole('tab', { name: /^선발행/ }))
-
+    await screen.findByTestId('daily-closing-table')
+    fireEvent.click(await screen.findByRole('tab', { name: /^결과/ }))
     fireEvent.change(screen.getByTestId('daily-closing-unit-81'), { target: { value: '8,000' } })
 
     expect((screen.getByTestId('daily-closing-rate-81') as HTMLInputElement).value).toBe('20')
@@ -324,7 +325,8 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
   it('할인율 변경 시 출고가 기준으로 단가가 화면에서 바뀐다', async () => {
     getDailyClosingRowsMock.mockResolvedValue(editableRows)
     renderPage()
-    fireEvent.click(await screen.findByRole('tab', { name: /^선발행/ }))
+    await screen.findByTestId('daily-closing-table')
+    fireEvent.click(await screen.findByRole('tab', { name: /^결과/ }))
 
     fireEvent.change(screen.getByTestId('daily-closing-rate-81'), { target: { value: '47' } })
 
@@ -334,7 +336,8 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
   it('출고가 변경 시 단가는 유지하고 할인율을 다시 계산한다', async () => {
     getDailyClosingRowsMock.mockResolvedValue(editableRows)
     renderPage()
-    fireEvent.click(await screen.findByRole('tab', { name: /^선발행/ }))
+    await screen.findByTestId('daily-closing-table')
+    fireEvent.click(await screen.findByRole('tab', { name: /^결과/ }))
 
     fireEvent.change(screen.getByTestId('daily-closing-price-81'), { target: { value: '20,000' } })
 
@@ -345,6 +348,8 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
   it('회계전표가 있는 행은 금액 입력이 비활성이다', async () => {
     getDailyClosingRowsMock.mockResolvedValue(editableRows)
     renderPage()
+    await screen.findByTestId('daily-closing-table')
+    fireEvent.click(screen.getByRole('tab', { name: /^선발행/ }))
     await screen.findByText('회계 반영 품목')
 
     expect((screen.getByTestId('daily-closing-unit-82') as HTMLInputElement).disabled).toBe(true)
@@ -427,7 +432,8 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
       }
     })
     renderPage()
-    fireEvent.click(await screen.findByRole('tab', { name: '선발행' }))
+    await screen.findByTestId('daily-closing-table')
+    fireEvent.click(await screen.findByRole('tab', { name: /^결과/ }))
 
     fireEvent.change(screen.getByTestId('daily-closing-unit-81'), { target: { value: '8,100' } })
     fireEvent.change(screen.getByTestId('daily-closing-unit-83'), { target: { value: '8,200' } })
@@ -444,7 +450,8 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
     getDailyClosingRowsMock.mockResolvedValue([editableRows[0], secondLine])
     updateDailyClosingAmountMock.mockResolvedValue(undefined)
     renderPage()
-    fireEvent.click(await screen.findByRole('tab', { name: /^선발행/ }))
+    await screen.findByTestId('daily-closing-table')
+    fireEvent.click(await screen.findByRole('tab', { name: /^결과/ }))
 
     fireEvent.change(screen.getAllByTestId('daily-closing-unit-81')[0]!, { target: { value: '8,100' } })
     fireEvent.change(screen.getAllByLabelText('단가(VAT포함) 81')[1]!, { target: { value: '5,100' } })
@@ -460,7 +467,8 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
   it('저장 메타데이터가 없는 편집행은 저장 버튼이 비활성이고 이유를 표시한다', async () => {
     getDailyClosingRowsMock.mockResolvedValue([{ ...editableRows[0], slipId: null, lineId: null, updatedAt: null }])
     renderPage()
-    fireEvent.click(await screen.findByRole('tab', { name: /^선발행/ }))
+    await screen.findByTestId('daily-closing-table')
+    fireEvent.click(await screen.findByRole('tab', { name: /^결과/ }))
 
     fireEvent.change(screen.getByTestId('daily-closing-unit-81'), { target: { value: '8,100' } })
 
@@ -472,7 +480,8 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
   it('편집 입력 높이는 같고 할인율 접미사는 입력 옆 inline-flex로 배치된다', async () => {
     getDailyClosingRowsMock.mockResolvedValue(editableRows)
     renderPage()
-    fireEvent.click(await screen.findByRole('tab', { name: /^선발행/ }))
+    await screen.findByTestId('daily-closing-table')
+    fireEvent.click(await screen.findByRole('tab', { name: /^결과/ }))
 
     const unit = screen.getByTestId('daily-closing-unit-81') as HTMLInputElement
     const price = screen.getByTestId('daily-closing-price-81') as HTMLInputElement
@@ -510,7 +519,8 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
     getDailyClosingRowsMock.mockResolvedValue(fourLineSlip)
     updateDailyClosingAmountMock.mockResolvedValue(undefined)
     renderPage()
-    fireEvent.click(await screen.findByRole('tab', { name: '선발행' }))
+    await screen.findByTestId('daily-closing-table')
+    fireEvent.click(await screen.findByRole('tab', { name: /^결과/ }))
 
     const firstRow = screen.getByText('첫 행').closest('tr')!
     fireEvent.change(within(firstRow).getByLabelText('단가(VAT포함) 6'), { target: { value: '17,000' } })
