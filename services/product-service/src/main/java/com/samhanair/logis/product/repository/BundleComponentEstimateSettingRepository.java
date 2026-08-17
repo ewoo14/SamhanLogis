@@ -3,6 +3,8 @@ package com.samhanair.logis.product.repository;
 import com.samhanair.logis.product.domain.BundleComponentEstimateSetting;
 import com.samhanair.logis.product.domain.EstimateCategory;
 import java.util.List;
+import java.util.Collection;
+import java.util.UUID;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -16,4 +18,7 @@ public interface BundleComponentEstimateSettingRepository
 
     Optional<BundleComponentEstimateSetting> findByBundleComponentIdAndEstimateCategoryAndIsDeletedFalse(
             UUID bundleComponentId, EstimateCategory estimateCategory);
+
+    List<BundleComponentEstimateSetting> findByBundleComponentIdInAndEstimateCategoryAndIsDeletedFalse(
+            Collection<UUID> bundleComponentIds, EstimateCategory estimateCategory);
 }
