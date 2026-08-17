@@ -9,7 +9,7 @@
 
 ### 1.1 Google Sheet 원천
 
-대상 Spreadsheet는 `종합 견적서`(`1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ`)이다. `ProductSheetSyncService`가 읽는 단가 탭의 상태 헤더는 모두 `비고`이며, 상태값은 헤더 위치에서 정확히 일치하는 원문을 세었다.
+대상 Spreadsheet는 `종합 견적서`(`<SHEET_ID>`)이다. `ProductSheetSyncService`가 읽는 단가 탭의 상태 헤더는 모두 `비고`이며, 상태값은 헤더 위치에서 정확히 일치하는 원문을 세었다.
 
 | 탭 | 상태 컬럼 | 단종 | 미판매 | 품절 |
 |---|---:|---:|---:|---:|

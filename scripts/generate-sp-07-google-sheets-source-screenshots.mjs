@@ -50,7 +50,7 @@ const screens = [
       ['credential-bearing', '전표생성폼', '인증키/계정값 보유 제어 폼', '문서·캡처 값 게시 금지'],
     ],
     cards: [
-      ['Spreadsheet', ['종합 견적서', 'ID 1RJqO3jT-...IKXuVNQ', 'locale ko_KR / Asia-Seoul'], palette.teal],
+      ['Spreadsheet', ['종합 견적서', 'ID [비공개]', 'locale ko_KR / Asia-Seoul'], palette.teal],
       ['Tab count', ['27개 tab', '거래처 6992 rows', '템플릿/hidden tab 구분'], palette.blue],
       ['보안', ['credential-bearing 값 미게시', '개인 연락처 row 미게시', '제품 샘플만 문서화'], palette.green],
       ['정책', ['GAS UI/기능 그대로 유지', 'Notion 통신만 DB/API 치환', 'flat range override 기본 미사용'], palette.amber],

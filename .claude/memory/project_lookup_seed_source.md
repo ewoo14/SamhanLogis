@@ -7,7 +7,7 @@ metadata:
 
 RC9 라인입력 lookup 3종(material-prices / odu-recommendations / branch-pipes)은 BE/FE/mock 구현 완료됐으나 **3 테이블 0 row** — V3 Flyway 는 스키마만 만들고 시드 row 가 없음.
 
-**시드 소스의 유일한 원천 = legacy Google Sheet `1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ` 의 3개 탭:**
+**시드 소스의 유일한 원천 = legacy Google Sheet `<SHEET_ID>` 의 3개 탭:**
 - material-prices ← `싱글 자재가격` 탭 (~28행)
 - odu-recommendations ← `추천실외기` 탭 (~24행)
 - branch-pipes ← `분기계산` 탭 (A열=branchCode, 가변행)
