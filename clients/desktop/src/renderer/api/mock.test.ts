@@ -1479,7 +1479,7 @@ describe('mock business document number contract', () => {
       supply: response.totalSupplyAmount,
       vat: response.totalVatAmount,
       total: response.totalAmount,
-    }).toEqual({ supply: '31620', vat: '3163.04', total: '34783.04' })
+    }).toEqual({ supply: '31621', vat: '3162.04', total: '34783.04' })
   })
 
   it('ledger and statement mock endpoints use BE document number format', () => {

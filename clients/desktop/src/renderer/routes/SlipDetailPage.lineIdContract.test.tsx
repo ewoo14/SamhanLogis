@@ -724,8 +724,8 @@ describe('SlipDetailPage — 단가·수량 변경 시 Y.Doc 공급가액·부�
     const patch = computeDetailUnitPriceChange(seedLine, '60000')
 
     expect(patch.unitPrice).toBe('60000')
-    expect(patch.supplyAmount).toBe('109090')
-    expect(patch.vatAmount).toBe('10910')
+    expect(patch.supplyAmount).toBe('109091')
+    expect(patch.vatAmount).toBe('10909')
     expect(patch.lineTotalWithVat).toBe('120000')
   })
 
@@ -752,8 +752,8 @@ describe('SlipDetailPage — 단가·수량 변경 시 Y.Doc 공급가액·부�
     // 3단계 — 같은 문서를 새로 연다(새 컴포넌트 마운트, previous=REST 하이드레이션 스냅샷).
     const reopened = coeditLinesToEditLines(provider, [{ ...afterPriceEdit, key: 'k1' }], knownIds)[0]!
 
-    expect(reopened.supplyAmount).toBe('109090')
-    expect(reopened.vatAmount).toBe('10910')
+    expect(reopened.supplyAmount).toBe('109091')
+    expect(reopened.vatAmount).toBe('10909')
     provider.destroy()
   })
 
@@ -772,8 +772,8 @@ describe('SlipDetailPage — 단가·수량 변경 시 Y.Doc 공급가액·부�
     const payload = buildDetailLinePayload(reopened)
 
     if (reopened.vatDirty) {
-      expect(payload.supplyAmount).toBe('109090')
-      expect(payload.vatAmount).toBe('10910')
+    expect(payload.supplyAmount).toBe('109091')
+    expect(payload.vatAmount).toBe('10909')
     } else {
       // vatDirty=false 여도 안전하다 — BE 가 quantity×unitPrice(2×60000)로 재계산해 같은 120,000
       // (BE 자신의 기본 재계산은 단가=VAT 제외 공급단가 가정이라 FE 의 VAT 포함 재계산과 다른
@@ -851,8 +851,8 @@ describe('SlipDetailPage — 단가·수량 변경 시 Y.Doc 공급가액·부�
     expect(docChangeCount).toBe(1) // 2·3차 — Y.Doc 이 이미 목표값이라 추가 변경 없음(재귀 종료 보장)
 
     expect(provider.getItemValueById(SERVER_LINE_1, 'unitPrice')).toBe('60000')
-    expect(provider.getItemValueById(SERVER_LINE_1, 'supplyAmount')).toBe('109090')
-    expect(provider.getItemValueById(SERVER_LINE_1, 'vatAmount')).toBe('10910')
+    expect(provider.getItemValueById(SERVER_LINE_1, 'supplyAmount')).toBe('109091')
+    expect(provider.getItemValueById(SERVER_LINE_1, 'vatAmount')).toBe('10909')
 
     unsubscribe()
     provider.destroy()
@@ -946,8 +946,8 @@ describe('SlipDetailPage — 생성/수정 단가 세금 정책 일치 (E-1, #93
     )
     // 생성 화면 기대값 고정핀 — VAT 포함 60,000 × 2 = 120,000 총액에서 공급가액을
     // 분리(0 방향 절사, 2차 적대검증 원문과 동일).
-    expect(created.supplyAmount).toBe('109090')
-    expect(created.vatAmount).toBe('10910')
+    expect(created.supplyAmount).toBe('109091')
+    expect(created.vatAmount).toBe('10909')
     expect(created.lineTotal).toBe('120000')
 
     // 수정 화면 — 직전 단가(999999)는 의도적으로 무관한 값을 넣어, 결과가 "새 입력값"에만

@@ -614,8 +614,9 @@ class PartnerOrderConfirmServiceIT extends AbstractPostgresIT {
         BigDecimal subtotal = jdbcTemplate.queryForObject(
                 "SELECT subtotal FROM partner_order_lines WHERE partner_order_id = ?",
                 BigDecimal.class, orderId);
-        assertThat(supplyAmount).isEqualByComparingTo("727272");
-        assertThat(vatAmount).isEqualByComparingTo("72728");
+        // 레거시 종합견적서의 Math.round(total / 1.1) 계약: 800000 -> 727273, VAT는 차액.
+        assertThat(supplyAmount).isEqualByComparingTo("727273");
+        assertThat(vatAmount).isEqualByComparingTo("72727");
         assertThat(supplyAmount.add(vatAmount)).isEqualByComparingTo(subtotal);
     }
 
