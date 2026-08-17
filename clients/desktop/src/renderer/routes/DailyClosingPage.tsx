@@ -529,6 +529,7 @@ function dailyClosingRowIdentity(row: DailyClosingSourceRow, occurrence = 0): st
 
 function LegacyAmountEditor({
   row,
+  accountingCreated,
   values,
   error,
   onChange,
@@ -539,6 +540,7 @@ function LegacyAmountEditor({
   selectionKey,
 }: {
   row: DailyClosingSourceRow
+  accountingCreated: boolean
   values: CalculatedAmountValues | null
   error?: string
   onChange: (values: CalculatedAmountValues) => void
@@ -548,7 +550,7 @@ function LegacyAmountEditor({
   onCellMouseEnter: (rowIndex: number, columnIndex: number) => void
   selectionKey: (rowIndex: number, columnIndex: number) => string
 }) {
-  const disabled = amountEditDisabled(row)
+  const disabled = accountingCreated || amountEditDisabled(row)
   const base = initialEditableAmounts(row)
   const current = values ?? {
     ...base,
@@ -651,6 +653,7 @@ function EditableLegacyDailyClosingTable({
   const [committedValues, setCommittedValues] = useState<Record<string, CalculatedAmountValues>>({})
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({})
   const [accountingPending, setAccountingPending] = useState<string | null>(null)
+  const [accountingCreated, setAccountingCreated] = useState<Set<string>>(() => new Set())
   const saveRef = useRef<() => void>(() => undefined)
   const previousSlipDate = useRef(slipDate)
   const query = useQuery({
@@ -983,7 +986,7 @@ function EditableLegacyDailyClosingTable({
       setAccountingPending(accountingKey)
       try {
         const request = buildDailyClosingAccountingSlipRequest(summaryRows.map((row) => ({
-          sourceKind: tab === 'RESULT' ? 'SALES_SLIP' : 'PURCHASE_SLIP',
+          sourceKind: closingKind === 'PURCHASE' ? 'PURCHASE_SLIP' : 'SALES_SLIP',
           slipDate: row.slipDate,
           slipId: row.slipId!,
           slipNo: row.slipNo!,
@@ -1002,6 +1005,7 @@ function EditableLegacyDailyClosingTable({
         const response = request.kind === 'SALES'
           ? await createSalesSlipDraft(request.body)
           : await createPurchaseSlipDraft(request.body)
+        setAccountingCreated((current) => new Set(current).add(accountingKey))
         onAccountingSlipResult?.(`${response.slipNo} 회계전표 생성 성공`)
       } catch (error) {
         const message = error instanceof Error ? error.message : '회계전표 생성 실패'
@@ -1028,11 +1032,11 @@ function EditableLegacyDailyClosingTable({
             size="sm"
             variant="ghost"
             data-testid={`daily-closing-accounting-create-${source.seqNo}`}
-            disabled={!sourceReady || Boolean(source.accountingPostedAt) || accountingPending !== null}
+            disabled={!sourceReady || Boolean(source.accountingPostedAt) || accountingCreated.has(accountingKey) || accountingPending !== null}
             title={!sourceReady ? '회계전표 생성에 필요한 원본값이 없습니다.' : undefined}
             onClick={() => void createAccounting()}
           >
-            {source.accountingPostedAt ? '이미 생성됨' : accountingPending === accountingKey ? '생성 중' : '회계전표 생성'}
+            {source.accountingPostedAt || accountingCreated.has(accountingKey) ? '이미 생성됨' : accountingPending === accountingKey ? '생성 중' : '회계전표 생성'}
           </Button>
         ) : null}
       </th>
@@ -1134,6 +1138,7 @@ function EditableLegacyDailyClosingTable({
                     {selectableCell(formatLegacyNumber(row.quantity), index, 5, num)}
                     <LegacyAmountEditor
                       row={row}
+                      accountingCreated={accountingCreated.has(`${row.slipDate}-${row.seqNo}`)}
                       values={drafts[rowKey(row)]
                         ?? committedValues[rowKey(row)]
                         ?? null}
