@@ -1,6 +1,6 @@
 # 종합견적서 / 주문서 Google Sheets 원본 데이터 검증
 
-> 대상 spreadsheet: [종합 견적서](https://docs.google.com/spreadsheets/d/1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ/edit)  
+> 대상 spreadsheet: [종합 견적서](https://docs.google.com/spreadsheets/d/<SHEET_ID>/edit)
 > 목적: legacy GAS `종합견적서`, `거래처 발송 주문서`가 참조하던 Google Spreadsheet 데이터를 Samhan Public이 같은 source-of-truth로 읽는지 검증한다.
 > live snapshot: [google-sheets-live-source-snapshot.md](./google-sheets-live-source-snapshot.md)
 

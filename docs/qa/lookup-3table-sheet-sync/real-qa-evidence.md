@@ -1,6 +1,6 @@
 # RC9 lookup 3종 시트 sync — Docker 실서버 실 QA 증빙 (PR #425)
 
-> 2026-06-08. **실 Google Sheet `1RJqO3jT...` + 실 Postgres 16 + 실 SA(`samhan@samhan-homepage`) 인증** end-to-end. 가짜 데이터/합성/목업 0 ([[no-fake-data-ever]] 준수). 실 측정값만.
+> 2026-06-08. **실 Google Sheet `<SHEET_ID>` + 실 Postgres 16 + 실 SA(`samhan@samhan-homepage`) 인증** end-to-end. 가짜 데이터/합성/목업 0 ([[no-fake-data-ever]] 준수). 실 측정값만.
 
 ## 환경
 - product-service.jar 부팅 → Docker Postgres 16-alpine(`qa-product-pg`, 5433) + 실 시트 SA sync.
