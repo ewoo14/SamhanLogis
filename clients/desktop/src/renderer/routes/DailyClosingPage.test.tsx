@@ -122,7 +122,7 @@ describe('DailyClosingPage 서버 정본 재진입 잠금', () => {
     const salesRow = {
       ...editableRows[0],
       seqNo: 6,
-      slipNo: 'OUT-20260814-6',
+      slipNo: '2026/08/14-6',
       slipId: 'outbound-slip-6',
       lineId: 'outbound-line-6',
       sourceLineNo: 1,
@@ -134,7 +134,7 @@ describe('DailyClosingPage 서버 정본 재진입 잠금', () => {
     const purchaseRow = {
       ...salesRow,
       productName: '매입 별도 원천',
-      slipNo: 'IN-20260814-6',
+      slipNo: '2026/08/14-6',
       slipId: 'inbound-slip-6',
       lineId: 'inbound-line-6',
     }
@@ -144,11 +144,11 @@ describe('DailyClosingPage 서버 정본 재진입 잠금', () => {
     listAccountingSlipLinkEligibilityMock.mockImplementation(async (sources: Array<{ sourceSlipNo?: string }>) =>
       sources.map((source) => ({
         sourceSlipNo: source.sourceSlipNo,
-        readModel: { linkedSlips: salesCreated && source.sourceSlipNo === salesRow.slipNo ? [{ slipNo: 'ACC-OUT-6' }] : [] },
+        readModel: { linkedSlips: salesCreated && source.sourceSlipNo === salesRow.slipNo ? [{ slipNo: '2026/08/14-100' }] : [] },
       })))
     createSalesSlipDraftMock.mockImplementation(async () => {
       salesCreated = true
-      return { slipNo: 'ACC-OUT-6' }
+      return { slipNo: '2026/08/14-100' }
     })
 
     renderPage()
@@ -170,7 +170,7 @@ describe('DailyClosingPage 서버 정본 재진입 잠금', () => {
     const sourceRow = {
       ...editableRows[0],
       seqNo: 91,
-      slipNo: 'OUT-REENTRY-91',
+      slipNo: '2026/08/14-91',
       slipId: 'source-slip-91',
       lineId: 'source-line-91',
       sourceLineNo: 1,
@@ -183,11 +183,11 @@ describe('DailyClosingPage 서버 정본 재진입 잠금', () => {
     getDailyClosingRowsMock.mockResolvedValue([sourceRow])
     createSalesSlipDraftMock.mockImplementation(async () => {
       created = true
-      return { slipNo: 'ACC-REENTRY-91' }
+      return { slipNo: '2026/08/14-191' }
     })
     listAccountingSlipLinkEligibilityMock.mockImplementation(async () => created
-      ? [{ sourceSlipNo: 'OUT-REENTRY-91', readModel: { linkedSlips: [{ slipNo: 'ACC-REENTRY-91' }] } }]
-      : [{ sourceSlipNo: 'OUT-REENTRY-91', readModel: { linkedSlips: [] } }])
+      ? [{ sourceSlipNo: '2026/08/14-91', readModel: { linkedSlips: [{ slipNo: '2026/08/14-191' }] } }]
+      : [{ sourceSlipNo: '2026/08/14-91', readModel: { linkedSlips: [] } }])
 
     const first = renderPage()
     fireEvent.click(await screen.findByTestId('daily-closing-tab-pre_issued'))
@@ -207,9 +207,9 @@ describe('DailyClosingPage 서버 정본 재진입 잠금', () => {
   })
 
   it('서버 정본에 아직 연결이 없으면 재진입 후에도 생성과 금액 편집을 허용한다', async () => {
-    const sourceRow = { ...editableRows[0], seqNo: 92, slipNo: 'OUT-REENTRY-92', slipId: 'source-slip-92', lineId: 'source-line-92', sourceLineNo: 1, taxType: 'TAXABLE', partnerId: 'partner-92', productCode: 'SKU-92', accountingPostedAt: null }
+    const sourceRow = { ...editableRows[0], seqNo: 92, slipNo: '2026/08/14-92', slipId: 'source-slip-92', lineId: 'source-line-92', sourceLineNo: 1, taxType: 'TAXABLE', partnerId: 'partner-92', productCode: 'SKU-92', accountingPostedAt: null }
     getDailyClosingRowsMock.mockResolvedValue([sourceRow])
-    listAccountingSlipLinkEligibilityMock.mockResolvedValue([{ sourceSlipNo: 'OUT-REENTRY-92', readModel: { linkedSlips: [] } }])
+    listAccountingSlipLinkEligibilityMock.mockResolvedValue([{ sourceSlipNo: '2026/08/14-92', readModel: { linkedSlips: [] } }])
 
     const first = renderPage()
     fireEvent.click(await screen.findByTestId('daily-closing-tab-pre_issued'))

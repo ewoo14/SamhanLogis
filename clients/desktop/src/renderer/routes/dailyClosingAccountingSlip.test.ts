@@ -40,7 +40,7 @@ describe('일마감 회계전표 요청 변환', () => {
       sourceKind,
       slipDate: '2026-08-14',
       slipId: 'slip-amount',
-      slipNo: '2026/08/14-amount',
+      slipNo: '2026/08/14-2',
       lineId: 'line-amount',
       sourceLineNo: 1,
       partnerId: 'partner-1',
