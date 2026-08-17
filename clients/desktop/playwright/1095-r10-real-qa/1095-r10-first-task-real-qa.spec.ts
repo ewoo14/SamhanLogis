@@ -15,7 +15,7 @@ const shotsDir = resolveQaShotsDir(here)
 const desktopUrl = process.env['QA_DESKTOP_URL'] ?? 'http://127.0.0.1:5295'
 const apiBase = process.env['QA_API_BASE'] ?? 'http://127.0.0.1:8080'
 const productBase = process.env['QA_PRODUCT_BASE'] ?? 'http://127.0.0.1:28084'
-const sheetId = '1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ'
+const sheetId = process.env['GOOGLE_SHEETS_SHEET_ID'] ?? '<SHEET_ID>'
 const sheetCell = "'상업멀티_단가인상'!I4"
 const targetModel = 'AM080AXVHHH1'
 const outOfStockBundleModel = 'AR60F07D11WS'
@@ -131,6 +131,7 @@ async function sheetsClient(): Promise<any> {
 }
 
 async function readSheetCell(): Promise<string> {
+  expect(sheetId, 'GOOGLE_SHEETS_SHEET_ID 누락').not.toBe('<SHEET_ID>')
   const sheets = await sheetsClient()
   const response = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId, range: sheetCell })
   return String(response.data.values?.[0]?.[0] ?? '')

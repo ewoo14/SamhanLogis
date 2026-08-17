@@ -1,7 +1,7 @@
 # 종합견적서 / 주문서 Google Sheets live source snapshot
 
 > 검증일: 2026-05-16  
-> Spreadsheet: `종합 견적서` (`1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ`)  
+> Spreadsheet: `종합 견적서` (`<SHEET_ID>`)
 > Timezone/locale: `Asia/Seoul`, `ko_KR`  
 > 목적: legacy GAS가 보던 Google Sheets 데이터를 그대로 재검증하되, 운영 조회/수정은 Samhan Public DB/API 계약으로 고정한다.
 

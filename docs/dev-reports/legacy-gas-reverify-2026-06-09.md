@@ -48,7 +48,7 @@
 
 ## 3. 품목/견적 시트 → DB 전환 메모 (개발책임자 지시: 시트직접조회→DB 선호)
 
-- **종합견적서·거래처 발송 주문서**가 시트 `1RJqO3jT…`의 품목마스터 5탭(`*_단가인상` 홈멀티/싱글세트/싱글구성품/상업멀티/상업멀티구성 + 자재가격 + 구형) **직접 조회**.
+- **종합견적서·거래처 발송 주문서**가 시트 `<SHEET_ID>`의 품목마스터 5탭(`*_단가인상` 홈멀티/싱글세트/싱글구성품/상업멀티/상업멀티구성 + 자재가격 + 구형) **직접 조회**.
 - 우리 `ProductSheetSyncService`가 **이미 동일 시트·동일 5탭·base-tab 로직으로 product-service DB sync 중**(Product/PriceHistory/BundleComponent/MaterialPrice/OduRecommendation). 즉 데이터는 이미 품목리스트(DB)에 편입됨.
 - **전환 지점(후속 슬라이스)**: GAS의 `openById(SRC_SHEET_ID).getSheetByName(...)` 직접조회 → product-service REST 호출로 대체. 번들 전개=`BundleExpander` 1:1 이관. **할인율 정책(홈/상업 0.45, 싱글 1way 정액 등)은 시트 셀/GAS 상수에 캡슐화** → estimate 도메인 정책으로 이관 필요(현재 우리 견적 계산 API 미완).
 

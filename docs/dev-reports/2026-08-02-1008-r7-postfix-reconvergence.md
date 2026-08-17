@@ -32,7 +32,7 @@ M : AC060CS6PBH1SY
 접근 경로는 다음 읽기 전용 공개 CSV endpoint였다.
 
 ```text
-https://docs.google.com/spreadsheets/d/1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ/gviz/tq?tqx=out:csv&sheet=싱글%20구성품&range=A1:N1737
+https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?tqx=out:csv&sheet=싱글%20구성품&range=A1:N1737
 ```
 
 참고로 자격증명 없는 Sheets v4 API 직접 호출은 다음처럼 거부됐지만, 같은 시트의 공개 GViz 읽기는 성공했다.
@@ -251,7 +251,7 @@ for (var c = 0; c < cands.length; c++) {
 이번 라운드에서 직접 실행한 핵심 명령은 다음과 같다.
 
 ```powershell
-Invoke-WebRequest -UseBasicParsing -Uri "https://docs.google.com/spreadsheets/d/1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ/gviz/tq?tqx=out:csv&sheet=싱글%20구성품&range=A1:N1737"
+Invoke-WebRequest -UseBasicParsing -Uri "https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?tqx=out:csv&sheet=싱글%20구성품&range=A1:N1737"
 
 docker exec samhan-postgres psql -U samhan -d dc_config_db -X -v ON_ERROR_STOP=1 -P pager=off -c "BEGIN TRANSACTION READ ONLY; SELECT ... FROM dc_configs WHERE NOT is_deleted; COMMIT;"
 
