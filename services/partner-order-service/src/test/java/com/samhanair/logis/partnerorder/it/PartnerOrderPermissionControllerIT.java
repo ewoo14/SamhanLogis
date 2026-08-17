@@ -186,7 +186,7 @@ class PartnerOrderPermissionControllerIT {
         PartnerOrderDetailResponse detail = new PartnerOrderDetailResponse(
                 "PO-1", "P001", "B001", "Partner", LocalDateTime.of(2026, 5, 26, 9, 0),
                 "CONFIRMED", "PUBLISHED", BigDecimal.valueOf(1000), "SLIP-1",
-                LocalDateTime.of(2026, 5, 26, 9, 0), null, null, null, null, "memo", List.of(),
+                LocalDateTime.of(2026, 5, 26, 9, 0), null, null, null, null, null, "memo", List.of(),
                 false, null, null);
         HistoryResponse history = new HistoryResponse(
                 "PO-1", "SLIP-1", "CONFIRMED", "PUBLISHED", BigDecimal.valueOf(1000),

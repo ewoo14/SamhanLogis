@@ -42,7 +42,7 @@
  *       메커니즘 때문에 이 경로로 저장될 수 없어 R-3 결함 표면에서는 도달 불가능하다 — BE
  *       변경은 하지 않았다.</li>
  *   <li><b>BE 자체의 포함→제외 규약</b> — {@code SlipLine.createFromVatInclusive}:
- *       {@code supply = incl × 10 ÷ 11} 의 정수 나눗셈(소수부 절사, 0 방향)이다. FE도
+ *       {@code supply = incl ÷ 1.1} 의 원 단위 HALF_UP이다. FE도
  *       {@code vatRounding.supplyFromVatInclusive} 와 같은 계약으로 미러한다. (현재도 사실 —
  *       생성 화면·수정 화면의 PRICE 권위 분리 공식이 둘 다 이 규약을 쓴다.)</li>
  *   <li><b>카탈로그 판매가(product.sellingPrice) = VAT 포함 도메인</b> — 폼이 sellingPrice 를
@@ -92,11 +92,6 @@ function divideHalfUp(numerator: bigint, denominator: bigint): bigint {
   return sign * (remainder * 2n >= denominator ? quotient + 1n : quotient)
 }
 
-/** BE VAT 포함 금액 분해와 동일한 정수 나눗셈(소수부 절사, 0 방향)을 적용한다. */
-function divideTowardZero(numerator: bigint, denominator: bigint): bigint {
-  return numerator / denominator
-}
-
 /** scale 고정 정수를 불필요한 후행 0 없이 화면/API 문자열로 변환한다. */
 function formatScaled(value: bigint, scale: number): string {
   if (scale === 0) return String(value)
@@ -124,8 +119,8 @@ export function vatInclusiveOf(exclusive: string | number): string {
 }
 
 /**
- * VAT 포함(기억/카탈로그) → VAT 제외(수정 화면 필드) — BE {@code SlipLine.createFromVatInclusive}
- * ({@code incl × 10 ÷ 11} 정수 나눗셈, 소수부 절사) 미러.
+ * VAT 포함(기억/카탈로그) → VAT 제외(수정 화면 필드) — 레거시 종합견적서의
+ * ({@code incl ÷ 1.1} 원 단위 HALF_UP) 미러.
  *
  * @returns 원 단위 정수 문자열. 비수치 입력은 빈 문자열.
  */
@@ -133,8 +128,8 @@ export function vatExclusiveOf(inclusive: string | number): string {
   if (typeof inclusive === 'number' && !Number.isFinite(inclusive)) return ''
   const decimal = decimalParts(inclusive)
   if (!decimal) return ''
-  // value ÷ 1.1을 원 단위로: coefficient / 10^scale × 10/11.
-  return String(divideTowardZero(
+  // value ÷ 1.1을 원 단위 HALF_UP으로: coefficient / 10^scale × 10/11.
+  return String(divideHalfUp(
     decimal.coefficient * 10n,
     11n * (10n ** BigInt(decimal.scale)),
   ))

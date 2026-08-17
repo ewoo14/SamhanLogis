@@ -29,6 +29,7 @@
 |---|---|---|
 | `SAMHAN_API_BASE_URL` | backend 호스팅 결정 (gateway base) | [ ] |
 | `PARTNER_SERVICE_URL` | backend 호스팅 결정 (dc-config-service M3) | [ ] |
+| `DC_CONFIG_SERVICE_URL` | dc-config-service 내부 RPC base (`/internal/**`, gateway 우회) | [ ] |
 | `ESTIMATE_SERVICE_URL` | backend 호스팅 결정 (estimate-service) | [ ] |
 | `AUDIT_LOG_URL` | backend 호스팅 결정 (audit-log endpoint) | [ ] |
 | `SLIP_SERVICE_URL` | backend 호스팅 결정 (slip-service M5) | [ ] |

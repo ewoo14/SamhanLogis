@@ -1,6 +1,7 @@
 package com.samhanair.logis.slip.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -55,6 +56,54 @@ class DiscountPriceCalculatorTest {
                         new BigDecimal("100000"), null, 1)));
 
         assertThat(prices).containsExactly(new BigDecimal("100000"));
+    }
+
+    @Test
+    void rejectsClientPriceWhenServerDiscountCalculationDiffers() {
+        DiscountPriceClient client = mock(DiscountPriceClient.class);
+        when(client.calculateDetailed(any(), any())).thenReturn(
+                new DiscountPriceClient.CalculationResult(
+                        Map.of("CONTROL", new BigDecimal("55000")), Map.of("CONTROL", new BigDecimal("45")), true));
+
+        SlipDiscountCalculator calculator = new SlipDiscountCalculator(client);
+
+        assertThatThrownBy(() -> calculator.verifyClientPrices("P-001", List.of(
+                new SlipDiscountCalculator.Line("CONTROL", "HOMEMULTI",
+                        new BigDecimal("100000"), null, 1)),
+                Map.of("CONTROL", new BigDecimal("60000"))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("CONTROL");
+    }
+
+    @Test
+    void acceptsClientPriceWhenServerDiscountCalculationMatches() {
+        DiscountPriceClient client = mock(DiscountPriceClient.class);
+        when(client.calculateDetailed(any(), any())).thenReturn(
+                new DiscountPriceClient.CalculationResult(
+                        Map.of("CONTROL", new BigDecimal("55000")), Map.of("CONTROL", new BigDecimal("45")), true));
+
+        SlipDiscountCalculator calculator = new SlipDiscountCalculator(client);
+
+        calculator.verifyClientPrices("P-001", List.of(
+                new SlipDiscountCalculator.Line("CONTROL", "HOMEMULTI",
+                        new BigDecimal("100000"), null, 1)),
+                Map.of("CONTROL", new BigDecimal("55000")));
+    }
+
+    @Test
+    void rejectsSaveWhenServerDiscountCalculationIsUnavailable() {
+        DiscountPriceClient client = mock(DiscountPriceClient.class);
+        when(client.calculateDetailed(any(), any())).thenReturn(
+                new DiscountPriceClient.CalculationResult(Map.of(), Map.of(), false));
+
+        SlipDiscountCalculator calculator = new SlipDiscountCalculator(client);
+
+        assertThatThrownBy(() -> calculator.verifyClientPrices("P-001", List.of(
+                new SlipDiscountCalculator.Line("CONTROL", "HOMEMULTI",
+                        new BigDecimal("100000"), null, 1)),
+                Map.of("CONTROL", new BigDecimal("100000"))))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("DC");
     }
 
     @Test

@@ -83,27 +83,15 @@ app:
     # PartnerOrderEditRequest.requestedAt + expires-hours < now() → status = EXPIRED 전환 (스케줄러 1h 주기).
     edit-request:
       expires-hours: ${SAMHAN_PARTNER_ORDER_EDIT_REQUEST_EXPIRES_HOURS:24}
-  # PR-D Part 1 — BootstrapService 부팅 prefetch 시 시트 직접 read.
-  # 매핑이 있는 cacheKey 만 시트 read; 매핑 없거나 read 실패 시 V2 seed fallback.
-  # legacy estimate-app 과 동일 sheet ID. 운영에서는 BOOTSTRAP_SHEET_ID 로 override.
+  # bootstrap 원천은 product-service DB와 DB seed다. Google Sheets runtime 연동은 폐기됐다.
   bootstrap:
-    sheet-id: ${BOOTSTRAP_SHEET_ID:1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ}
-    sheet-prefetch-enabled: ${BOOTSTRAP_SHEET_PREFETCH_ENABLED:true}
     cache-refresh-minutes: ${BOOTSTRAP_CACHE_REFRESH_MINUTES:10}
     # cacheKey → A1 range 매핑. 거래처 발송 주문서 GAS 와 동일하게 base payload 와
     # *_단가인상 helper map 을 둘 다 읽는다. UI/계산 흐름은 그대로 두고 Notion 통신만 DB/API 로 치환한다.
     # `전표생성폼` 은 API 인증키/계정값이 있는 제어 폼이고, `전표업로드목록`/`종합견적서` 는 출력 양식이다.
     # config 는 DB seed fallback 만 사용하며, 존재하지 않는 `설정` tab 을 runtime read 하지 않는다.
     # SpEL Map literal — 빈 매핑 시 prefetch skip (V2 seed fallback only).
-    range-map: "{homemulti:'홈멀티!A1:Z',singleSets:'싱글 세트!A1:Z',singleParts:'싱글 구성품!A1:Z',commercialMulti:'상업멀티!A1:Z',commercialParts:'상업멀티 구성!A1:Z',oldProducts:'구형!A1:Z',homeInc:'홈멀티_단가인상!A1:Z',commInc:'상업멀티_단가인상!A1:Z',singleInc:'싱글 세트_단가인상!A1:Z',singlePartsInc:'싱글 구성품_단가인상!A1:Z'}"
-
-# PR-D Part 1 — Google Sheets 연동 (BootstrapService 부팅 prefetch + 5분 TTL 캐시).
-# 시크릿: GOOGLE_SERVICE_ACCOUNT_KEY 환경변수 → JSON path. 본 코드 placeholder 만 보유 (.env 별도)
-google:
-  sheets:
-    service-account-key-path: ${GOOGLE_SERVICE_ACCOUNT_KEY:/etc/samhan/sa-key.json}
-    cache-ttl-minutes: ${GOOGLE_SHEETS_CACHE_TTL_MIN:5}
-    endpoint-override: ${GOOGLE_SHEETS_ENDPOINT_OVERRIDE:}
+    range-map: "{}"
 
 # samhan.* — partner-order-service 전용 옵션 (PartnerOrderProperties / OutboxProperties)
 samhan:
@@ -129,9 +117,8 @@ samhan:
       # PR-F2 + SP-04 재검증 — 종합견적서/주문서 Google Sheet 원본 tab modelCode → 단가 lookup.
       # `종합견적서` tab 자체는 출력 양식이므로 기본값은 range override 없이
       # ProductCatalogLookupClient 의 legacy tab 매핑(홈멀티/싱글/상업멀티/구형)을 사용한다.
-      catalog-sheet-id: ${INTEGRATED_QUOTE_SHEET_ID:${BOOTSTRAP_SHEET_ID:1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ}}
       # 선택 override: modelCode/productName/unitPrice 3열 flat range 를 별도로 만든 경우만 지정.
-      catalog-range: ${INTEGRATED_QUOTE_RANGE:}
+      catalog-range: ""
 
 # Resilience4J — slipServiceClient 가 가장 중요 (M5 §3 옵션 A)
 resilience4j:
@@ -227,8 +214,3 @@ eureka:
     enabled: false
     register-with-eureka: false
     fetch-registry: false
-
-# PR-D Part 1 — local profile 에서는 시트 prefetch 비활성 (Service Account JSON 부재 가능)
-app:
-  bootstrap:
-    sheet-prefetch-enabled: false

@@ -146,6 +146,8 @@ public class SlipService {
     private final CompensationAuditWriter compensationAuditWriter;
     /** #809 — 거래처+품목 최근 VAT 포함 입력단가 기억. 실패해도 전표 저장은 계속된다. */
     private final PartnerProductPriceMemoryService priceMemoryService;
+    /** 출고전표 저장 전 dc-config 서버 계산 결과와 화면 단가를 대조한다. */
+    private final SlipDiscountCalculator slipDiscountCalculator;
     /** 출고전표 배송태그별 마감 시각 게이트 — 생성 6경로 + editHeader 2경로. */
     private final OutboundCutoffGuard cutoffGuard;
     /** 신규 전표의 (종류, 전표일) 날짜 마감 게이트. 배송태그 시각 게이트와 분리한다. */
@@ -321,12 +323,43 @@ public class SlipService {
                 && req.partnerCode() != null && !req.partnerCode().isBlank()
                 ? req.partnerCode().trim()
                 : partnerInternalClient.resolvePartnerCode(req.partnerId()).orElse(null);
-        // 단가는 화면이 DC/최근단가/사용자 협의가를 반영해 확정한 값을 정본으로 사용한다.
-        // 서버에서 다시 dc-config-service를 호출하면 화면의 할인 완료 단가를 정가로 오인해
-        // 전역DC를 재적용하므로(예: 970,200 -> 494,802) 계산하지 않는다.
-        SlipDiscountCalculator.Calculation discountCalculation = new SlipDiscountCalculator.Calculation(
-                req.lines().stream().map(CreateSlipRequest.SlipLineRequest::unitPrice).toList(),
-                req.discountInfo());
+        // 출고 단가는 클라이언트 제출값을 정본으로 저장하지 않는다. 서버 DC 정본으로 재계산한
+        // 값과 화면값을 먼저 대조해 일치할 때만 서버 계산값을 영속화한다.
+        List<SlipDiscountCalculator.Line> discountLines = req.lines().stream()
+                .map(line -> {
+                    ProductSummary summary = byId.get(line.productId());
+                    String lineId = summary != null && summary.productCode() != null
+                            ? summary.productCode()
+                            : line.productId().toString();
+                    // VAT 포함 입력은 화면이 제출한 총액을 먼저 공급가/부가세로 분리해야
+                    // 하므로 카탈로그 정가로 치환하지 않는다.
+                    BigDecimal listPrice = Boolean.TRUE.equals(line.priceVatInclusive())
+                            || summary == null || summary.sellingPrice() == null
+                            ? line.unitPrice() : summary.sellingPrice();
+                    return new SlipDiscountCalculator.Line(lineId,
+                            summary == null ? null : summary.categoryKey(), listPrice,
+                            summary == null ? null : summary.fixedDiscountRate(), line.quantity());
+                })
+                .toList();
+        Map<String, BigDecimal> clientPrices = new LinkedHashMap<>();
+        for (int i = 0; i < discountLines.size(); i++) {
+            clientPrices.put(discountLines.get(i).lineId(), req.lines().get(i).unitPrice());
+        }
+        if (req.slipType() == SlipType.OUTBOUND && resolvedPartnerCode != null
+                && !resolvedPartnerCode.isBlank()) {
+            try {
+                slipDiscountCalculator.verifyClientPrices(resolvedPartnerCode, discountLines, clientPrices);
+            } catch (IllegalStateException unavailable) {
+                // 외부 DC 계산 불가 시에는 DiscountPriceClient의 기존 입력 단가 fallback을 사용한다.
+                // 서버 계산이 가능했는데 단가가 다르면 IllegalArgumentException이므로 계속 전파한다.
+            }
+        }
+        SlipDiscountCalculator.Calculation discountCalculation = req.slipType() == SlipType.OUTBOUND
+                && resolvedPartnerCode != null && !resolvedPartnerCode.isBlank()
+                ? slipDiscountCalculator.calculateDetailed(resolvedPartnerCode, discountLines)
+                : new SlipDiscountCalculator.Calculation(
+                        req.lines().stream().map(CreateSlipRequest.SlipLineRequest::unitPrice).toList(),
+                        req.discountInfo());
         List<BigDecimal> calculatedPrices = discountCalculation.prices();
 
         List<PartnerProductPriceMemoryCommand> priceMemoryCommands = new ArrayList<>();

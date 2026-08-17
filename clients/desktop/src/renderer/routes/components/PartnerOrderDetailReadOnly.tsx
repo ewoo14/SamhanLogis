@@ -70,6 +70,7 @@ export function PartnerOrderDetailReadOnly({
             ['현장', order.siteAddress],
             ['연락처', order.contactPhone],
             ['납기', order.dueDate],
+            ['입금예정일', order.paymentDueDate],
             ['요청사항', order.memo],
           ].map(([label, value]) => (
             <div key={label}>

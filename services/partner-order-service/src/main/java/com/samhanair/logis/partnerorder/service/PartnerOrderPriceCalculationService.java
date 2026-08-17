@@ -30,6 +30,8 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class PartnerOrderPriceCalculationService {
 
+    private static final int MAX_INTEGER_DIGITS = 13;
+
     private static final Set<String> RESOLVED_FIXED_DISCOUNT_SOURCES =
             Set.of("NONE", "PRODUCT", "S", "M", "L");
 
@@ -125,7 +127,10 @@ public class PartnerOrderPriceCalculationService {
             String discountFlags = optionFlags(product);
             BigDecimal fixedDiscountRate = product.fixedDiscountRate() != null
                     ? product.fixedDiscountRate() : fixedDiscountRates.get(product.id());
-            BigDecimal listPrice = resolveListPrice(product, line.categoryKey(), fixedDiscountRate);
+            BigDecimal unitPrice = line.setAllocation() && "singleSets".equals(line.categoryKey())
+                    ? line.unitPrice() : null;
+            BigDecimal listPrice = unitPrice != null && unitPrice.signum() > 0
+                    ? unitPrice : resolveListPrice(product, line.categoryKey(), fixedDiscountRate);
             if (listPrice == null || listPrice.signum() <= 0) {
                 throw new BusinessException(ErrorCode.INTERNAL_ERROR,
                         "확정 가격 기준가 없음: " + modelCodeSnapshot(product));
@@ -164,13 +169,21 @@ public class PartnerOrderPriceCalculationService {
         BigDecimal totalFinal = BigDecimal.ZERO;
         for (int i = 0; i < requestLines.size(); i++) {
             DcConfigClient.CalculatedLine calculatedLine = calculated.get(String.valueOf(i));
-            BigDecimal finalPrice = calculatedLine == null || calculatedLine.finalPrice() == null
+            ConfirmLineRequest requestLine = requestLines.get(i);
+            BigDecimal authoritativeUnitPrice = requestLine.setAllocation()
+                    && "singleSets".equals(requestLine.categoryKey())
+                    ? requestLine.unitPrice() : null;
+            BigDecimal finalPrice = authoritativeUnitPrice != null && authoritativeUnitPrice.signum() > 0
+                    ? authoritativeUnitPrice
+                    : calculatedLine == null || calculatedLine.finalPrice() == null
                     ? listPrices.get(i) : calculatedLine.finalPrice();
             resultLines.add(new Line(i, requestLines.get(i), lineProducts.get(i), listPrices.get(i),
                     finalPrice, calculatedLine == null ? null : calculatedLine.appliedRate()));
             BigDecimal quantity = BigDecimal.valueOf(requestLines.get(i).quantity());
             totalList = totalList.add(listPrices.get(i).multiply(quantity));
             totalFinal = totalFinal.add(finalPrice.multiply(quantity));
+            validateStorableAmount(finalPrice, "단가");
+            validateStorableAmount(finalPrice.multiply(quantity), "합계");
         }
         boolean allLineIdsPresent = calculated.size() == requestLines.size();
         for (int i = 0; allLineIdsPresent && i < requestLines.size(); i++) {
@@ -182,6 +195,16 @@ public class PartnerOrderPriceCalculationService {
                 && resultLines.stream().allMatch(line -> line.finalPrice() != null
                         && line.finalPrice().signum() > 0);
         return new Calculation(resultLines, complete, totalList, totalFinal);
+    }
+
+    /** 미리보기와 확정이 공유하는 NUMERIC(15,2) 저장 가능 범위 검증. */
+    private static void validateStorableAmount(BigDecimal amount, String label) {
+        if (amount == null) return;
+        BigDecimal stripped = amount.stripTrailingZeros();
+        if (stripped.precision() - stripped.scale() > MAX_INTEGER_DIGITS) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    label + "이(가) 너무 큽니다. 정수부 " + MAX_INTEGER_DIGITS + "자리까지 저장할 수 있습니다");
+        }
     }
 
     private ProductSummary resolveProduct(ConfirmLineRequest line,

@@ -86,15 +86,15 @@ class BootstrapServiceTest {
     }
 
     @Test
-    void prefetch_시트read_성공시_GAS와_동일하게_base와_단가인상_source가_seed보다_우선하고_config는_seed_fallback() throws Exception {
-        // given — 시트 read 성공: 주문서 base payload + 단가인상 helper map
+    void prefetch는_시트설정과_무관하게_DB와_seed만_사용한다() throws Exception {
+        // given — 시트 read mock이 있어도 runtime에서는 호출하지 않는다.
         List<List<Object>> baseRows = List.of(
                 List.of("Hi-Multi 4-Way", "AJ040RXH4BC1", "1,500,000"));
         List<List<Object>> increaseRows = List.of(
                 List.of("Hi-Multi 4-Way", "AJ040RXH4BC1", "1,611,115"));
-        when(sheetsClient.readSheet(eq("test-sheet-id"), eq("홈멀티!A1:Z"), eq(ValueRenderMode.FORMATTED)))
+        lenient().when(sheetsClient.readSheet(eq("test-sheet-id"), eq("홈멀티!A1:Z"), eq(ValueRenderMode.FORMATTED)))
                 .thenReturn(baseRows);
-        when(sheetsClient.readSheet(eq("test-sheet-id"), eq("홈멀티_단가인상!A1:Z"), eq(ValueRenderMode.FORMATTED)))
+        lenient().when(sheetsClient.readSheet(eq("test-sheet-id"), eq("홈멀티_단가인상!A1:Z"), eq(ValueRenderMode.FORMATTED)))
                 .thenReturn(increaseRows);
         // config 는 credential-bearing sheet 를 읽지 않고 V2 seed fallback 만 사용한다.
         when(cacheRepository.findAllByOrderByCacheKeyAsc()).thenReturn(List.of(
@@ -106,16 +106,14 @@ class BootstrapServiceTest {
         bootstrapService.prefetch();
         BootstrapResponse response = bootstrapService.fetch();
 
-        // then — 제품 source 는 시트 row, config 는 seed fallback + DC 9키 strip
-        assertThat(response.payloads().get("homemulti")).isEqualTo(baseRows);
-        assertThat(response.payloads().get("homeInc")).isEqualTo(increaseRows);
+        // then — DB catalog가 없으므로 seed fallback + DC 9키 strip
+        assertThat(response.payloads().get("homemulti")).isEqualTo(List.of());
+        assertThat(response.payloads().get("homeInc")).isEqualTo(List.of());
         @SuppressWarnings("unchecked")
         Map<String, Object> configMap = (Map<String, Object>) response.payloads().get("config");
         assertThat(configMap).containsKey("vatRate").containsKey("deliveryDays");
         assertThat(configMap).doesNotContainKey("homeDiscount");
-        verify(sheetsClient, never()).readSheet(eq("test-sheet-id"), eq("설정!A1:Z"), any(ValueRenderMode.class));
-        verify(sheetsClient, never()).readSheet(eq("test-sheet-id"), eq("전표생성폼!A1:Z"), any(ValueRenderMode.class));
-        verify(sheetsClient, never()).readSheet(eq("test-sheet-id"), eq("전표업로드목록!A1:Z"), any(ValueRenderMode.class));
+        verify(sheetsClient, never()).readSheet(anyString(), anyString(), any(ValueRenderMode.class));
         // 매핑 없는 키는 V2 seed 가 없으므로 빈 객체 (legacy graceful)
         assertThat(response.payloads().get("singleParts")).isEqualTo(List.of());
     }
@@ -179,6 +177,24 @@ class BootstrapServiceTest {
 
         // then
         verify(sheetsClient, never()).readSheet(anyString(), anyString(), any(ValueRenderMode.class));
+    }
+
+    @Test
+    void 시트_설정이_활성이고_환경변수가_주입되어도_시트에_연결하지_않고_DB_카탈로그를_유지한다() throws Exception {
+        when(estimateCatalogClient.catalog(EstimateCategory.HOME_MULTI, UsageScope.PARTNER_ORDER))
+                .thenReturn(List.of(catalogRow("AR 실내기", "AR06D1150HZS", "EA", "148000", "370000",
+                        "실내기", "세트", "", false, null, null, false, null, null, null)));
+        when(cacheRepository.findAllByOrderByCacheKeyAsc()).thenReturn(List.of());
+
+        bootstrapService.prefetch();
+        BootstrapResponse response = bootstrapService.fetch();
+
+        verify(sheetsClient, never()).readSheet(anyString(), anyString(), any(ValueRenderMode.class));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> catalog = (List<Map<String, Object>>) response.payloads().get("homemulti");
+        assertThat(catalog).hasSize(1);
+        assertThat(catalog.get(0)).containsEntry("model", "AR06D1150HZS");
+        assertThat(catalog.get(0)).containsEntry("price", new BigDecimal("148000"));
     }
 
     @Test

@@ -9,9 +9,9 @@ describe('vatPrice — 수정화면(VAT제외) ↔ 기억/카탈로그(VAT포함
     expect(vatInclusiveOf('777000')).toBe('854700')
   })
 
-  it('vatExclusiveOf: 기억 500,000(포함) → 454,545(원 단위 절사) — 드리프트 fix 케이스', () => {
+  it('vatExclusiveOf: 기억 500,000(포함) → 454,545(원 단위 HALF_UP) — 드리프트 fix 케이스', () => {
     // 종전 결함: 500,000 을 제외 필드에 그대로 기입 → 저장 시 ×1.1 = 550,000 (10% 팽창).
-    // fix: BE vatRounding.supplyFromVatInclusive와 같은 ÷1.1 정수 절사 → 454,545.
+    // fix: 공용 VAT 포함 분리기와 같은 ÷1.1 HALF_UP → 454,545.
     expect(vatExclusiveOf('500000')).toBe(String(supplyFromVatInclusive(500000n)))
     // 첫 저장 후 기억 = 454,545 × 1.1 = 499,999.5 (원 미만 수렴, 이후 고정 — 복리 팽창 아님)
     expect(vatInclusiveOf('454545')).toBe('499999.5')
@@ -44,8 +44,8 @@ describe('vatPrice — 수정화면(VAT제외) ↔ 기억/카탈로그(VAT포함
     expect(vatInclusiveOf('abc')).toBe('')
   })
 
-  it('가격기억 VAT 포함 7,900원도 BE의 정수 나눗셈(절사) 계약을 사용한다', () => {
+  it('가격기억 VAT 포함 7,900원도 레거시 HALF_UP 계약을 사용한다', () => {
     expect(vatExclusiveOf('7900')).toBe(String(supplyFromVatInclusive(7900n)))
-    expect(vatExclusiveOf('7900')).toBe('7181')
+    expect(vatExclusiveOf('7900')).toBe('7182')
   })
 })

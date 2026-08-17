@@ -31,7 +31,8 @@ import org.springframework.web.server.ResponseStatusException;
  * (legacy 동작 — 카탈로그 변동 시에도 주문 history 는 보존).
  *
  * <p>{@link #priceVat} 는 server-side DC 적용 결과 (M3 dc-config-service 에서 받음). client 가
- * 보낸 가격은 무시하고 server 가 권위 (legacy 의 client-side DC 계산을 server 로 이전).
+ * 보낸 가격은 일반 라인에서는 무시하고 server 가 권위로 확정한다. 세트 구성품의
+ * {@code setAllocation=true} 계약 라인은 화면·미리보기·확정의 동일한 배분 단가를 보존한다.
  * {@link #subtotal} 은 VAT 포함 라인 합계(T)이며, 신규 라인은 공급가액(S)·부가세(V)와
  * {@code S + V = T} 항등식을 함께 보존한다. 기존 행은 신규 컬럼이 null인 legacy 스냅샷으로
  * 읽고 다시 계산하거나 backfill하지 않는다.
@@ -138,7 +139,7 @@ public class PartnerOrderLine extends BaseEntity {
         if (quantity <= 0) {
             throw new IllegalArgumentException("quantity 는 1 이상");
         }
-        if (priceVat == null || priceVat.signum() < 0) {
+        if (priceVat == null) {
             throw new IllegalArgumentException("priceVat 는 0 이상");
         }
         this.productId = productId;
@@ -161,6 +162,30 @@ public class PartnerOrderLine extends BaseEntity {
                                           String remark) {
         return createFromAuthoritativeAmounts(productId, modelName, productName, categoryKey,
                 quantity, priceVat, null, null, null, AmountAuthority.PRICE, remark);
+    }
+
+    /** 레거시 주문서웹 가격행 — VAT 포함 합계를 절대값 기준 HALF_UP으로 분리하고 음수를 허용한다. */
+    public static PartnerOrderLine createFromLegacyPrice(UUID productId, String modelName,
+                                                          String productName, String categoryKey,
+                                                          int quantity, BigDecimal priceVat,
+                                                          String remark) {
+        validateQuantity(quantity);
+        if (priceVat == null) throw new IllegalArgumentException("priceVat 필수");
+        BigDecimal total = priceVat.multiply(BigDecimal.valueOf(quantity));
+        VatAmountCalculator.Split positiveSplit = VatAmountCalculator.splitVatInclusive(
+                total.abs(), RoundingMode.HALF_UP);
+        VatAmountCalculator.Split split = total.signum() < 0
+                ? new VatAmountCalculator.Split(positiveSplit.supplyAmount().negate(),
+                        positiveSplit.vatAmount().negate(), total)
+                : positiveSplit;
+        PartnerOrderLine line = new PartnerOrderLine(productId, modelName, productName,
+                categoryKey, quantity, priceVat, remark);
+        line.subtotal = total;
+        line.supplyAmount = split.supplyAmount();
+        line.vatAmount = split.vatAmount();
+        line.amountAuthority = AmountAuthority.PRICE;
+        line.validateStorableAmounts();
+        return line;
     }
 
     /**
@@ -187,7 +212,8 @@ public class PartnerOrderLine extends BaseEntity {
             case PRICE -> {
                 requireNonNegative(priceVat, "priceVat");
                 resolvedTotal = priceVat.multiply(BigDecimal.valueOf(quantity));
-                VatAmountCalculator.Split split = VatAmountCalculator.splitVatInclusive(resolvedTotal);
+                VatAmountCalculator.Split split = VatAmountCalculator.splitVatInclusive(
+                        resolvedTotal, RoundingMode.HALF_UP);
                 resolvedSupply = split.supplyAmount();
                 resolvedVat = split.vatAmount();
             }

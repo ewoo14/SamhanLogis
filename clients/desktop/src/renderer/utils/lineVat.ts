@@ -109,8 +109,8 @@ function warningFor(supplyAmount: bigint, vatAmount: bigint): boolean {
  * 공급가액 기준 10%(별도 절사)과 저장된 부가세의 "실질" 불일치를 판정한다 — ±1원은 허용 오차.
  *
  * <p>재수렴 3차(#937) 근본수정 — 종전엔 {@link warningFor}(엄격 일치)를 그대로 썼다.
- * PRICE/TOTAL 권위의 실제 분리 공식({@link supplyFromVatInclusive} 미러, 합계를 ÷1.1·0 방향
- * 절사)은 "공급가액×10%, 별도 절사"와 수학적으로 다른 절사 경계를 가져 <b>항상 0 또는 +1원만큼만</b>
+ * PRICE/TOTAL 권위의 실제 분리 공식({@link supplyFromVatInclusive} 미러, 합계를 ÷1.1·원 단위
+ * HALF_UP)은 "공급가액×10%, 별도 절사"와 수학적으로 다른 반올림 경계를 가져 <b>항상 0 또는 ±1원만큼만</b>
  * 어긋난다 — 증명: 합계 T=11k+r(0≤r≤10) 로 두면 공급가액 S=10k+⌊10r/11⌋, 부가세 V=T-S=
  * k+r-⌊10r/11⌋, "공급가액의 10%"(별도 절사)는 k 이고, 그 차 r-⌊10r/11⌋ 은 r=0 이면 0, r=1..10
  * 이면 항상 1이다(자기 자신과 비교해도 반올림 경계마다 거짓 경고가 붙던 #937 R-2 최초 발견의
@@ -299,9 +299,8 @@ export function recalculateLineVat<T extends LineVatLine>(line: T, authority: Li
   const quantity = Math.max(1, Math.trunc(Number(line.quantity) || 1))
   if (authority === 'PRICE') {
     const total = roundProduct(quantity, line.unitPrice)
-    // BLOCKING-2 (#824 R1): BE VatAmountCalculator/splitVatInclusive 는 0 방향 절사(DOWN)다.
-    // 이 분기만 HALF_UP(divideHalfUp)을 써 TOTAL/SUPPLY 분기·하단 합계 바와 어긋났었다 —
-    // 단일 진실원(vatRounding.ts)의 DOWN 계산으로 통일한다.
+    // P1-03: BE VatAmountCalculator/splitVatInclusive와 같은 레거시 원 단위 HALF_UP이다.
+    // 단일 진실원(vatRounding.ts)의 계산기를 사용해 전표·견적 표시와 저장 계약을 맞춘다.
     const supply = supplyFromVatInclusive(total)
     return fromAmounts(line, authority, supply, total - supply, total)
   }

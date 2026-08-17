@@ -199,6 +199,8 @@ type LegacyOrderItem = {
   section?: unknown
   model?: unknown
   qty?: unknown
+  price?: unknown
+  setAllocation?: unknown
   remarks?: unknown
 }
 
@@ -235,7 +237,15 @@ function confirmLines(itemsArg: unknown): Array<{
     const remark = typeof item.remarks === 'string' && item.remarks.trim()
       ? item.remarks.trim()
       : null
-    return { modelCode, categoryKey, quantity, remark }
+    const unitPrice = Number(item.price)
+    return {
+      modelCode,
+      categoryKey,
+      quantity,
+      ...(item.setAllocation === true && Number.isFinite(unitPrice) && unitPrice > 0
+        ? { unitPrice, setAllocation: true } : {}),
+      remark,
+    }
   })
 }
 
@@ -258,7 +268,8 @@ function apiErrorMessage(error: unknown): string {
 
 function confirmHeaders(order: unknown): { headers: { 'X-Biz-Code': string } } {
   const bizCode = order && typeof order === 'object'
-    ? String((order as { bizno?: unknown }).bizno ?? '').trim()
+    ? String((order as { bizno?: unknown; custCode?: unknown }).bizno
+      ?? (order as { custCode?: unknown }).custCode ?? '').trim()
     : ''
   if (!bizCode) throw new Error('주문 사업자번호가 없습니다')
   return { headers: { 'X-Biz-Code': bizCode } }

@@ -65,15 +65,15 @@ public class PriceChangeScheduleInternalController {
     }
 
     /**
-     * 카테고리별 "인상 전 단가" 체크박스 기본값을 조회한다 (S4a, #17).
+     * 카테고리별 변동단가 체크박스 기본값을 조회한다 (S4a, #17).
      *
      * <p>응답 key 는 {@link #getSchedule()} 와 동일한 order-app categoryKey 4종이며, value 는
-     * estimate-app 견적 작성 화면의 "인상 전 단가" 체크박스 초기 상태다.
+     * estimate-app 견적 작성 화면의 변동단가 체크박스 초기 상태다.
      *
      * @return ApiResponse 로 래핑된 categoryKey → defaultPreChange 맵
      */
-    @Operation(summary = "[내부] 단가변동 카테고리별 \"인상 전 단가\" 기본값 조회",
-            description = "order-app categoryKey 4종을 key 로 하는 \"인상 전 단가\" 체크박스 기본값 맵을 반환한다.")
+    @Operation(summary = "[내부] 단가변동 카테고리별 변동단가 기본값 조회",
+            description = "order-app categoryKey 4종을 key 로 하는 변동단가 체크박스 기본값 맵을 반환한다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401",

@@ -48,11 +48,6 @@ app:
       path-prefix: /products/internal/
       role: INTERNAL
       allow-missing-token: false
-  scheduling:
-    # 옵션 C-2 (PR-D Part 1 정정): 시트 → DB cron 5분 주기 sync.
-    # 6 tab × 12회/시간 = 72 read/시간 → Sheets API quota 60 read/min 안전 마진 50배.
-    enabled: ${PRODUCT_SYNC_SCHEDULING_ENABLED:true}
-    product-sync-cron: ${PRODUCT_SYNC_CRON:0 */5 * * * *}
   # product/inventory 공통 local-test seed toggle. dev profile + 본 toggle 모두 true 인 경우만
   # Samsung HVAC 100건 seed. 운영 / staging 데이터 오염 방지 — default false.
   seed-test-data: ${SAMHAN_SEED_TEST_DATA:false}
@@ -65,22 +60,6 @@ app:
 samhan:
   auth-service:
     url: ${SAMHAN_AUTH_SERVICE_URL:http://localhost:8081}
-  product:
-    sheet-sync:
-      # P2-1 (2026-06-11): @Value("${samhan.product.sheet-sync.cron-enabled:false}") 와 키 일치.
-      # 구글 시트는 최초 시드 전용 — 자동 cron 기본 비활성.
-      # 시드 재적재 비상 수단으로 수동 trigger(POST /api/v1/products/admin/sync)만 유지.
-      cron-enabled: ${SAMHAN_PRODUCT_SHEET_SYNC_CRON_ENABLED:false}
-
-# Google Sheets 연동 (옵션 C-2 sync source-of-truth)
-# 시크릿: GOOGLE_SERVICE_ACCOUNT_KEY 환경변수 → JSON path. 본 코드 placeholder 만 보유 (.env 별도)
-google:
-  sheets:
-    sheet-id: ${GOOGLE_SHEETS_SHEET_ID:1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ}
-    service-account-key-path: ${GOOGLE_SERVICE_ACCOUNT_KEY:/etc/samhan/sa-key.json}
-    cache-ttl-minutes: ${GOOGLE_SHEETS_CACHE_TTL_MIN:5}
-    endpoint-override: ${GOOGLE_SHEETS_ENDPOINT_OVERRIDE:}
-
 # Phase 6 M1a 시드 스크립트 — dry-run mode 우선 (G13)
 # (legacy 보존: cron 가용 전 fallback. ProductSheetSyncService 가 1회 sync 후 시트 데이터로 덮어쓰기)
 seed:
@@ -121,14 +100,3 @@ eureka:
     enabled: false
     register-with-eureka: false
     fetch-registry: false
-
-# local profile 에서는 시트 sync 비활성 (Service Account JSON 부재 가능)
-app:
-  scheduling:
-    enabled: false
-
-samhan:
-  product:
-    sheet-sync:
-      cron-enabled: false
-      # local profile: 시트 API / Service Account JSON 부재 가능 — 강제 비활성

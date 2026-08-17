@@ -61,6 +61,10 @@ services:
         sync: false
       - key: PARTNER_SERVICE_URL
         sync: false
+      # estimate-app 의 내부 DC 조회는 gateway가 아닌 dc-config-service 전용 주소를 사용한다.
+      # 미설정 시 gateway의 /internal/** 비등록 정책 때문에 404가 발생한다.
+      - key: DC_CONFIG_SERVICE_URL
+        sync: false
       # G2 directory: 실제 partner-service 거래처 마스터. PARTNER_SERVICE_URL 은
       # legacy dc-config-service 용도라 directory.js 에서는 의도적으로 사용하지 않는다.
       - key: SAMHAN_PARTNER_SERVICE_URL
