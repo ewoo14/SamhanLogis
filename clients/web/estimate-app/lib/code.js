@@ -2010,7 +2010,14 @@ async function getCustomerDataAsync(forceRefresh) {
     const byBiz = c.bizno ? dcMap[String(c.bizno).replace(/[^\d]/g, '')] : null;
     if (byBiz) return byBiz;
     const codeKey = String(c.code || '').replace(/[^\d]/g, '');
-    return codeKey ? (dcMap[codeKey] || null) : null;
+    const matched = codeKey ? dcMap[codeKey] : null;
+    if (matched) return matched;
+    return {
+      dcConfigUnavailable: true,
+      dcConfigError: { status: 404, message: 'DC 설정 조회 결과를 찾을 수 없습니다' },
+      homeDiscount: null,
+      commDiscount: null,
+    };
   };
 
   return raw.map((c) => ({

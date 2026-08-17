@@ -66,6 +66,7 @@ jest.mock('axios', () => {
 const shim = require('../lib/apps-script-shim');
 const code = require('../lib/code');
 const directory = require('../lib/directory');
+const axios = require('axios');
 
 const SHEET_ID = '1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ';
 const HOME_NAME = '홈멀티_단가인상';
@@ -589,8 +590,29 @@ describe('#31 getAllNotionDcConfigs_ / getCustomerDataAsync dc 부착', () => {
       expect(out).toHaveLength(3);
       expect(out[0].dc.homeDiscount).toBe(0.46); // bizno 매칭
       expect(out[1].dc.homeDiscount).toBe(0.5); // 거래처코드 숫자키 매칭
-      expect(out[2].dc).toBeNull(); // 미등록 → null
+      expect(out[2].dc).toEqual(expect.objectContaining({ dcConfigUnavailable: true })); // 미등록 → 미확정
       expect(out[0].bizno).toBe('9876543210');
+    } finally {
+      fetchPartnersSpy.mockRestore();
+    }
+  });
+
+  test('벌크 DC 응답에 거래처가 없으면 기본 45%가 아닌 미확정 상태로 반환', async () => {
+    const fetchPartnersSpy = jest.spyOn(directory, 'fetchPartners').mockResolvedValue([
+      { code: 'C-404', name: 'DC누락거래처', bizno: '4044040440', manager: '', managerTel: '', rep: '', addr: '', tel: '', note: '', group: '', singleDiscount: 0 },
+    ]);
+    axios.get.mockImplementationOnce(async () => ({
+      status: 200,
+      data: { success: true, data: [] },
+    }));
+
+    try {
+      const customers = await code.getCustomerDataAsync(true);
+      expect(customers[0].dc).toEqual(expect.objectContaining({
+        dcConfigUnavailable: true,
+      }));
+      expect(customers[0].dc.homeDiscount).toBeNull();
+      expect(customers[0].dc.commDiscount).toBeNull();
     } finally {
       fetchPartnersSpy.mockRestore();
     }

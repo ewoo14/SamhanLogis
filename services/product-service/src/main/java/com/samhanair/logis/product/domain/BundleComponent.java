@@ -125,6 +125,14 @@ public class BundleComponent extends BaseEntity {
     @Column(name = "fixed_allocation_amount", precision = 19, scale = 2)
     private BigDecimal fixedAllocationAmount;
 
+    /** 세트 문맥 구성품 출고가. NULL이면 전역 가격으로 fallback한다. */
+    @Column(name = "context_release_price", precision = 19, scale = 2)
+    private BigDecimal contextReleasePrice;
+
+    /** 세트 문맥 구성품 납품가. NULL이면 전역 가격으로 fallback한다. */
+    @Column(name = "context_delivery_price", precision = 19, scale = 2)
+    private BigDecimal contextDeliveryPrice;
+
     private BundleComponent(UUID bundleProductId, String componentProductCode,
                             BigDecimal defaultQty, QtyMode qtyMode, ComponentKind componentKind,
                             String componentVariant, boolean isDefault, String specText) {
@@ -179,6 +187,12 @@ public class BundleComponent extends BaseEntity {
         this.allocationMode = mode == null ? AllocationMode.FIXED : mode;
         this.allocationWeight = weight;
         this.fixedAllocationAmount = fixedAmount;
+    }
+
+    /** 시트의 부모 세트 문맥 출고가·납품가를 저장한다. */
+    public void changeContextPrices(BigDecimal releasePrice, BigDecimal deliveryPrice) {
+        this.contextReleasePrice = releasePrice;
+        this.contextDeliveryPrice = deliveryPrice;
     }
 
     /**

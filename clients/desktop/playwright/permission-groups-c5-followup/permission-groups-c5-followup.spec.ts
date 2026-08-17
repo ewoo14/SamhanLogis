@@ -121,13 +121,14 @@ test.describe('권한그룹 C5 후속 정리', () => {
     expect(routes).not.toContain('SHEET_SYNC_ROLES')
   })
 
-  test('mock runtime: products.sync grant controls /admin/sheet-sync allow and redirect', async ({ page }) => {
+  test('mock runtime: products.sync grant opens retired /admin/sheet-sync 안내 화면', async ({ page }) => {
     await page.goto(`${BASE_URL}/#/admin/sheet-sync?mockRole=MANAGER`, {
       waitUntil: 'domcontentloaded',
       timeout: 20000,
     })
     await expect(page).toHaveURL(/#\/admin\/sheet-sync/)
-    await expect(page.getByTestId('admin-sheetsync-trigger-btn')).toBeVisible({ timeout: 15000 })
+    await expect(page.getByTestId('admin-sheetsync-retired')).toBeVisible({ timeout: 15000 })
+    await expect(page.getByTestId('admin-sheetsync-trigger-btn')).toHaveCount(0)
 
     await page.goto(`${BASE_URL}/#/admin/sheet-sync?mockRole=SALES`, {
       waitUntil: 'domcontentloaded',

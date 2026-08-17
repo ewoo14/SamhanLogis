@@ -115,7 +115,8 @@ public class BundleExpander {
             String name = cp != null ? cp.getName() : c.getComponentProductCode();
             String modelName = cp != null ? cp.getModelName() : null;
             java.util.UUID pid = cp != null ? cp.getId() : null;
-            BigDecimal price = cp != null ? nz(cp.getDeliveryPrice()) : BigDecimal.ZERO;
+            BigDecimal price = cp != null ? nz(c.getContextDeliveryPrice() != null
+                    ? c.getContextDeliveryPrice() : cp.getDeliveryPrice()) : BigDecimal.ZERO;
             BigDecimal qty = c.getQtyMode() == BundleComponent.QtyMode.FOLLOW_SET
                     ? setQty.multiply(c.getDefaultQty())
                     : c.getDefaultQty();
