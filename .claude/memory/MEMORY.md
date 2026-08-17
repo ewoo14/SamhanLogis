@@ -130,6 +130,7 @@
 - [🚨 머지 안 된 마이그레이션이 다른 트랙…](feedback_unmerged_migration_blocks_other_tracks.md)
 - [🚨🚨 백엔드 트랙은 직렬화 — 병렬 트랙이…](feedback_parallel_backend_tracks_share_docker_stack.md)
 - [🚨 `git worktree add` 는…](feedback_git_worktree_cwd_use_dash_c.md)
+- [🚨 `cd … && …` 복합은 항상 권한창 — `git -C`·절대경로](feedback_no_cd_compound_use_git_dash_c.md)
 - [🚨 새 테스트마다 "이 단정이 Linux…](feedback_new_test_needs_linux_skip_guard.md)
 - [🚨 새 워크트리에는 gitignore 된…](feedback_worktree_missing_gitignored_inputs.md)
 - [🚨 지우기 전에 `git ls-files`…](feedback_check_tracked_before_delete.md)
@@ -307,3 +308,19 @@
 - [🚨🚨 docker build --no-cache 는 Gradle 을 안 돌린다 — 낡은 JAR 를 복사한다](feedback_docker_build_copies_stale_jar.md)
 
 - [🚨 라이브QA 스택은 변경 계층으로 고른다 — 백엔드 바뀐 트랙은 격리 필수](feedback_live_qa_stack_choice_by_change_layer.md)
+
+- [🚨🚨 설계 의도 = 수량동기화 + 부자재별 옵션(기본 포함)](feedback_qty_sync_plus_variant_is_the_design.md)
+
+- [🚨🚨 웹 → 전표는 그대로 — 품목도 가격도 서버가 바꾸지 마라](feedback_web_to_slip_must_be_verbatim.md)
+
+- [🚨 새 워크트리에는 node_modules 가 없다 — 설치하면 될 일을 미검증으로 넘기지 마라](feedback_new_worktree_needs_npm_ci.md)
+
+- [🚨 PR 을 먼저 열고 라운드를 발주한다 — PR 없이 돌리면 게시가 빠진다](feedback_open_pr_before_dispatch.md)
+
+- [🚨 입력 셀에 인라인 태그를 덧붙이지 마라 — 행 높이가 어긋난다](feedback_no_inline_tag_in_input_cell.md)
+
+- [🚨 DPS 입고비교 = 외부 엑셀 ↔ 우리 입고내역 대조 (즉석·금액 포함)](feedback_dps_inbound_compare_purpose.md)
+
+- [🚨🚨 트랙 전에 항시 정찰 — 예외 없음](feedback_recon_before_every_track.md)
+
+- [🚨 정찰 보고서는 그 워크트리 안에 있어야 한다](feedback_recon_report_must_be_in_worktree.md)

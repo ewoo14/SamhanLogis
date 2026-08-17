@@ -77,5 +77,35 @@ redeploy-service.ps1 은 이미 옳았다
 
 🚨 **재배포는 반드시 `--build` 와 함께.** 빼면 이전 이미지가 그대로 뜨고, 그 순간부터 모든 관측이 거짓말이 된다.
 
+## 🚨 2026-08-17 — **공유 컨테이너는 `main` 이미지다. 브랜치 신규 엔드포인트가 없는 게 정상이다**
+
+PR #1271 라운드가 404 를 보고 *"라이브 캡처 불가"* 로 보고했다. **틀렸다.**
+
+```text
+브랜치에 있다   services/slip-service/.../SlipInternalController.java:449
+                  @GetMapping("/inbound-lines")
+                services/inventory-service/.../SlipServiceClient.java:78
+                  return getSlips("inbound-lines", from, to)
+
+공유 컨테이너   samhan-slip-service  image=infrastructure-slip-service
+                Up 11 hours · created 2026-08-17 12:47   ← main 기준
+⟹ 브랜치가 추가한 경로가 404 인 것이 당연하다
+```
+
+### 규칙
+
+```text
+🚨 브랜치가 추가한 엔드포인트는 **브랜치 JAR 로 띄운 서버**에서만 검증된다
+🚫 공유 컨테이너를 브랜치 JAR 로 바꾸지 마라 — 병렬 트랙이 같이 쓴다. 바꾸면 그 트랙들이 오염된다
+⟹ 격리로 별 포트에 띄우고 라운드 끝에 내린다
+
+🚩 404 를 만나면 순서대로 물어라
+   ① 브랜치 소스에 그 경로가 있는가        grep @GetMapping
+   ② 내가 호출한 서버가 그 브랜치로 떠 있는가   ← 여기서 대부분 끝난다
+   ③ 그래도 없으면 그때가 결함이다
+```
+
+🔑 **호출한 서버의 계보를 모르면 404 는 아무것도 증명하지 않는다.**
+
 ## 관련
 [[feedback_parallel_backend_tracks_share_docker_stack]](이미지 태그·데몬·DB 는 전역) · [[feedback_pm_verify_what_measurement_proves]](이 측정이 증명하는 것을 진술하라) · [[feedback_unmerged_migration_blocks_other_tracks]] · [[feedback_compose_up_recreates_parent_containers]]
