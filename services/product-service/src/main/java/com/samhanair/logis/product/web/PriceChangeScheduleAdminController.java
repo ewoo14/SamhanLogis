@@ -29,7 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>기존 {@link PriceChangeScheduleInternalController}({@code /products/internal/price-change-schedule},
  * order-app/estimate-app 내부 client 전용 read-only)와 별개로, 본 컨트롤러는 admin 화면이 카테고리 4종의
- * 적용일 + "인상 전 단가" 체크박스 기본값을 조회/수정하는 write 경로다.
+ * 적용일 + 변동단가 체크박스 기본값을 조회/수정하는 write 경로다.
  *
  * <p><b>게이트웨이</b>: 기존 {@code product-admin-v1} 라우트({@code Path=/api/v1/products/admin/**},
  * no-strip)가 이미 이 경로를 커버하므로 신규 게이트웨이 라우트를 추가하지 않는다.
@@ -50,7 +50,7 @@ public class PriceChangeScheduleAdminController {
      * @return ApiResponse 로 래핑된 카테고리별 스케줄 목록 (최대 4건)
      */
     @Operation(summary = "단가변동 스케줄 admin 목록 조회",
-            description = "order-app categoryKey 4종의 적용일 + \"인상 전 단가\" 체크박스 기본값을 조회한다.")
+            description = "order-app categoryKey 4종의 적용일 + 변동단가 체크박스 기본값을 조회한다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음")
@@ -78,7 +78,7 @@ public class PriceChangeScheduleAdminController {
     }
 
     /**
-     * 카테고리 1건의 적용일 / "인상 전 단가" 기본값을 부분 수정한다.
+     * 카테고리 1건의 적용일 / 변동단가 기본값을 부분 수정한다.
      *
      * <p>{@code effectiveDate}/{@code defaultPreChange} 는 각각 선택이며, 요청 본문에서
      * 생략(null)된 필드는 기존 값을 유지한다 (null-keep partial update,
@@ -89,7 +89,7 @@ public class PriceChangeScheduleAdminController {
      * @return ApiResponse 로 래핑된 수정 후 스케줄
      */
     @Operation(summary = "단가변동 스케줄 admin 부분 수정",
-            description = "지정 카테고리의 적용일 / \"인상 전 단가\" 기본값을 null-keep 방식으로 부분 수정한다.")
+            description = "지정 카테고리의 적용일 / 변동단가 기본값을 null-keep 방식으로 부분 수정한다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "수정 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 카테고리"),

@@ -8,7 +8,7 @@ import java.time.LocalDate;
  *
  * @param category order-app {@code PartnerOrderLine.categoryKey} 4종 중 하나
  * @param effectiveDate KST 업무일 기준 단가변동 적용 시작일
- * @param defaultPreChange 견적 "인상 전 단가" 체크박스 초기값
+ * @param defaultPreChange 견적 변동단가 체크박스 초기값
  */
 public record PriceChangeScheduleAdminResponse(
         String category,

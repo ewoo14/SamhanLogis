@@ -68,10 +68,10 @@ public class PriceChangeSchedule extends BaseEntity {
     private LocalDate effectiveDate;
 
     /**
-     * 견적 카테고리별 "인상 전 단가" 체크박스 초기값 (S4a, #17).
+     * 견적 카테고리별 변동단가 체크박스 초기값 (S4a, #17).
      *
      * <p>estimate-app 이 {@code GET /products/internal/price-change-default-variant} 로 조회해
-     * 견적 작성 화면의 "인상 전 단가" 체크박스 기본 상태를 초기화하는 데 사용한다.
+     * 견적 작성 화면의 변동단가 체크박스 기본 상태를 초기화하는 데 사용한다.
      * 기본값은 {@link #DEFAULT_PRE_CHANGE}(인상 후 단가 기본)다.
      */
     @Column(name = "default_pre_change", nullable = false)
@@ -106,14 +106,14 @@ public class PriceChangeSchedule extends BaseEntity {
     }
 
     /**
-     * 적용일 / "인상 전 단가" 기본값을 부분 갱신한다 (S4a admin write API).
+     * 적용일 / 변동단가 기본값을 부분 갱신한다 (S4a admin write API).
      *
      * <p>{@code null} 인자는 기존 값을 유지하는 null-keep partial update 관례를 따른다
      * (dc-config-service {@code EstimateConfig#update} 와 동일 관례 — 서로 다른 Gradle 모듈이라
      * {@code @link} 로 직접 연결하지 않는다).
      *
      * @param effectiveDate KST 의미의 적용 시작일. null 이면 기존 값 유지
-     * @param defaultPreChange "인상 전 단가" 체크박스 초기값. null 이면 기존 값 유지
+     * @param defaultPreChange 변동단가 체크박스 초기값. null 이면 기존 값 유지
      */
     public void update(LocalDate effectiveDate, Boolean defaultPreChange) {
         this.effectiveDate = dateOrCurrent(effectiveDate, this.effectiveDate);

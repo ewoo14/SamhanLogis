@@ -228,7 +228,7 @@ public class EstimateCatalogInternalController {
             List<ProductSpecResponse> specs) {
     }
 
-    /** 인상 전 단가 baseline 행 — legacy getPriceIncData_ 동등. */
+    /** 변동 전 단가 baseline 행 — legacy getPriceIncData_ 동등. */
     public record PriceBaselineRow(String modelCode, String estimateCategory,
             BigDecimal releasePrice, BigDecimal deliveryPrice) {
     }
@@ -391,8 +391,8 @@ public class EstimateCatalogInternalController {
         return ApiResponse.ok(branchPipeLookupRepository.findAll());
     }
 
-    /** 인상 전 단가 baseline — legacy getPriceIncData_ (비_단가인상 탭 비교). */
-    @Operation(summary = "[내부] 인상 전 단가 baseline 벌크 (#30)")
+    /** 변동 전 단가 baseline — legacy getPriceIncData_ 비교. */
+    @Operation(summary = "[내부] 변동 전 단가 baseline 벌크 (#30)")
     @GetMapping("/price-baseline")
     @Transactional(readOnly = true)
     public ApiResponse<List<PriceBaselineRow>> priceBaseline() {

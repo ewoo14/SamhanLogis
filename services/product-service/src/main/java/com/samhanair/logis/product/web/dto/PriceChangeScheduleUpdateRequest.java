@@ -9,7 +9,7 @@ import java.time.LocalDate;
  * null-keep partial update 다 — {@link com.samhanair.logis.product.domain.PriceChangeSchedule#update}.
  *
  * @param effectiveDate KST 의미의 적용 시작일. null 이면 기존 값 유지
- * @param defaultPreChange "인상 전 단가" 체크박스 초기값. null 이면 기존 값 유지
+ * @param defaultPreChange 변동단가 체크박스 초기값. null 이면 기존 값 유지
  */
 public record PriceChangeScheduleUpdateRequest(
         LocalDate effectiveDate,

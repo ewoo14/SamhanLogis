@@ -1734,7 +1734,7 @@ function getSpecDetailMap_() {
 }
 
 /**
- * legacy getPriceIncData_() — 인상 전 단가 비교 데이터 (홈멀티/상업멀티/싱글).
+ * legacy getPriceIncData_() — 변동 전 단가 비교 데이터 (홈멀티/상업멀티/싱글).
  * estimate-legacy/lib/code.js (line 2803) 1:1 포팅.
  */
 function getPriceIncData_() {

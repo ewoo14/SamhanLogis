@@ -27,8 +27,8 @@ const PRICE_SCHEDULE_CATEGORY_LABELS: Record<PriceChangeScheduleCategory, string
 }
 
 /**
- * 단가변동 토글 표시 대상 카테고리. 구형은 토글을 제공하지만 현재가 baseline을
- * 사용하므로 전환 자체는 금액 no-op 이다.
+ * 변동단가 토글 표시 대상 카테고리. 구형도 2000-01-01 baseline과 현재가를
+ * 구분하므로 동일한 토글 계약을 사용한다.
  */
 const PRICE_SCHEDULE_TOGGLE_CATEGORIES = new Set<PriceChangeScheduleCategory>([
   'homemulti',
@@ -168,7 +168,7 @@ export function ProductPriceSchedulePage() {
                 <tr>
                   <th>카테고리</th>
                   <th>적용일</th>
-                  <th>인상 전 단가 기본값</th>
+              <th>변동단가 기본값</th>
                   <th>{canEditPriceSchedule ? '저장' : '권한'}</th>
                 </tr>
               </thead>
@@ -209,7 +209,7 @@ export function ProductPriceSchedulePage() {
                                 handleScheduleToggleChange(row.category, e.target.checked)
                               }
                             />
-                            인상 전 단가 기본 적용
+                            변동단가 기본 적용
                           </label>
                         ) : (
                           <span style={{ color: 'var(--color-neutral-600, #4D5562)', fontSize: 12 }}>

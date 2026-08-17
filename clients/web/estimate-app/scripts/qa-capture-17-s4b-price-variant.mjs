@@ -1,5 +1,5 @@
 /**
- * #17 단가변동 S4b P1 — estimate-app "인상 전 단가" 체크박스 초기 상태 라이브 QA.
+ * #17 단가변동 S4b P1 — estimate-app "변동단가" 체크박스 초기 상태 라이브 QA.
  *
  * 전제:
  *  - product-service(:8084) 가 실 Postgres 로 기동 중이고, desktop 관리 화면(P0 캡처2)에서
@@ -18,7 +18,7 @@
  *  3) 상단 탭 "홈멀티"/"싱글중대형" 클릭 시에만 각 카테고리 옵션 패널(체크박스 포함)이 실제로
  *     화면에 보인다(그 전에는 DOM 에 존재하되 비가시).
  *
- * 출력: docs/qa/17-s4b-price-variant/*.png (desktop real-qa 캡처 01~07 에 이어 08~ 로 저장)
+ * 출력: docs/qa/price-variant-canon/estimate-app-real-qa/*.png
  */
 
 import { chromium } from 'playwright';
@@ -30,7 +30,7 @@ import { resolveQaShotsDir } from '../../../../scripts/lib/qa-shots-dir.mjs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 // _local 격리(2026-07-26 하네스 재수렴 라운드 G3).
-const OUT_DIR = resolveQaShotsDir(path.resolve(ROOT, '..', '..', '..', 'docs', 'qa', '17-s4b-price-variant'));
+const OUT_DIR = resolveQaShotsDir(path.resolve(ROOT, '..', '..', '..', 'docs', 'qa', 'price-variant-canon', 'estimate-app-real-qa'));
 fs.mkdirSync(OUT_DIR, { recursive: true });
 
 const BASE = process.env.QA_BASE_URL || 'http://localhost:5183';
@@ -45,7 +45,9 @@ async function shot(page, file) {
 async function checkboxState(page, id) {
   return page.evaluate((elId) => {
     const el = document.getElementById(elId);
-    return el ? { exists: true, checked: el.checked, visible: el.offsetParent !== null } : { exists: false };
+    if (!el) return { exists: false };
+    const label = el.closest('label')?.textContent?.trim() || '';
+    return { exists: true, checked: el.checked, visible: el.offsetParent !== null, label };
   }, id);
 }
 
@@ -80,7 +82,7 @@ async function main() {
   await page.waitForTimeout(6500);
   await shot(page, '08-estimate-app-orderinfo-after-welcome-gate.png');
 
-  // 홈멀티 탭 — "인상 전 단가" 체크박스 실사 확인(기대: checked=true, P0 PUT 반영).
+  // 홈멀티 탭 — "변동단가" 체크박스 실사 확인(기대: 전부 checked=false).
   await page.click('#btnGoHome');
   await page.waitForTimeout(1000);
   const homeState = await checkboxState(page, 'chkHomeInc');
@@ -102,9 +104,11 @@ async function main() {
   };
   console.log('[qa] SUMMARY =', JSON.stringify(summary, null, 2));
 
-  const assertHome = injected?.homemulti === true && homeState.exists && homeState.checked === true && homeState.visible === true;
+  const assertDefaults = ['homemulti', 'singleSets', 'commercialMulti', 'oldProducts']
+    .every((category) => injected?.[category] === false);
+  const assertHome = assertDefaults && homeState.exists && homeState.checked === false && homeState.visible === true && homeState.label === '변동단가';
   const assertSingle = injected?.singleSets === false && singleState.exists && singleState.checked === false;
-  console.log(`[qa] PASS(홈멀티 checked 실증)=${assertHome}  PASS(싱글 대조 unchecked)=${assertSingle}`);
+  console.log(`[qa] PASS(4개 기본값 전부 해제+홈 라벨)=${assertHome}  PASS(싱글 대조 해제)=${assertSingle}`);
 
   await browser.close();
   console.log(`[qa] 완료. 출력 디렉토리: ${OUT_DIR}`);

@@ -130,10 +130,25 @@ async function singleSets(classifyLM, normalizeSize, sanitizeDisp) {
   });
 }
 
-/** 구형. */
+/** 구형 — 변동 전 baseline을 함께 주입한다. */
 async function oldProducts() {
   const rows = await get('/products?category=LEGACY');
+  const baselineRows = await get('/price-baseline');
+  const baselineByModel = new Map(
+    baselineRows
+      .filter((r) => r && r.modelCode)
+      .map((r) => [r.modelCode, r]),
+  );
   return rows.map((r) => ({
+    ...(() => {
+      const baseline = baselineByModel.get(r.modelCode);
+      return baseline
+        ? {
+            preChangePrice: num(baseline.releasePrice),
+            preChangeSheetPrice: num(baseline.deliveryPrice),
+          }
+        : {};
+    })(),
     name: r.name,
     model: r.modelCode,
     unit: r.unit || '',
@@ -193,7 +208,7 @@ async function recommendOduData() {
   return { comm, home, homeEx: home.slice() };
 }
 
-/** 인상 전 단가 비교 → { home, comm, single }. */
+/** 변동 전 단가 비교 → { home, comm, single }. */
 async function priceIncData() {
   const rows = await get('/price-baseline');
   const out = { home: {}, comm: {}, single: {} };
@@ -230,7 +245,7 @@ async function priceChangeSchedule() {
   return (resp.data && resp.data.data) || {};
 }
 
-/** 카테고리별 "인상 전 단가" 체크박스 기본값 맵 (S4a #17 defaultPreChange, S4b 소비). */
+/** 카테고리별 변동단가 체크박스 기본값 맵 (defaultPreChange 저장값, estimate-app 소비). */
 async function priceDefaultVariant() {
   const resp = await ax.get(`${PRODUCT_BASE}/products/internal/price-change-default-variant`, {
     headers: { 'X-Internal-Token': INTERNAL_TOKEN },
