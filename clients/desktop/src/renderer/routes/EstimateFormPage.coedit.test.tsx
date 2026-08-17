@@ -1382,8 +1382,8 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
     provider.setItemValue(0, 'unitPrice', '1000000')
     act(() => provider.__emit())
     await waitFor(() => expect(estimateUnitPrice().value).toBe('1000000'))
-    expect((screen.getByLabelText('라인 1 공급가액') as HTMLInputElement).value).toBe('909090')
-    expect((screen.getByLabelText('라인 1 부가세') as HTMLInputElement).value).toBe('90910')
+    expect((screen.getByLabelText('라인 1 공급가액') as HTMLInputElement).value).toBe('909091')
+    expect((screen.getByLabelText('라인 1 부가세') as HTMLInputElement).value).toBe('90909')
     expect((screen.getByLabelText('라인 1 합계(VAT포함)') as HTMLInputElement).value).toBe('1000000')
   })
 
@@ -1612,11 +1612,11 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
     await waitFor(() => expect(estimateUnitPrice().value).toBe('2170900'))
 
     fireEvent.change(estimateUnitPrice(), { target: { value: '1000000' } })
-    await waitFor(() => expect((screen.getByLabelText('라인 1 공급가액') as HTMLInputElement).value).toBe('909090'))
-    expect((screen.getByLabelText('라인 1 부가세') as HTMLInputElement).value).toBe('90910')
+    await waitFor(() => expect((screen.getByLabelText('라인 1 공급가액') as HTMLInputElement).value).toBe('909091'))
+    expect((screen.getByLabelText('라인 1 부가세') as HTMLInputElement).value).toBe('90909')
     expect((screen.getByLabelText('라인 1 합계(VAT포함)') as HTMLInputElement).value).toBe('1000000')
-    expect(totalsRowText(container, '공급가액')).toContain('909,090')
-    expect(totalsRowText(container, '부가세')).toContain('90,910')
+    expect(totalsRowText(container, '공급가액')).toContain('909,091')
+    expect(totalsRowText(container, '부가세')).toContain('90,909')
     expect(totalsRowText(container, '총합')).toContain('1,000,000')
   })
 

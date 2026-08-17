@@ -7,10 +7,15 @@ describe('VAT 포함 금액 표시 분리', () => {
     [165_000, true, { supply: 150_000, vat: 15_000, total: 165_000 }],
     [11, true, { supply: 10, vat: 1, total: 11 }],
     [10, true, { supply: 9, vat: 1, total: 10 }],
-    [1, true, { supply: 0, vat: 1, total: 1 }],
+    [110005, true, { supply: 100005, vat: 10000, total: 110005 }],
+    [1, true, { supply: 1, vat: 0, total: 1 }],
     [330_000, false, { supply: 330_000, vat: 0, total: 330_000 }],
   ])('총액 %s, 과세 여부 %s 는 공급가·VAT·총액을 보존한다', (amount, taxable, expected) => {
     expect(splitVatInclusive(amount, taxable)).toEqual(expected)
+  })
+
+  it('절사와 갈리는 110005원도 레거시 HALF_UP 공급가와 차액 VAT를 사용한다', () => {
+    expect(splitVatInclusive(110005, true)).toEqual({ supply: 100005, vat: 10000, total: 110005 })
   })
 
   it('부분 배분도 VAT를 다시 더하지 않고 세 값의 항등식을 지킨다', () => {
@@ -40,8 +45,8 @@ describe('VAT 포함 금액 표시 분리', () => {
 
   it('소수 수량의 서버 lineTotal 소수 둘째 자리를 보존한다', () => {
     expect(splitVatInclusiveFromQtyUnitPrice('0.08', '434788', true)).toEqual({
-      supply: 31_620,
-      vat: 3_163.04,
+      supply: 31_621,
+      vat: 3_162.04,
       total: 34_783.04,
     })
   })
