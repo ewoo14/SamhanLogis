@@ -10,7 +10,7 @@
 
 기존 product-service M1a (PR #38 머지) 는 27 sheet → 8 entity DB 시드 구조. 본 작업은 시트가 source-of-truth 인 운영 모델로 정정하기 위해 **구글 시트 → DB cron 1시간 동기화** 추가.
 
-legacy 시트 ID `1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ` 그대로 사용. 27 tab → 8 entity 매핑 그대로 (PR #38 보존).
+legacy 시트 ID `<SHEET_ID>` 그대로 사용. 27 tab → 8 entity 매핑 그대로 (PR #38 보존).
 
 ## 2. 옵션 비교 + 채택
 
@@ -132,7 +132,7 @@ legacy 시트 ID `1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ` 그대로 사용
 | `feedback_uuid_no_user_visibility.md` | ✓ admin endpoint response 는 SyncSummary (UUID 미포함) |
 | `feedback_function_documentation.md` | (1) 한국어 Javadoc 모든 service/scheduler/client (2) springdoc-openapi (admin endpoint @Operation) (3) 본 dev-report |
 | 시크릿 (Service Account JSON) | ✓ placeholder path 만 (`/etc/samhan/sa-key.json`) — 실 값 SSH 직접 |
-| legacy 시트 ID 보존 | ✓ `1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ` |
+| legacy 시트 ID 보존 | ✓ `<SHEET_ID>` |
 | legacy 27 tab → 8 entity 매핑 | ✓ PR #38 의 6 카테고리 매핑 (홈멀티/싱글세트/싱글구성품/상업멀티/상업멀티구성/구형) 그대로 |
 
 ## 8. 후속 작업

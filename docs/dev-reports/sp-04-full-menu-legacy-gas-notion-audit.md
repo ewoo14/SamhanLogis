@@ -12,7 +12,7 @@
 | 업무번호 | 보정 진행 | 전표/배차/재고이동은 기존 표준 유지, 견적번호/주문번호/seed/mock/인쇄 샘플까지 `yyyy/MM/dd-{순번}`으로 정렬 |
 | legacy GAS 27개 기능 | PR 기준 이식 완료 + P0 보강 이력 확인 | PR #115, #117, #118, #119, #120, #163 dev-report 기준. #163 이후 품목별 DPS pivot route도 현재 메뉴/감사 대상에 포함 |
 | Notion 운영 CSV 4종 | 보정 진행 | 노션 원본 데이터를 Samhan Public DB로 이관하고, 이후 화면/API는 우리 DB CRUD만 사용한다. PR #115 고정 row count를 최신 CSV 기준으로 정렬하고, 현재 Notion 표처럼 거래처코드 없이 사업자명만 있는 CHAT/BLOCK 행도 legacy 방식 그대로 보존하도록 alias 이식 경로를 추가 |
-| 종합견적서/주문서 Google Sheets | 보정 완료 | legacy GAS `SRC_SHEET_ID=1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ`와 실제 Google Sheet metadata/range를 재검증. `종합견적서` tab은 출력 양식이므로 원본 카탈로그 tab을 직접 읽도록 product/partner-order 매핑 보정 |
+| 종합견적서/주문서 Google Sheets | 보정 완료 | legacy GAS `SRC_SHEET_ID=<SHEET_ID>`와 실제 Google Sheet metadata/range를 재검증. `종합견적서` tab은 출력 양식이므로 원본 카탈로그 tab을 직접 읽도록 product/partner-order 매핑 보정 |
 
 ## 2. 기존 PR 확인
 
@@ -43,7 +43,7 @@ legacy GAS 두 앱은 같은 spreadsheet를 source-of-truth로 사용한다.
 
 | 앱 | legacy 파일 | sheet id | 원본 tab |
 | --- | --- | --- | --- |
-| 종합견적서 | `tools/legacy-gas/종합견적서/Code.js` | `1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ` | `홈멀티_단가인상`, `싱글 세트_단가인상`, `싱글 구성품_단가인상`, `상업멀티_단가인상`, `상업멀티 구성_단가인상`, `구형`, `거래처`, `담당자`, `추천실외기` |
+| 종합견적서 | `tools/legacy-gas/종합견적서/Code.js` | `<SHEET_ID>` | `홈멀티_단가인상`, `싱글 세트_단가인상`, `싱글 구성품_단가인상`, `상업멀티_단가인상`, `상업멀티 구성_단가인상`, `구형`, `거래처`, `담당자`, `추천실외기` |
 | 거래처 발송 주문서 | `tools/legacy-gas/거래처 발송 주문서/Code.js` | 동일 | `홈멀티`, `싱글 세트`, `싱글 구성품`, `상업멀티`, `상업멀티 구성`, `구형`, `거래처`, `담당자` + 단가인상 helper tab |
 
 Google Sheets connector 재검증 결과:
