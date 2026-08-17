@@ -10,7 +10,6 @@ import java.util.Map;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
@@ -24,7 +23,6 @@ import org.springframework.stereotype.Component;
  *
  * <p>본 client 는 IT 에서 {@code @MockBean} 격리 의무.
  */
-@Component
 public class ProductCatalogLookupClient {
 
     private static final Logger log = LoggerFactory.getLogger(ProductCatalogLookupClient.class);
@@ -42,14 +40,12 @@ public class ProductCatalogLookupClient {
     );
 
     /** 종합견적서 시트 ID — 운영에서는 INTEGRATED_QUOTE_SHEET_ID 환경변수 override. */
-    @Value("${samhan.partner-order.vendor.catalog-sheet-id:${BOOTSTRAP_SHEET_ID:1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ}}")
     private String catalogSheetId;
 
     /**
      * 선택 override: 외부에서 이미 modelCode/productName/unitPrice 3열 flat range 를 만든 경우만 사용.
      * 비어 있으면 legacy GAS 원본 tab 매핑을 사용한다.
      */
-    @Value("${samhan.partner-order.vendor.catalog-range:}")
     private String catalogRangeOverride;
 
     public ProductCatalogLookupClient(GoogleSheetsClient sheetsClient) {

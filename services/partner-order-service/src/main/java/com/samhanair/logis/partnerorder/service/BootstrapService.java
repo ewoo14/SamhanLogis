@@ -35,10 +35,8 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 18종 bootstrap prefetch 서비스 (legacy index.html 1230~1244 + Code.js doGet 4~23 대체).
  *
- * <p><b>PR-D Part 1 보강</b>: 부팅 시 18 cache key 별 시트 직접 read 우선, 실패 시 V2 seed
- * fallback. Samhan Public 자체 service 안에서 시트 read — 외부 시스템 호출 X
- * (legacy estimate-app 패턴 보존). 시트 read 결과는 in-memory 로 보관 ({@link #sheetCache});
- * {@link Cacheable} 의 spring cache 와 별도 경로 — 시트 prefetch 가 갱신될 때마다 evict.
+     * <p>개발책임자 확정: bootstrap 원천은 product-service DB와 DB seed이며 Google Sheets는
+     * 런타임 원천이 아니다. 기존 시트 설정값은 호환을 위해 남아 있어도 읽지 않는다.
  *
  * <p>{@link Cacheable} 로 in-memory 캐시 — 카탈로그 변경 시 admin endpoint 가 evict.
  * config 키는 DC 9키 ({@code homeDiscount=0.45} 등) 가 제거된 client-safe 사본만 보관 (M3 가드 일관).
@@ -51,9 +49,7 @@ import org.springframework.transaction.annotation.Transactional;
  *   specDetailMap, config, logoData, priceChangeSchedule
  * </pre>
  *
- * <p><b>시트 매핑</b>: {@code app.bootstrap.range-map.<cacheKey>} 에 정의된 A1 range 가 있는
- * 키만 시트 read 시도. 매핑 없는 키는 V2 seed 만 사용. 시트 결과는 raw 2D ({@code List<List<Object>>})
- * 그대로 응답에 노출 — FE 가 legacy Apps Script 와 동일하게 row 배열로 처리.
+     * <p>DB 카탈로그 결과가 없을 때만 V2 seed를 fallback으로 사용한다.
  */
 @Service
 @RequiredArgsConstructor
@@ -116,14 +112,12 @@ public class BootstrapService {
     private final GoogleSheetsClient sheetsClient;
     private final EstimateCatalogClient estimateCatalogClient;
 
-    @Value("${app.bootstrap.sheet-id:1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ}")
     private String bootstrapSheetId;
 
     /**
      * 시트 prefetch 활성 토글. local profile / 테스트에서 false 로 차단 가능.
      * default true — 운영에서는 부팅 시 자동 prefetch.
      */
-    @Value("${app.bootstrap.sheet-prefetch-enabled:true}")
     private boolean sheetPrefetchEnabled;
 
     /**
@@ -146,39 +140,7 @@ public class BootstrapService {
     @PostConstruct
     public void prefetch() {
         prefetchProductCatalog();
-        if (!sheetPrefetchEnabled) {
-            log.info("[BootstrapService] 시트 prefetch 비활성 (app.bootstrap.sheet-prefetch-enabled=false) — product_db/seed fallback only");
-            return;
-        }
-        Map<String, String> effectiveRangeMap = rangeMap == null ? Map.of() : rangeMap;
-        if (effectiveRangeMap.isEmpty()) {
-            log.info("[BootstrapService] range-map 미설정 — 시트 prefetch skip (V2 seed only)");
-            return;
-        }
-        log.info("[BootstrapService] 부팅 prefetch 시작: sheetId={}, mapping={}",
-                bootstrapSheetId, effectiveRangeMap.keySet());
-        int succeeded = 0;
-        int failed = 0;
-        for (String cacheKey : CACHE_KEYS) {
-            String range = effectiveRangeMap.get(cacheKey);
-            if (range == null || range.isBlank()) {
-                continue;
-            }
-            try {
-                List<List<Object>> rows = sheetsClient.readSheet(
-                        bootstrapSheetId, range, ValueRenderMode.FORMATTED);
-                sheetCache.put(cacheKey, rows);
-                succeeded++;
-                log.debug("[BootstrapService] 시트 prefetch 성공: key={}, rows={}",
-                        cacheKey, rows == null ? 0 : rows.size());
-            } catch (Exception e) {
-                failed++;
-                log.warn("[BootstrapService] 시트 prefetch 실패 (V2 seed fallback): key={}, range={}, err={}",
-                        cacheKey, range, e.getMessage());
-            }
-        }
-        log.info("[BootstrapService] 부팅 prefetch 완료: succeeded={}, failed={}, fallback={}",
-                succeeded, failed, CACHE_KEYS.size() - succeeded);
+        log.info("[BootstrapService] DB catalog prefetch 완료 — Google Sheets runtime 연동 없음");
     }
 
     /**
@@ -204,13 +166,7 @@ public class BootstrapService {
                 payloads.put(key, applyConfigGuard(key, productPayloads.get(key)));
                 continue;
             }
-            // 2) 시트 prefetch 결과
-            Object sheetPayload = sheetCache.get(key);
-            if (sheetPayload != null) {
-                payloads.put(key, applyConfigGuard(key, sheetPayload));
-                continue;
-            }
-            // 3) V2 seed fallback
+            // 2) V2 seed fallback
             BootstrapCacheConfig row = rowsByKey.get(key);
             if (row == null) {
                 // legacy graceful fallback — 빈 객체
@@ -256,8 +212,7 @@ public class BootstrapService {
     public void evictAll() {
         sheetCache.clear();
         productCatalogCache.clear();
-        sheetsClient.invalidateCache();
-        log.info("Bootstrap cache evicted (product catalog cache + sheet cache + spring cache)");
+        log.info("Bootstrap cache evicted (product catalog cache + DB seed + spring cache)");
     }
 
     /**

@@ -340,6 +340,20 @@ public class ProductSheetSyncService {
             return result;
         }
 
+        Map<String, Integer> occurrenceByPair = new HashMap<>();
+        if (mapping.hasQtyColumn) {
+            for (int i = headerIdx + 1; i < rows.size(); i++) {
+                List<Object> row = rows.get(i);
+                if (row == null || row.isEmpty()) continue;
+                List<String> cells = GoogleSheetsClient.toStringRow(row, 30);
+                String set = safeGet(cells, cSet).trim();
+                String model = safeGet(cells, cModel).trim();
+                if (!set.isBlank() && !model.isBlank()) {
+                    occurrenceByPair.merge(set + "\u001f" + model, 1, Integer::sum);
+                }
+            }
+        }
+
         // 부모 Product.id → 이번 시트에서 본 자식코드 set (soft-delete 대상 산출용).
         Map<UUID, Set<String>> seenByParent = new HashMap<>();
         // 부모 Product.id → PESSIMISTIC_WRITE 획득 여부. 같은 부모는 sync 트랜잭션 안에서 1회만 잠근다.
@@ -401,7 +415,11 @@ public class ProductSheetSyncService {
                 kind = BundleComponent.ComponentKind.OUTDOOR;
             }
             QtyAndMode qm = resolveQty(mapping.hasQtyColumn, qtyRaw);
-
+            int pairOccurrences = occurrenceByPair.getOrDefault(setModel + "\u001f" + childModel, 0);
+            if (mapping.hasQtyColumn && pairOccurrences > 1) {
+                // 상업 구성품 동일 pair × 2는 한 세트에 2대 구성품이라는 계약이다.
+                qm = new QtyAndMode(BigDecimal.valueOf(pairOccurrences), BundleComponent.QtyMode.FOLLOW_SET);
+            }
             // ① 부모 BUNDLE 마킹(중복 회피).
             // ② 자식 parentBundleSetModel.
             // ③ BundleComponent upsert(부모,자식코드 natural key).
@@ -453,8 +471,9 @@ public class ProductSheetSyncService {
                 productRepository.save(child);
             }
             if (match == null) {
-                bundleComponentRepository.save(BundleComponent.seed(parent.getId(), childModel,
-                        qm.qty, qm.mode, kind, blankToNull(variant), isDefault, blankToNull(spec)));
+                BundleComponent created = BundleComponent.seed(parent.getId(), childModel,
+                        qm.qty, qm.mode, kind, blankToNull(variant), isDefault, blankToNull(spec));
+                bundleComponentRepository.save(created);
             } else {
                 match.changeAttributes(qm.qty, qm.mode, kind, blankToNull(variant), isDefault, blankToNull(spec));
                 bundleComponentRepository.save(match);
@@ -2114,6 +2133,10 @@ public class ProductSheetSyncService {
         } catch (NumberFormatException e) {
             return BigDecimal.ZERO;
         }
+    }
+
+    private static BigDecimal parseNullableDecimal(String s) {
+        return s == null || s.isBlank() || "-".equals(s.trim()) ? null : parseDecimal(s);
     }
 
     private String sheetSyncKey(String scope) {

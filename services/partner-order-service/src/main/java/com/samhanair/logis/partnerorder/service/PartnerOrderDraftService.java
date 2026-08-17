@@ -28,7 +28,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 임시저장 (PartnerOrderDraft) 도메인 서비스. 30일 TTL ({@link PartnerOrderProperties#getTtlDays}).
+ * 임시저장 (PartnerOrderDraft) 도메인 서비스. 레거시와 동일하게 자동 만료하지 않는다.
  *
  * <p>핵심 책임:
  * <ul>
@@ -78,7 +78,7 @@ public class PartnerOrderDraftService {
         }
 
         long nextSeq = draftRepository.findMaxDraftSeqByPartnerCode(partnerCode) + 1L;
-        LocalDateTime expiresAt = LocalDateTime.now().plusDays(properties.getTtlDays());
+        LocalDateTime expiresAt = null;
 
         PartnerOrderDraft draft = PartnerOrderDraft.create(
                 partnerCode, nextSeq, request.label(), request.payloadJson(), expiresAt);
@@ -145,27 +145,10 @@ public class PartnerOrderDraftService {
         return DraftDetailResponse.from(draft);
     }
 
-    /**
-     * TTL cleanup batch — expiresAt &lt; now() 인 row 를 soft-delete.
-     * scheduler 또는 admin endpoint 가 호출.
-     *
-     * @param actorUserId 실행 주체 (보통 'system' 또는 admin id)
-     * @return 삭제 처리된 row 수
-     */
+    /** 레거시 snapshot은 자동 만료하지 않으므로 cleanup은 no-op이다. */
     @Transactional
     public int cleanupExpired(String actorUserId) {
-        LocalDateTime cutoff = LocalDateTime.now();
-        List<PartnerOrderDraft> expired = draftRepository.findAllByExpiresAtBefore(cutoff);
-        for (PartnerOrderDraft d : expired) {
-            d.markDeleted(actorUserId);
-            historyRepository.save(PartnerOrderHistory.ofDraft(
-                    d.getId(), d.getPartnerCode(), HistoryEventType.DRAFT_DELETED,
-                    actorUserId, "{\"reason\":\"TTL_EXPIRED\"}"));
-        }
-        if (!expired.isEmpty()) {
-            log.info("Draft cleanup batch: {} rows expired", expired.size());
-        }
-        return expired.size();
+        return 0;
     }
 
     /**

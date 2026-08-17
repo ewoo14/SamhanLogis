@@ -74,4 +74,39 @@ class PartnerOrderLineSupplyVatTest {
         assertThat(line.getVatAmount()).isEqualByComparingTo("72727");
         assertThat(line.getLineTotal()).isEqualByComparingTo("800000");
     }
+
+    @Test
+    @DisplayName("레거시 주문서웹 VAT 포함 110005원은 공급가 100005원·VAT 10000원이고 음수 부호를 보존한다")
+    void legacyPriceUsesLegacyVatRoundingAndNegativeSign() {
+        PartnerOrderLine positive = PartnerOrderLine.createFromLegacyPrice(
+                UUID.randomUUID(), "LEGACY", "품목", "singleSets", 1,
+                new java.math.BigDecimal("110005"), null);
+        PartnerOrderLine negative = PartnerOrderLine.createFromLegacyPrice(
+                UUID.randomUUID(), "LEGACY-NEG", "품목", "singleSets", 1,
+                new java.math.BigDecimal("-110005"), null);
+
+        assertThat(positive.getSupplyAmount()).isEqualByComparingTo("100005");
+        assertThat(positive.getVatAmount()).isEqualByComparingTo("10000");
+        assertThat(negative.getSupplyAmount()).isEqualByComparingTo("-100005");
+        assertThat(negative.getVatAmount()).isEqualByComparingTo("-10000");
+    }
+
+    @Test
+    @DisplayName("R15 VAT 경계는 주문서웹 가격 경로에서도 HALF_UP으로 분리한다")
+    void priceAuthorityUsesGasVatBoundaries() {
+        assertSplit("5", "5", "0");
+        assertSplit("6", "5", "1");
+        assertSplit("11", "10", "1");
+        assertSplit("800000", "727273", "72727");
+    }
+
+    private static void assertSplit(String total, String supply, String vat) {
+        PartnerOrderLine line = PartnerOrderLine.create(
+                UUID.randomUUID(), "R15", "품목", "singleSets", 1,
+                new java.math.BigDecimal(total), null);
+        assertThat(line.getSupplyAmount()).isEqualByComparingTo(supply);
+        assertThat(line.getVatAmount()).isEqualByComparingTo(vat);
+        assertThat(line.getSupplyAmount().add(line.getVatAmount()))
+                .isEqualByComparingTo(total);
+    }
 }

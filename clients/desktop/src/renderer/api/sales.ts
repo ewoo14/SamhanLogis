@@ -297,7 +297,7 @@ export interface EstimateDetail {
   /** 납기일 (LocalDate). */
   dueDate: string | null
   /** 결제 기한. */
-  paymentDueDate: string | null
+  paymentDueDate?: string | null
   memo: string | null
   lines: EstimateLine[]
   totalAmount: number
@@ -557,6 +557,7 @@ export interface PartnerOrderDetail extends PartnerOrderSummary {
   siteAddress: string | null
   contactPhone: string | null
   dueDate: string | null
+  paymentDueDate: string | null
   memo: string | null
   lines: PartnerOrderLine[]
 }
@@ -663,6 +664,7 @@ export function normalizePartnerOrderDetail(raw: RawPartnerOrderDetail): Partner
     siteAddress: raw.siteAddress ?? null,
     contactPhone: raw.contactPhone ?? null,
     dueDate: raw.dueDate ?? null,
+    paymentDueDate: raw.paymentDueDate ?? null,
     memo: raw.memo ?? null,
     lines: (raw.lines ?? []).map(normalizePartnerOrderLine),
   }

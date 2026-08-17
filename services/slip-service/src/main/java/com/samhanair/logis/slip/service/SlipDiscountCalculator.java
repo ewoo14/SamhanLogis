@@ -3,8 +3,10 @@ package com.samhanair.logis.slip.service;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import org.springframework.stereotype.Component;
 
 /** 전표 라인별 DC 단가를 계산하고, 계산 누락 라인은 입력 정가를 보존한다. */
+@Component
 public class SlipDiscountCalculator {
     private final DiscountPriceClient client;
 
@@ -38,6 +40,22 @@ public class SlipDiscountCalculator {
         return new Calculation(lines.stream()
                 .map(line -> result.prices().getOrDefault(line.lineId(), line.listPrice()))
                 .toList(), info);
+    }
+
+    /** 서버 DC 계산 결과와 클라이언트 제출 단가를 비교한다. */
+    public void verifyClientPrices(String partnerCode, List<Line> lines,
+                                   Map<String, BigDecimal> clientPrices) {
+        DiscountPriceClient.CalculationResult result = client.calculateDetailed(partnerCode, lines);
+        if (!result.available()) {
+            throw new IllegalStateException("DC 서버 계산 결과를 확인할 수 없습니다.");
+        }
+        for (Line line : lines) {
+            BigDecimal serverPrice = result.prices().get(line.lineId());
+            BigDecimal clientPrice = clientPrices == null ? null : clientPrices.get(line.lineId());
+            if (serverPrice == null || clientPrice == null || serverPrice.compareTo(clientPrice) != 0) {
+                throw new IllegalArgumentException("서버 DC 단가와 클라이언트 단가가 다릅니다: " + line.lineId());
+            }
+        }
     }
 
     public record Line(String lineId, String category, BigDecimal listPrice,

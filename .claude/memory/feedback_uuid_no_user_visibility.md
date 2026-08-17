@@ -69,6 +69,48 @@ originSessionId: 78cac99d-5dee-47ca-8254-3834a088f393
 - **PR #18** (2026-05-04, Electron skeleton): SlipFormPage 라인 입력의 "제품 ID UUID" 필드 (사용자가 productId 를 36자 UUID 로 직접 타이핑) → 개발책임자 지적. 다음 슬라이스 (이카운트 양식 반영) 에서 모델명 입력 + onBlur lookup 으로 교체 + SlipNumberDisplay 의 optional UUID hover tooltip 도 prop 자체 제거
 - 본 메모리는 그 사고의 결과. 신규 컴포넌트 작성 시 본 가드 사전 검토 의무
 
+---
+
+## 🚨🚨 2026-08-17 실측 — **"응답에 UUID 가 있으면 위반" 은 오독이다**
+
+PR #1266 이 "UUID 가 API 응답에 노출되는 것" 을 결함으로 보고 응답 DTO 에서 UUID 필드 48개를 제거했다. **CI 8개 잡이 깨졌다.**
+
+```text
+DpsSaveHistoryIT.java:169   java.lang.IllegalArgumentException
+  ⟹ 목록 응답에서 id 를 읽어 상세 경로를 만들던 코드가 null 을 받았다
+  ⟹ 화면도 같은 방식이면 "상세 열기" 가 실 사용자 경로에서 깨진다
+
+깨진 계열   *CollabIT 8건 (코멘트 add/list/resolve/삭제)
+            *SaveHistoryIT (목록 → 상세 복원)
+            GroupwareAdminControllerIT (일정 참석자)
+```
+
+### 🔑 축은 **표시(display)** 이고 **전송(wire)** 이 아니다
+
+```text
+금지    화면 라벨 · 목록 "ID" 컬럼 · tooltip · placeholder · 인쇄 양식
+허용    요청 body · 라우트 path param · React key · hidden input · 컴포넌트 props
+        ⟹ 본문 원문: "UUID 는 서버 내부 식별자 + API 호출 wire format 한정"
+```
+
+목록에서 받은 id 로 상세·수정·삭제를 호출하는 것은 **정상 설계다.** 그것을 지우면 기능이 사라진다.
+
+### 판정 절차
+
+```text
+응답에서 UUID 를 지우기 전에 물어라
+  ① 클라이언트가 이 id 로 무엇을 호출하는가   grep clients/desktop · web · mobile*
+  ② 호출처가 있으면 → wire 다. 지우지 마라
+  ③ 호출처가 없으면 → 표시용이다. 지워라
+  ④ 그 id 없이 같은 일을 할 수 있는 경로가 있는가 (코드·번호 등)
+       있으면 그 경로로 갈아타고 지워도 된다
+
+🚫 "테스트가 원한다" 는 되살릴 근거가 아니다 — **호출처 파일:줄**이 근거다
+🚫 반대로 테스트를 새 동작에 맞춰 고치는 것도 금지 — 회귀가 숨는다
+```
+
 **관련 메모리**:
 - `feedback_function_documentation.md` — JSDoc 에 "사용자에게 보이지 않는 internal 식별자" 명시 권장
 - `feedback_pr_qa_screenshots.md` — QA 스크린샷에서 UUID 노출 발견 시 본 가드 위반 → hotfix 의무
+- `feedback_test_adapted_to_new_behavior_hides_regression.md` — 응답을 지우고 테스트를 맞추면 회귀가 숨는다
+- `feedback_join_key_column_empty_uuid_populated.md` — 코드 컬럼이 비어 있으면 UUID 를 대체할 수 없다

@@ -32,7 +32,8 @@ public record BundleComponentResponse(
         int displayOrder,
         BundleComponent.AllocationMode allocationMode,
         Integer allocationWeight,
-        BigDecimal fixedAllocationAmount
+        BigDecimal fixedAllocationAmount,
+        BigDecimal allocationRoundUnit
 ) {
     /**
      * {@link BundleComponent} 엔티티 + 품목 명칭 + 응답 순서 → 응답 DTO 변환.
@@ -43,6 +44,11 @@ public record BundleComponentResponse(
      * @return 응답 DTO
      */
     public static BundleComponentResponse from(BundleComponent bc, String name, int displayOrder) {
+        return from(bc, name, displayOrder, BigDecimal.valueOf(1000));
+    }
+
+    public static BundleComponentResponse from(BundleComponent bc, String name, int displayOrder,
+                                                BigDecimal allocationRoundUnit) {
         return new BundleComponentResponse(
                 bc.getComponentProductCode(),
                 name != null ? name : bc.getComponentProductCode(),
@@ -56,7 +62,8 @@ public record BundleComponentResponse(
                 displayOrder,
                 bc.getAllocationMode(),
                 bc.getAllocationWeight(),
-                bc.getFixedAllocationAmount()
+                bc.getFixedAllocationAmount(),
+                allocationRoundUnit
         );
     }
 }

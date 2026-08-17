@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { formatTabRemark } from './SheetSyncPage'
+import { formatTabRemark, isSheetSyncRetired } from './SheetSyncPage'
+
+describe('폐기된 구글 시트 동기화 화면', () => {
+  it('실행 가능한 동기화 화면으로 오인되지 않도록 폐기 상태를 반환한다', () => {
+    expect(isSheetSyncRetired()).toBe(true)
+  })
+})
 
 describe('formatTabRemark', () => {
   it('RED-A: 오류와 동일 카운트를 함께 표시한다', () => {

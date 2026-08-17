@@ -614,7 +614,12 @@ class PartnerOrderConfirmServiceIT extends AbstractPostgresIT {
         BigDecimal subtotal = jdbcTemplate.queryForObject(
                 "SELECT subtotal FROM partner_order_lines WHERE partner_order_id = ?",
                 BigDecimal.class, orderId);
-        // 레거시 종합견적서의 Math.round(total / 1.1) 계약: 800000 -> 727273, VAT는 차액.
+        // 레거시 계약: Math.round(total / 1.1) 후 차액을 VAT.
+        //   tools/legacy-gas/거래처 발송 주문서/Code.js:2122-2127
+        //     const sup = Math.round(Math.abs(total)/1.1);
+        //     const vat = Math.abs(total) - sup;
+        //   tools/legacy-gas/종합견적서/Code.js:1849-1855 도 같은 계약이다.
+        // 800000 / 1.1 = 727272.727... -> 727273 / 72727 (원 단위 반올림).
         assertThat(supplyAmount).isEqualByComparingTo("727273");
         assertThat(vatAmount).isEqualByComparingTo("72727");
         assertThat(supplyAmount.add(vatAmount)).isEqualByComparingTo(subtotal);

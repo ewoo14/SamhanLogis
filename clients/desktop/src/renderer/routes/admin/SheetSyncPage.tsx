@@ -48,6 +48,11 @@ import { buildSheetSyncRows, type SheetSyncRowResult } from './sheetSyncRows'
 
 const LAST_QUERY_KEY = ['admin', 'sheet-sync', 'last'] as const
 
+/** 구글 시트 연계는 폐기되었으며 이 경로는 안내 전용이다. */
+export function isSheetSyncRetired(): boolean {
+  return true
+}
+
 export function SheetSyncPage() {
   usePageTitle('구글 시트 동기화')
   const queryClient = useQueryClient()
@@ -89,6 +94,15 @@ export function SheetSyncPage() {
   }, [summary])
 
   const isPending = triggerMutation.isPending
+
+  if (isSheetSyncRetired()) {
+    return (
+      <section aria-labelledby="sheet-sync-retired-title" data-testid="admin-sheetsync-retired">
+        <h3 id="sheet-sync-retired-title">구글 시트 동기화 폐기</h3>
+        <p>구글 시트 연계는 폐기되었습니다. 현재 품목 카탈로그는 데이터베이스를 기준으로 사용합니다.</p>
+      </section>
+    )
+  }
 
   return (
     <>

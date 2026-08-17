@@ -8,13 +8,11 @@ import com.samhanair.logis.partnerorder.client.InventoryClient;
 import com.samhanair.logis.partnerorder.client.PartnerAuthClient;
 import com.samhanair.logis.partnerorder.client.ProductClient;
 import com.samhanair.logis.partnerorder.client.SlipServiceClient;
-import com.samhanair.logis.partnerorder.domain.PartnerOrderDraft;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderDraftRepository;
 import com.samhanair.logis.partnerorder.service.PartnerOrderDraftService;
 import com.samhanair.logis.partnerorder.web.dto.DraftCreateRequest;
 import com.samhanair.logis.partnerorder.web.dto.DraftResponse;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -78,18 +76,6 @@ class PartnerOrderDraftServiceIT extends AbstractPostgresIT {
                 "P002", "user-2",
                 new DraftCreateRequest("2025/05/05 - 임시저장 1", "{\"items\":[]}"));
         assertThat(otherFirst.draftSeq()).isEqualTo(1L);
-    }
-
-    @Test
-    void cleanup_expired_marks_old_drafts_soft_deleted() {
-        // 만료된 draft 직접 INSERT (helper)
-        PartnerOrderDraft expired = PartnerOrderDraft.create(
-                "P003", 1L, "old-draft", "{}",
-                LocalDateTime.now().minusDays(31));
-        draftRepository.save(expired);
-
-        int affected = draftService.cleanupExpired("system");
-        assertThat(affected).isGreaterThanOrEqualTo(1);
     }
 
     @Test

@@ -434,7 +434,7 @@ class ProductPermissionControllerIT {
                                 .file(csv("itemFile"))
                                 .file(csv("relationFile"))
                                 .file(csv("groupFile"))),
-                new EndpointCase("product sheet sync trigger", "products.sync", PermissionAction.CREATE, "MANAGER", 200,
+                new EndpointCase("product sheet sync trigger (retired)", "products.sync", PermissionAction.CREATE, "MANAGER", 410,
                         () -> post("/api/v1/products/admin/sync")),
                 new EndpointCase("product sheet sync last", "products.sync", PermissionAction.VIEW, "MANAGER", 200,
                         () -> get("/api/v1/products/admin/sync/last")),

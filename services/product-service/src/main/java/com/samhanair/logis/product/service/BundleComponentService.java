@@ -157,7 +157,7 @@ public class BundleComponentService {
             // 여전히 미매칭이면 코드 자체를 폴백 명칭으로 사용
             String name = nameByCode.getOrDefault(bc.getComponentProductCode(),
                     bc.getComponentProductCode());
-            result.add(BundleComponentResponse.from(bc, name, i + 1));
+            result.add(BundleComponentResponse.from(bc, name, i + 1, product.getAllocationRoundUnit()));
         }
         return result;
     }
@@ -325,6 +325,12 @@ public class BundleComponentService {
                         value.weight() == null ? 0 : value.weight(), value.fixedAmount()))
                 .toList());
 
+        requests.stream()
+                .map(BundleComponentRequest::allocationRoundUnit)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .ifPresent(parent::changeAllocationRoundUnit);
+
         // 🚨 2026-07-28 재수렴 R6 결함 3 [MED] fix (I-3) — 이 replace-all 이 확정할
         // 구성품 집합이 이 BUNDLE 을 source 로 갖는 활성 규칙의 target 과 겹치면 거부한다.
         // QuantitySyncRuleValidator 의 신규 규칙 생성 시 검증("BUNDLE source는 같은
@@ -395,7 +401,7 @@ public class BundleComponentService {
             BundleComponent bc = saved.get(i);
             String name = nameByCode.getOrDefault(bc.getComponentProductCode(),
                     bc.getComponentProductCode());
-            result.add(BundleComponentResponse.from(bc, name, i + 1));
+            result.add(BundleComponentResponse.from(bc, name, i + 1, parent.getAllocationRoundUnit()));
         }
 
         // §2-2 실시간 publish — components PUT 성공 시 카탈로그 목록 invalidate 트리거
