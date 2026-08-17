@@ -44,15 +44,13 @@ describe('lineVat — 품목행 권위 열 계산', () => {
     expect(line.vatWarning).toBe(true)
   })
 
-  // BLOCKING-2 (#824 R1): PRICE 경로가 HALF_UP(divideHalfUp)을 써 BE VatAmountCalculator
-  // (0 방향 절사·DOWN)와 어긋났다. 100005 계열 fixture 는 ÷11 나머지가 5.5 미만이라
-  // HALF_UP·DOWN 이 같은 값을 내는 무감도 fixture — 실제로 갈리는 단가만 RED 를 잡는다.
+  // P1-03: PRICE/TOTAL 경로는 레거시 종합견적서와 같은 원 단위 HALF_UP을 사용한다.
   it.each([
-    // [unitPrice, quantity, 기대 supply(BE DOWN), 기대 vat]
-    ['7900', 1, '7181', '719'],
-    ['100', 1, '90', '10'],
-    ['1234500', 1, '1122272', '112228'],
-  ] as const)('PRICE 경로 단가 %s 는 BE 와 같은 절사(DOWN) 공급가액 %s 를 낸다', (unitPrice, quantity, expectedSupply, expectedVat) => {
+    // [unitPrice, quantity, 기대 supply(HALF_UP), 기대 vat]
+    ['7900', 1, '7182', '718'],
+    ['100', 1, '91', '9'],
+    ['1234500', 1, '1122273', '112227'],
+  ] as const)('PRICE 경로 단가 %s 는 레거시 HALF_UP 공급가액 %s 를 낸다', (unitPrice, quantity, expectedSupply, expectedVat) => {
     const line = recalculateLineVat({
       quantity,
       unitPrice,
@@ -155,7 +153,7 @@ describe('editSlipLineAmount — 전표 전용 금액 편집 정책(#902 P4/P6, 
  *
  * <p>{@link hasVatWarning} 는 종전 정확 일치({@code warningFor})를 그대로 썼다 — 공급가액×10%
  * (별도 절사)와 부가세가 한 원이라도 다르면 무조건 경고였다. 그런데 PRICE/TOTAL 권위의 실제
- * 분리 공식({@link supplyFromVatInclusive} 미러, 합계를 ÷1.1·0 방향 절사)은 "공급가액×10%"와
+ * 분리 공식({@link supplyFromVatInclusive} 미러, 합계를 ÷1.1·원 단위 HALF_UP)은 "공급가액×10%"와
  * 수학적으로 다른 절사 경계를 가져 <b>항상 0 또는 +1원만큼만</b> 어긋난다 — 증명: 합계
  * T=11k+r(0≤r≤10) 로 두면 공급가액 S=10k+⌊10r/11⌋, 부가세 V=T-S=k+r-⌊10r/11⌋, "공급가액의
  * 10%"(별도 절사)는 k 이고, 그 차 r-⌊10r/11⌋ 은 r=0 이면 0, r=1..10 이면 항상 1이다. 실측

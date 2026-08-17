@@ -21,8 +21,8 @@ class PartnerOrderLineSupplyVatTest {
         assertThat(Arrays.stream(PartnerOrderLine.class.getDeclaredFields())
                 .map(Field::getName)
                 .toList()).contains("supplyAmount", "vatAmount");
-        assertThat(line.getSupplyAmount()).isEqualByComparingTo("100004");
-        assertThat(line.getVatAmount()).isEqualByComparingTo("10001");
+        assertThat(line.getSupplyAmount()).isEqualByComparingTo("100005");
+        assertThat(line.getVatAmount()).isEqualByComparingTo("10000");
         assertThat(line.getSubtotal()).isEqualByComparingTo("110005");
         assertThat(line.getSupplyAmount().add(line.getVatAmount()))
                 .isEqualByComparingTo(line.getLineTotal());
@@ -52,10 +52,10 @@ class PartnerOrderLineSupplyVatTest {
             assertThat(line.getSupplyAmount().add(line.getVatAmount()))
                     .isEqualByComparingTo(line.getLineTotal());
         }
-        assertThat(price.getVatAmount()).isEqualByComparingTo("10001");
+        assertThat(price.getVatAmount()).isEqualByComparingTo("10000");
         assertThat(supply.getVatAmount()).isEqualByComparingTo("10000");
         assertThat(vat.getVatAmount()).isEqualByComparingTo("9999");
-        assertThat(total.getSupplyAmount()).isEqualByComparingTo("100004");
+        assertThat(total.getSupplyAmount()).isEqualByComparingTo("100005");
         assertThat(price.getAmountAuthority()).isEqualTo(PartnerOrderLine.AmountAuthority.PRICE);
         assertThat(supply.getAmountAuthority()).isEqualTo(PartnerOrderLine.AmountAuthority.SUPPLY);
         assertThat(vat.getAmountAuthority()).isEqualTo(PartnerOrderLine.AmountAuthority.VAT);
@@ -63,15 +63,15 @@ class PartnerOrderLineSupplyVatTest {
     }
 
     @Test
-    @DisplayName("기존 주문의 DC 최종가 800000원은 공급가액 727272원을 보존한다")
+    @DisplayName("기존 주문의 DC 최종가 800000원은 레거시 HALF_UP 공급가액을 산출한다")
     void preservesLegacyDiscountedTotalSplit() {
         PartnerOrderLine line = PartnerOrderLine.createFromAuthoritativeAmounts(
                 UUID.randomUUID(), "DC-800000", "품목", "singleSets", 1,
                 null, null, null, new java.math.BigDecimal("800000"),
                 PartnerOrderLine.AmountAuthority.TOTAL, null);
 
-        assertThat(line.getSupplyAmount()).isEqualByComparingTo("727272");
-        assertThat(line.getVatAmount()).isEqualByComparingTo("72728");
+        assertThat(line.getSupplyAmount()).isEqualByComparingTo("727273");
+        assertThat(line.getVatAmount()).isEqualByComparingTo("72727");
         assertThat(line.getLineTotal()).isEqualByComparingTo("800000");
     }
 }
