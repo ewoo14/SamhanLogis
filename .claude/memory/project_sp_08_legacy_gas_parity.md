@@ -40,6 +40,6 @@ metadata:
 
 **🔴 키 회전 필수(미완)**: 이카운트 API 인증키(`117d1e…857`)가 #379부터 종합견적서/에어디자이너/제이시스템 Code.js 에 평문 커밋 → PR #434 redact 했으나 **git 히스토리 잔존** → 운영상 회전 필요. (라이브 GAS·종합견적서 시트에도 평문: 네이버 검색/지도, 도로명/건물 API, 구글 Vision, Notion 토큰.) GitGuardian 은 삭제(-)줄 시크릿 적발 → PM 오버라이드 머지(개발책임자 승인).
 
-**🎯 품목/견적 시트→DB 전환 원칙(개발책임자 2026-06-09)**: 종합견적서·거래처 발송 주문서가 시트 `1RJqO3jT…` 품목마스터 5탭 직접조회 → **시트직접조회보다 우리 품목리스트(DB) 선호**. 데이터는 이미 `ProductSheetSyncService`(동일 시트·5탭 sync, Product/PriceHistory/BundleComponent/MaterialPrice/OduRecommendation, [[project_seed_product_uuid_catalog]]/[[project_lookup_seed_source]])로 편입됨. **후속 = GAS 시트조회→product-service REST 전환 + 견적 할인정책(홈/상업 0.45 등) estimate 도메인 이관**(견적 계산 API 미완). 우선순위: GAS 스냅샷·파리티 먼저(완료) → 그 다음 DB전환 설계.
+**🎯 품목/견적 시트→DB 전환 원칙(개발책임자 2026-06-09)**: 종합견적서·거래처 발송 주문서가 시트 `<SHEET_ID>` 품목마스터 5탭 직접조회 → **시트직접조회보다 우리 품목리스트(DB) 선호**. 데이터는 이미 `ProductSheetSyncService`(동일 시트·5탭 sync, Product/PriceHistory/BundleComponent/MaterialPrice/OduRecommendation, [[project_seed_product_uuid_catalog]]/[[project_lookup_seed_source]])로 편입됨. **후속 = GAS 시트조회→product-service REST 전환 + 견적 할인정책(홈/상업 0.45 등) estimate 도메인 이관**(견적 계산 API 미완). 우선순위: GAS 스냅샷·파리티 먼저(완료) → 그 다음 DB전환 설계.
 
 **Drive-only 신규 6**(가입고처리/거래처 업데이트/입출고 분석·내역/비밀번호 일괄 암호화/교육안내 자동상태변경) 스냅샷만 확보 — 마이그레이션 대상 여부 개발책임자 검토 대기.

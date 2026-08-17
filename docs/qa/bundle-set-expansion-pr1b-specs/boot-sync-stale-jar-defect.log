@@ -1,6 +1,6 @@
 === boot2 — STALE jar (no V12) — reproduced uq_ps_product_key duplicate-key defect ===
 2026-06-09T14:16:43.140+09:00  INFO 28084 --- [product-service] [           main] c.s.l.product.ProductServiceApplication  : Started ProductServiceApplication in 15.134 seconds (process running for 16.311)
-2026-06-09T14:16:43.205+09:00  INFO 28084 --- [product-service] [           main] c.s.l.p.service.ProductSheetSyncService  : [ProductSheetSync] sync 시작: sheetId=1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ
+2026-06-09T14:16:43.205+09:00  INFO 28084 --- [product-service] [           main] c.s.l.p.service.ProductSheetSyncService  : [ProductSheetSync] sync 시작: sheetId=<SHEET_ID>
 2026-06-09T14:16:52.660+09:00  INFO 28084 --- [product-service] [           main] c.s.l.p.service.ProductSheetSyncService  : [ProductSheetSync] tab '홈멀티': inserted=0, updated=119, unchanged=0, softDeleted=0, skipped=0
 2026-06-09T14:17:15.000+09:00  INFO 28084 --- [product-service] [           main] c.s.l.p.service.ProductSheetSyncService  : [ProductSheetSync] tab '싱글 세트': inserted=0, updated=288, unchanged=0, softDeleted=0, skipped=0
 2026-06-09T14:17:32.547+09:00  INFO 28084 --- [product-service] [           main] c.s.l.p.service.ProductSheetSyncService  : [ProductSheetSync] tab '싱글 구성품': inserted=0, updated=790, unchanged=945, softDeleted=0, skipped=0
@@ -13,5 +13,5 @@ Caused by: org.postgresql.util.PSQLException: ERROR: duplicate key value violate
 2026-06-09T14:17:52.074+09:00  INFO 28084 --- [product-service] [           main] c.s.l.p.service.ProductSheetSyncService  : [ProductSheetSync] tab '구형': inserted=0, updated=41, unchanged=0, softDeleted=0, skipped=0
 2026-06-09T14:18:03.786+09:00  INFO 28084 --- [product-service] [           main] c.s.l.p.service.ProductSheetSyncService  : [ProductSheetSync] sync 완료: 총 inserted=0, updated=1727, softDeleted=0, skipped=0, 구성품 linked=1603, bundle marked=343, 사양 linked=5015, duration=80581ms
 2026-06-09T14:18:03.786+09:00  INFO 28084 --- [product-service] [           main] c.s.l.p.s.ProductSheetSyncScheduler      : [ProductSheetSyncScheduler] 부팅 product sync 완료: inserted=0, updated=1727, softDeleted=0
-2026-06-09T14:18:03.786+09:00  INFO 28084 --- [product-service] [           main] c.s.l.p.s.ProductLookupSheetSyncService  : [ProductLookupSheetSync] sync 시작: sheetId=1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ
+2026-06-09T14:18:03.786+09:00  INFO 28084 --- [product-service] [           main] c.s.l.p.s.ProductLookupSheetSyncService  : [ProductLookupSheetSync] sync 시작: sheetId=<SHEET_ID>
 2026-06-09T14:18:05.580+09:00  INFO 28084 --- [product-service] [           main] c.s.l.p.s.ProductLookupSheetSyncService  : [ProductLookupSheetSync] sync 완료: inserted=0, updated=66, unchanged=0, softDeleted=0, skipped=94, duration=1793ms

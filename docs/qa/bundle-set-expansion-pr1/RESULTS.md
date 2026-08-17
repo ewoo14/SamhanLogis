@@ -1,6 +1,6 @@
 # PR #435 (feat/bundle-set-expansion-pr1) — 실 Docker sync QA 결과
 
-> 목표: `ProductSheetSyncService` 가 실 구글시트(`1RJqO3jT…`)에서 세트↔구성품을
+> 목표: `ProductSheetSyncService` 가 실 구글시트(`<SHEET_ID>`)에서 세트↔구성품을
 > 실제로 `bundle_component` 테이블에 적재하는지 실증.
 > 방식: standalone-boot 실 QA ([[standalone-boot-real-qa]]) — product-service jar 를
 > 실 SA key + 실 시트 + docker Postgres(`samhan-postgres` / `product_db`) 로 부팅,
@@ -13,7 +13,7 @@
 |---|---|
 | 브랜치 | `feat/bundle-set-expansion-pr1` (HEAD `a9300c3d`) |
 | SA key | 로컬 SA key (`C:\dev\` 하위, repo 밖) — client_email·private_key·project 미기록, [[lookup-seed-source]] 참조 |
-| 시트 ID | `1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ` (default, 실 read 확인) |
+| 시트 ID | `<SHEET_ID>` (default, 실 read 확인) |
 | DB | docker `samhan-postgres` → `product_db` (PostgreSQL 16.14), Flyway V1~V11 |
 | 부팅 | `product-service.jar` standalone, SERVER_PORT=8184, eureka off, scheduling on (부팅 1회 sync) |
 | 부팅 시각 | 2026-06-09 13:41, Started in 12.67s, syncAll duration 68,211ms |

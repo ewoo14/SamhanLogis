@@ -1,7 +1,7 @@
 # P0-C 계산 6함수 복원 — 실 시트 standalone QA 결과
 
 - 일시: 2026-06-10 / PR #451 (`37cc5216`)
-- 방법: **실 Google Sheet**(`1RJqO3jT...`, SA key 인증) 대상 `scripts/qa-real-sheet-p0c.js` 실행 — `bootstrap()` 전 카탈로그 실 적재 후 분기/채움률 계측. 가짜 데이터·mock 없음([[feedback_no_fake_data_ever]] 준수, 서버사이드 데이터 검증이라 화면 캡처 비대상).
+- 방법: **실 Google Sheet**(`<SHEET_ID>`, SA key 인증) 대상 `scripts/qa-real-sheet-p0c.js` 실행 — `bootstrap()` 전 카탈로그 실 적재 후 분기/채움률 계측. 가짜 데이터·mock 없음([[feedback_no_fake_data_ever]] 준수, 서버사이드 데이터 검증이라 화면 캡처 비대상).
 
 ## 수식분기 복원 실증 (이전 = shim 빈 그리드로 **전부 false/기본값**)
 

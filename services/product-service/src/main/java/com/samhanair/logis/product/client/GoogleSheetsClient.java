@@ -122,7 +122,7 @@ public class GoogleSheetsClient {
      *     <li>{@link ValueRenderMode#FORMULA} → {@code FORMULA}</li>
      * </ul>
      *
-     * @param sheetId 구글 시트 ID (예: legacy {@code 1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ})
+     * @param sheetId 구글 시트 ID (예: legacy {@code <MASKED_SHEET_ID>})
      * @param range A1 표기 (예: {@code 홈멀티!A1:Z}), 시트명 + 범위
      * @param mode {@link ValueRenderMode#UNFORMATTED} (default, legacy {@code getValues}) /
      *             {@link ValueRenderMode#FORMATTED} (legacy {@code getDisplayValues}) /

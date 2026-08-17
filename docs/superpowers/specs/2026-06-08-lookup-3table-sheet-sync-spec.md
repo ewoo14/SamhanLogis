@@ -5,7 +5,7 @@
 ## 0. 배경
 
 - RC9 lookup 3종(material-prices/odu-recommendations/branch-pipes)은 BE/FE/mock 구현 완료, **3 테이블 0 row**. V3 Flyway=스키마만.
-- 시드 소스 = legacy Google Sheet `1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ` 3탭. SA(`samhan@samhan-homepage.iam.gserviceaccount.com`) 인증.
+- 시드 소스 = legacy Google Sheet `<SHEET_ID>` 3탭. SA(`samhan@samhan-homepage.iam.gserviceaccount.com`) 인증.
 - 기존 `ProductSheetSyncService` 는 6 ProductMaster 카테고리만 sync (modelCode 기반). lookup 3종은 스키마 상이(modelCode 없음) → **별도 sync 경로**.
 - 참조: [[lookup-seed-source]], dev-report `migration-be-product-google-sheets-sync.md` §8 후속과제.
 
