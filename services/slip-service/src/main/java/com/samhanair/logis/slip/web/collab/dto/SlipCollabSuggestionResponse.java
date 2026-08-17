@@ -18,7 +18,6 @@ import java.util.UUID;
  * {@code LocalDateTime} 으로 변환해 응답한다 (UTC/로컬 9시간 어긋남 방지).
  */
 public record SlipCollabSuggestionResponse(
-        UUID id,
         String changeSet,
         String reason,
         String proposerName,
@@ -30,7 +29,6 @@ public record SlipCollabSuggestionResponse(
 
     public static SlipCollabSuggestionResponse from(SlipCollabSuggestion suggestion) {
         return new SlipCollabSuggestionResponse(
-                suggestion.getId(),
                 suggestion.getChangeSet(),
                 suggestion.getReason(),
                 ActorDisplayName.resolveNullable(

@@ -1,7 +1,6 @@
 package com.samhanair.logis.inventory.web.dto;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 /**
  * DPS 저장내역 생성 응답 DTO.
@@ -11,5 +10,5 @@ import java.util.UUID;
  * @param id 생성된 저장내역 ID
  * @param savedAt 저장시각
  */
-public record DpsSaveHistorySaveResponse(UUID id, LocalDateTime savedAt) {
+public record DpsSaveHistorySaveResponse(LocalDateTime savedAt) {
 }

@@ -14,7 +14,6 @@ import java.util.UUID;
  * proposerName/decidedByName 만 표시한다. 1-인 수정완료 모델에서는 둘 다 같은 수정자다.
  */
 public record JournalCollabSuggestionResponse(
-        UUID id,
         String changeSet,
         String reason,
         String proposerName,
@@ -26,7 +25,6 @@ public record JournalCollabSuggestionResponse(
 
     public static JournalCollabSuggestionResponse from(JournalCollabSuggestion suggestion) {
         return new JournalCollabSuggestionResponse(
-                suggestion.getId(),
                 suggestion.getChangeSet(),
                 suggestion.getReason(),
                 ActorDisplayName.resolve(suggestion.getProposerId() == null ? null : suggestion.getProposerId().toString(), suggestion.getProposerName()),

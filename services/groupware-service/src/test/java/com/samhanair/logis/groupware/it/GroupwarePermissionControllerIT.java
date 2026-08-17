@@ -129,7 +129,7 @@ class GroupwarePermissionControllerIT {
                 new org.springframework.data.domain.PageImpl<>(List.of(MessageResponse.from(message))));
         lenient().when(messageService.markRead(any(UUID.class), any(UUID.class))).thenReturn(message);
         lenient().when(messageService.sendBulk(any(), any(UUID.class))).thenReturn(
-                new MessageBulkSendResponse(UUID.randomUUID(), 1, List.of(MessageResponse.from(message))));
+                new MessageBulkSendResponse(1, List.of(MessageResponse.from(message))));
         lenient().when(scheduleService.create(any(), any(UUID.class))).thenReturn(schedule);
         lenient().when(scheduleService.findInRange(any(), any(), any())).thenReturn(List.of(schedule));
         lenient().when(scheduleService.findVisibleById(any(), any(UUID.class))).thenReturn(schedule);

@@ -14,7 +14,6 @@ import java.util.UUID;
  * proposerName/decidedByName 만 표시한다.
  */
 public record ApprovalCollabSuggestionResponse(
-        UUID id,
         String changeSet,
         String reason,
         String proposerName,
@@ -26,7 +25,6 @@ public record ApprovalCollabSuggestionResponse(
 
     public static ApprovalCollabSuggestionResponse from(ApprovalCollabSuggestion suggestion) {
         return new ApprovalCollabSuggestionResponse(
-                suggestion.getId(),
                 suggestion.getChangeSet(),
                 suggestion.getReason(),
                 ActorDisplayName.resolve(suggestion.getProposerId() == null ? null : suggestion.getProposerId().toString(), suggestion.getProposerName()),

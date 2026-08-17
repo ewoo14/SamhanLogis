@@ -3,7 +3,6 @@ package com.samhanair.logis.groupware.dto;
 import com.samhanair.logis.groupware.domain.Schedule;
 import com.samhanair.logis.groupware.domain.ScheduleStatus;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -21,22 +20,15 @@ import java.util.UUID;
  */
 public record ScheduleResponse(
         UUID scheduleId,
-        UUID ownerId,
         String title,
         String description,
         LocalDateTime startsAt,
         LocalDateTime endsAt,
-        ScheduleStatus status,
-        List<UUID> participantIds
+        ScheduleStatus status
 ) {
 
     public static ScheduleResponse from(Schedule s) {
-        List<UUID> ids = new ArrayList<>();
-        ids.add(s.getOwnerId());
-        ids.addAll(s.getParticipantsView().stream()
-                .map(p -> p.getParticipantId())
-                .toList());
-        return new ScheduleResponse(s.getId(), s.getOwnerId(), s.getTitle(), s.getDescription(),
-                s.getStartsAt(), s.getEndsAt(), s.getStatus(), ids.stream().distinct().toList());
+        return new ScheduleResponse(s.getId(), s.getTitle(), s.getDescription(),
+                s.getStartsAt(), s.getEndsAt(), s.getStatus());
     }
 }

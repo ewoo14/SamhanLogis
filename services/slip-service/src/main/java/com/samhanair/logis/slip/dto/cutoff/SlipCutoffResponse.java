@@ -19,7 +19,6 @@ import java.util.UUID;
  * @param modifiedAt       수정 일시
  */
 public record SlipCutoffResponse(
-        UUID id,
         DeliveryTag deliveryTag,
         String deliveryTagLabel,
         @JsonFormat(pattern = "HH:mm") LocalTime cutoffTime,
@@ -31,7 +30,6 @@ public record SlipCutoffResponse(
     /** {@link SlipOutboundCutoff} 엔티티를 응답 DTO 로 변환한다. */
     public static SlipCutoffResponse from(SlipOutboundCutoff cutoff) {
         return new SlipCutoffResponse(
-                cutoff.getId(),
                 cutoff.getDeliveryTag(),
                 cutoff.getDeliveryTag().getKoreanLabel(),
                 cutoff.getCutoffTime(),

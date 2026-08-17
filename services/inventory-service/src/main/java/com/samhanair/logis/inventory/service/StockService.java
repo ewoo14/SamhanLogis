@@ -507,7 +507,7 @@ public class StockService {
             int take = Math.min(remaining, lot.getQuantity());
             lot.deduct(take);
             remaining -= take;
-            affected.add(new DeductionResponse.DeductedLotEntry(lot.getId(), take));
+            affected.add(new DeductionResponse.DeductedLotEntry(take));
 
             stockMovementRepository.save(StockMovement.of(
                     lot.getId(), req.productId(), warehouse.getId(),
