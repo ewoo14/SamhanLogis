@@ -85,7 +85,9 @@ async function multiCatalog(category, classify) {
       model: r.modelCode,
       unit: r.unit || '',
       price: num(r.deliveryPrice), // 납품가
-      list: num(r.releasePrice), // 출고가
+      // desktop/dc-config의 HOME·COMM 변동DC 기준가는 출고단가(outboundPrice)다.
+      // 구형/미적재 행은 releasePrice로만 내려오는 동안 기존 경로를 유지한다.
+      list: num(r.outboundPrice || r.releasePrice),
       formula: '',
       useK2: r.hasVariableDiscount === true,
       capacity: numOrNull(r.capacity),
