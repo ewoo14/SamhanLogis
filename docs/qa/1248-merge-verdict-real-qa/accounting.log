@@ -1,0 +1,167 @@
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.3.5)
+
+2026-08-17T01:01:02.469+09:00  INFO 60240 --- [accounting-service] [           main] c.s.l.a.AccountingServiceApplication     : Starting AccountingServiceApplication v0.1.0-SNAPSHOT using Java 17.0.18 with PID 60240 (C:\dev\Samhan-Public\.claude\worktrees\w1237\docs\qa\1248-merge-verdict-real-qa\accounting-service-pr-head.jar started by user in C:\dev\Samhan-Public\.claude\worktrees\w1237)
+2026-08-17T01:01:02.472+09:00  INFO 60240 --- [accounting-service] [           main] c.s.l.a.AccountingServiceApplication     : The following 1 profile is active: "dev"
+2026-08-17T01:01:04.566+09:00  INFO 60240 --- [accounting-service] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-08-17T01:01:04.789+09:00  INFO 60240 --- [accounting-service] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 215 ms. Found 43 JPA repository interfaces.
+2026-08-17T01:01:05.272+09:00  INFO 60240 --- [accounting-service] [           main] o.s.cloud.context.scope.GenericScope     : BeanFactory id=149f2c92-8ca4-3d7b-b9c9-06498dba0b92
+2026-08-17T01:01:06.071+09:00  WARN 60240 --- [accounting-service] [           main] trationDelegate$BeanPostProcessorChecker : Bean 'org.springframework.cloud.client.loadbalancer.LoadBalancerAutoConfiguration$DeferringLoadBalancerInterceptorConfig' of type [org.springframework.cloud.client.loadbalancer.LoadBalancerAutoConfiguration$DeferringLoadBalancerInterceptorConfig] is not eligible for getting processed by all BeanPostProcessors (for example: not eligible for auto-proxying). The currently created BeanPostProcessor [lbRestClientPostProcessor] is declared through a non-static factory method on that class; consider declaring it as static instead.
+2026-08-17T01:01:06.077+09:00  WARN 60240 --- [accounting-service] [           main] trationDelegate$BeanPostProcessorChecker : Bean 'deferringLoadBalancerInterceptor' of type [org.springframework.cloud.client.loadbalancer.DeferringLoadBalancerInterceptor] is not eligible for getting processed by all BeanPostProcessors (for example: not eligible for auto-proxying). Is this bean getting eagerly injected/applied to a currently created BeanPostProcessor [lbRestClientPostProcessor]? Check the corresponding BeanPostProcessor declaration and its dependencies/advisors. If this bean does not have to be post-processed, declare it with ROLE_INFRASTRUCTURE.
+2026-08-17T01:01:06.890+09:00  INFO 60240 --- [accounting-service] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 29487 (http)
+2026-08-17T01:01:06.909+09:00  INFO 60240 --- [accounting-service] [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-08-17T01:01:06.911+09:00  INFO 60240 --- [accounting-service] [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.31]
+2026-08-17T01:01:06.964+09:00  INFO 60240 --- [accounting-service] [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-08-17T01:01:06.965+09:00  INFO 60240 --- [accounting-service] [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 4417 ms
+2026-08-17T01:01:07.590+09:00  INFO 60240 --- [accounting-service] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-08-17T01:01:07.794+09:00  INFO 60240 --- [accounting-service] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection org.postgresql.jdbc.PgConnection@5b2c41f9
+2026-08-17T01:01:07.800+09:00  INFO 60240 --- [accounting-service] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-08-17T01:01:07.844+09:00  INFO 60240 --- [accounting-service] [           main] org.flywaydb.core.FlywayExecutor         : Database: jdbc:postgresql://127.0.0.1:50600/accounting_db (PostgreSQL 16.14)
+2026-08-17T01:01:07.937+09:00  INFO 60240 --- [accounting-service] [           main] o.f.core.internal.command.DbValidate     : Successfully validated 77 migrations (execution time 00:00.069s)
+2026-08-17T01:01:07.964+09:00  INFO 60240 --- [accounting-service] [           main] o.f.core.internal.command.DbMigrate      : Current version of schema "public": 103
+2026-08-17T01:01:07.974+09:00  INFO 60240 --- [accounting-service] [           main] o.f.core.internal.command.DbMigrate      : Schema "public" is up to date. No migration necessary.
+2026-08-17T01:01:08.079+09:00  INFO 60240 --- [accounting-service] [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-08-17T01:01:08.129+09:00  INFO 60240 --- [accounting-service] [           main] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.5.3.Final
+2026-08-17T01:01:08.160+09:00  INFO 60240 --- [accounting-service] [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-08-17T01:01:08.428+09:00  INFO 60240 --- [accounting-service] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-08-17T01:01:08.468+09:00  WARN 60240 --- [accounting-service] [           main] org.hibernate.orm.deprecation            : HHH90000025: PostgreSQLDialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2026-08-17T01:01:10.198+09:00  INFO 60240 --- [accounting-service] [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-08-17T01:01:10.254+09:00  INFO 60240 --- [accounting-service] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-08-17T01:01:10.583+09:00  INFO 60240 --- [accounting-service] [           main] o.s.d.j.r.query.QueryEnhancerFactory     : Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-08-17T01:01:12.284+09:00  INFO 60240 --- [accounting-service] [           main] o.s.boot.web.servlet.RegistrationBean    : Filter headerAuthenticationFilterRegistration was not registered (disabled)
+2026-08-17T01:01:12.285+09:00  INFO 60240 --- [accounting-service] [           main] o.s.boot.web.servlet.RegistrationBean    : Filter publicIdentityHeaderSanitizingFilterRegistration was not registered (disabled)
+2026-08-17T01:01:14.346+09:00  WARN 60240 --- [accounting-service] [           main] .s.s.UserDetailsServiceAutoConfiguration : 
+
+Using generated security password: 82ec99c5-548c-4e1c-bdb6-1723d71206ad
+
+This generated password is for development use only. Your security configuration must be updated before running your application in production.
+
+2026-08-17T01:01:14.362+09:00  INFO 60240 --- [accounting-service] [           main] r$InitializeUserDetailsManagerConfigurer : Global AuthenticationManager configured with UserDetailsService bean with name inMemoryUserDetailsManager
+2026-08-17T01:01:16.163+09:00  INFO 60240 --- [accounting-service] [           main] o.s.cloud.commons.util.InetUtils         : Cannot determine local hostname
+2026-08-17T01:01:16.257+09:00  INFO 60240 --- [accounting-service] [           main] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 3 endpoints beneath base path '/actuator'
+2026-08-17T01:01:18.130+09:00  INFO 60240 --- [accounting-service] [           main] o.s.cloud.commons.util.InetUtils         : Cannot determine local hostname
+2026-08-17T01:01:18.141+09:00  INFO 60240 --- [accounting-service] [           main] DiscoveryClientOptionalArgsConfiguration : Eureka HTTP Client uses RestTemplate.
+2026-08-17T01:01:18.187+09:00  WARN 60240 --- [accounting-service] [           main] iguration$LoadBalancerCaffeineWarnLogger : Spring Cloud LoadBalancer is currently working with the default cache. While this cache implementation is useful for development and tests, it's recommended to use Caffeine cache in production.You can switch to using Caffeine cache, by adding it and org.springframework.cache.caffeine.CaffeineCacheManager to the classpath.
+2026-08-17T01:01:18.235+09:00  INFO 60240 --- [accounting-service] [           main] o.s.c.n.eureka.InstanceInfoFactory       : Setting initial instance status as: STARTING
+2026-08-17T01:01:18.249+09:00  INFO 60240 --- [accounting-service] [           main] com.netflix.discovery.DiscoveryClient    : Initializing Eureka in region us-east-1
+2026-08-17T01:01:18.252+09:00  INFO 60240 --- [accounting-service] [           main] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T01:01:18.258+09:00  INFO 60240 --- [accounting-service] [           main] com.netflix.discovery.DiscoveryClient    : Disable delta property : false
+2026-08-17T01:01:18.259+09:00  INFO 60240 --- [accounting-service] [           main] com.netflix.discovery.DiscoveryClient    : Single vip registry refresh property : null
+2026-08-17T01:01:18.259+09:00  INFO 60240 --- [accounting-service] [           main] com.netflix.discovery.DiscoveryClient    : Force full registry fetch : false
+2026-08-17T01:01:18.259+09:00  INFO 60240 --- [accounting-service] [           main] com.netflix.discovery.DiscoveryClient    : Application is null : false
+2026-08-17T01:01:18.259+09:00  INFO 60240 --- [accounting-service] [           main] com.netflix.discovery.DiscoveryClient    : Registered Applications size is zero : true
+2026-08-17T01:01:18.259+09:00  INFO 60240 --- [accounting-service] [           main] com.netflix.discovery.DiscoveryClient    : Application version is -1: true
+2026-08-17T01:01:18.259+09:00  INFO 60240 --- [accounting-service] [           main] com.netflix.discovery.DiscoveryClient    : Getting all instance registry info from the eureka server
+2026-08-17T01:01:18.405+09:00  INFO 60240 --- [accounting-service] [           main] com.netflix.discovery.DiscoveryClient    : The response status is 200
+2026-08-17T01:01:18.406+09:00  INFO 60240 --- [accounting-service] [           main] com.netflix.discovery.DiscoveryClient    : Not registering with Eureka server per configuration
+2026-08-17T01:01:18.407+09:00  INFO 60240 --- [accounting-service] [           main] com.netflix.discovery.DiscoveryClient    : Discovery Client initialized at timestamp 1786896078407 with initial instances count: 16
+2026-08-17T01:01:18.411+09:00  INFO 60240 --- [accounting-service] [           main] o.s.c.n.e.s.EurekaServiceRegistry        : Registering application ACCOUNTING-SERVICE with eureka with status UP
+2026-08-17T01:01:18.429+09:00  INFO 60240 --- [accounting-service] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 29487 (http) with context path '/'
+2026-08-17T01:01:18.430+09:00  INFO 60240 --- [accounting-service] [           main] .s.c.n.e.s.EurekaAutoServiceRegistration : Updating port to 29487
+2026-08-17T01:01:18.506+09:00  INFO 60240 --- [accounting-service] [io-29487-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-08-17T01:01:18.507+09:00  INFO 60240 --- [accounting-service] [io-29487-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-08-17T01:01:18.508+09:00  INFO 60240 --- [accounting-service] [io-29487-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 1 ms
+2026-08-17T01:01:19.846+09:00  INFO 60240 --- [accounting-service] [           main] o.s.cloud.commons.util.InetUtils         : Cannot determine local hostname
+2026-08-17T01:01:19.859+09:00  INFO 60240 --- [accounting-service] [           main] c.s.l.a.AccountingServiceApplication     : Started AccountingServiceApplication in 19.293 seconds (process running for 20.023)
+2026-08-17T01:06:18.282+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T01:11:18.297+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T01:16:18.298+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T01:21:18.308+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T01:26:18.316+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T01:31:18.318+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T01:36:18.326+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T01:41:18.334+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T01:46:18.336+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T01:51:18.338+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T01:56:18.351+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T02:01:18.359+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T02:06:18.365+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T02:11:18.366+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T02:16:18.370+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T02:21:18.379+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T02:26:18.388+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T02:31:18.394+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T02:36:18.409+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T02:41:18.420+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T02:46:18.425+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T02:51:18.435+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T02:56:18.444+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T03:01:18.447+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T03:06:18.449+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T03:11:18.454+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T03:16:18.456+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T03:21:18.471+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T03:26:18.481+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T03:31:18.486+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T03:36:18.488+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T03:41:18.502+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T03:46:18.511+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T03:51:18.526+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T03:56:18.539+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T04:01:18.547+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T04:06:18.556+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T04:11:18.571+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T04:16:18.572+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T04:21:18.578+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T04:26:18.584+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T04:31:18.599+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T04:36:18.603+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T04:41:18.604+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T04:46:18.620+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T04:51:18.624+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T04:56:18.631+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T05:01:18.643+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T05:06:18.651+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T05:11:18.664+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T05:16:18.674+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T05:21:18.683+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T05:26:18.696+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T05:31:18.701+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T05:36:18.712+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T05:41:18.720+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T05:46:18.723+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T05:51:18.724+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T05:56:18.725+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T06:01:18.738+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T06:06:18.749+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T06:11:18.751+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T06:16:18.757+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T06:21:18.758+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T06:26:18.768+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T06:31:18.774+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T06:36:18.788+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T06:41:18.794+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T06:46:18.809+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T06:51:18.813+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T06:56:18.817+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T07:01:18.828+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T07:06:18.829+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T07:11:18.842+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T07:16:18.854+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T07:21:18.860+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T07:26:18.867+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T07:31:18.876+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T07:36:18.882+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T07:41:18.894+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T07:46:18.905+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T07:51:18.913+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T07:56:18.926+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T08:01:18.928+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T08:06:18.943+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T08:11:18.944+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T08:16:18.954+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T08:21:18.969+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T08:26:18.972+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T08:31:18.984+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T08:36:18.985+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T08:41:18.997+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T08:46:19.004+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T08:51:19.008+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T08:56:19.018+09:00  INFO 60240 --- [accounting-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration

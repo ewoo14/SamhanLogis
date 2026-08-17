@@ -2,6 +2,7 @@ package com.samhanair.logis.slip.service;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.common.financial.VatInclusiveUnitAmountCalculator;
 import com.samhanair.logis.slip.audit.service.SlipAuditLogService;
 import com.samhanair.logis.slip.client.AccountingPostedAtClient;
 import com.samhanair.logis.slip.domain.Slip;
@@ -84,8 +85,15 @@ public class DailyClosingAmountUpdateService {
                         "금액 전용 수정 요청의 라인 순서가 현재 전표와 다릅니다.");
             }
             validateCalculation(input);
+            VatInclusiveUnitAmountCalculator.Breakdown amounts =
+                    VatInclusiveUnitAmountCalculator.calculate(input.unitPriceWithVat(), line.getQuantity());
             String oldUnit = text(line.getUnitPriceWithVat());
+            String oldSupply = text(line.getSupplyAmount());
+            String oldVat = text(line.getVatAmount());
+            String oldTotal = text(line.getUnitPriceWithVat() == null
+                    ? null : line.getUnitPriceWithVat().multiply(BigDecimal.valueOf(line.getQuantity())));
             line.changeUnitPriceWithVat(input.unitPriceWithVat());
+            line.changeDailyClosingReferenceAmounts(input.releasePrice(), input.discountRate());
             String path = AUDIT_PREFIX + ".line[" + index + "]";
             changes.add(new SlipAuditLogService.ChangeEntry(path + ".unitPriceWithVat",
                     oldUnit, text(input.unitPriceWithVat())));
@@ -93,6 +101,12 @@ public class DailyClosingAmountUpdateService {
                     null, text(input.releasePrice())));
             changes.add(new SlipAuditLogService.ChangeEntry(path + ".discountRate",
                     null, text(input.discountRate())));
+            changes.add(new SlipAuditLogService.ChangeEntry(path + ".supplyAmount",
+                    oldSupply, text(amounts.supplyAmount())));
+            changes.add(new SlipAuditLogService.ChangeEntry(path + ".vatAmount",
+                    oldVat, text(amounts.vatAmount())));
+            changes.add(new SlipAuditLogService.ChangeEntry(path + ".total",
+                    oldTotal, text(amounts.totalAmount())));
         }
         try {
             Slip saved = slipRepository.saveAndFlush(slip);
@@ -113,7 +127,8 @@ public class DailyClosingAmountUpdateService {
         }
         BigDecimal expected = BigDecimal.ONE.subtract(
                 line.unitPriceWithVat().divide(line.releasePrice(), 8, RoundingMode.HALF_UP));
-        if (expected.subtract(line.discountRate()).abs().compareTo(new BigDecimal("0.0001")) > 0) {
+        BigDecimal screenExpected = expected.setScale(2, RoundingMode.HALF_UP);
+        if (screenExpected.subtract(line.discountRate()).abs().compareTo(new BigDecimal("0.005")) > 0) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "출고가·단가·할인율 계산 근거가 일치하지 않습니다.");
         }

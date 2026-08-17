@@ -1,0 +1,466 @@
+{
+  "runtime": {
+    "headless": true,
+    "isolatedGateway": "http://127.0.0.1:28648",
+    "isolatedAccounting": "http://127.0.0.1:29648",
+    "app": "http://127.0.0.1:59648"
+  },
+  "gateway": {
+    "loginStatus": 200,
+    "catalogStatus": 200,
+    "catalogBytes": 19785
+  },
+  "defect1": {
+    "sequentialPayloads": [
+      {
+        "total": "2000000",
+        "equipment": "0",
+        "prepaid": "0",
+        "install": "0",
+        "safety": "0",
+        "paymentMethod": "CARD",
+        "withholdingApplied": true,
+        "manualExpenseRate": null,
+        "rateContractVersion": 1
+      },
+      {
+        "total": "2000000",
+        "equipment": "300000",
+        "prepaid": "0",
+        "install": "0",
+        "safety": "0",
+        "paymentMethod": "CARD",
+        "withholdingApplied": true,
+        "manualExpenseRate": null,
+        "rateContractVersion": 1
+      },
+      {
+        "total": "2000000",
+        "equipment": "300000",
+        "prepaid": "40000",
+        "install": "0",
+        "safety": "0",
+        "paymentMethod": "CARD",
+        "withholdingApplied": true,
+        "manualExpenseRate": null,
+        "rateContractVersion": 1
+      },
+      {
+        "total": "2000000",
+        "equipment": "300000",
+        "prepaid": "40000",
+        "install": "50000",
+        "safety": "0",
+        "paymentMethod": "CARD",
+        "withholdingApplied": true,
+        "manualExpenseRate": null,
+        "rateContractVersion": 1
+      },
+      {
+        "total": "2000000",
+        "equipment": "300000",
+        "prepaid": "40000",
+        "install": "50000",
+        "safety": "6000",
+        "paymentMethod": "CARD",
+        "withholdingApplied": true,
+        "manualExpenseRate": null,
+        "rateContractVersion": 1
+      }
+    ],
+    "finalInputs": {
+      "total": "2000000",
+      "equipment": "300000",
+      "prepaid": "40000",
+      "install": "50000",
+      "safety": "6000"
+    },
+    "finalScreenTotal": "₩2,000,000",
+    "stored": {
+      "total": "2000000.000000",
+      "equipment": "300000.000000",
+      "prepaid": "40000.000000",
+      "install": "50000.000000",
+      "safety": "6000.000000"
+    },
+    "detailGetDeltaDuringSequentialInput": 0
+  },
+  "defect2": [
+    {
+      "combo": {
+        "a": "101",
+        "b": "202",
+        "aAfterUpstreamMs": 900,
+        "bBeforeUpstreamMs": 40
+      },
+      "responseOrder": [
+        "202",
+        "101"
+      ],
+      "upstreamOrder": [
+        "101",
+        "202"
+      ],
+      "beforeReload": {
+        "input": "202",
+        "screen": "₩202",
+        "stored": "202.000000"
+      },
+      "afterReload": {
+        "input": "202",
+        "screen": "₩202"
+      }
+    },
+    {
+      "combo": {
+        "a": "3030",
+        "b": "4040",
+        "aAfterUpstreamMs": 1300,
+        "bBeforeUpstreamMs": 140
+      },
+      "responseOrder": [
+        "4040",
+        "3030"
+      ],
+      "upstreamOrder": [
+        "3030",
+        "4040"
+      ],
+      "beforeReload": {
+        "input": "4040",
+        "screen": "₩4,040",
+        "stored": "4040.000000"
+      },
+      "afterReload": {
+        "input": "4040",
+        "screen": "₩4,040"
+      }
+    },
+    {
+      "combo": {
+        "a": "50505",
+        "b": "60606",
+        "aAfterUpstreamMs": 700,
+        "bBeforeUpstreamMs": 20
+      },
+      "responseOrder": [
+        "60606",
+        "50505"
+      ],
+      "upstreamOrder": [
+        "50505",
+        "60606"
+      ],
+      "beforeReload": {
+        "input": "60606",
+        "screen": "₩60,606",
+        "stored": "60606.000000"
+      },
+      "afterReload": {
+        "input": "60606",
+        "screen": "₩60,606"
+      }
+    }
+  ],
+  "defect3": {
+    "expectedTotalLabel": "₩1,234,567",
+    "beforeReload": {
+      "input": "1234567",
+      "total": "₩1,234,567",
+      "payout": "₩746,110"
+    },
+    "storedTotal": "1234567.000000",
+    "afterReload": {
+      "input": "1234567",
+      "total": "₩1,234,567",
+      "payout": "₩746,110"
+    },
+    "dotSixExposed": false
+  },
+  "newReachableDefects": [
+    {
+      "name": "요청 서버 도착 순서 역전 시 마지막 입력 B가 재진입 후 유지되지 않음",
+      "combo": {
+        "a": "717171",
+        "b": "828282",
+        "aBeforeUpstreamMs": 1000
+      },
+      "responseOrder": [
+        "828282",
+        "717171"
+      ],
+      "upstreamOrder": [
+        "828282",
+        "717171"
+      ],
+      "beforeReload": {
+        "input": "828282",
+        "screen": "₩828,282",
+        "stored": "717171.000000"
+      },
+      "afterReload": {
+        "input": "717171",
+        "screen": "₩717,171"
+      }
+    }
+  ],
+  "captures": [
+    {
+      "file": "C:\\dev\\Samhan-Public\\.claude\\worktrees\\w1237\\docs\\qa\\1248-sol-merge-verdict-r2\\screenshots\\01-sequential-inputs-preserved-real-qa.png",
+      "rowCounts": {
+        "moneyInputRows": 5,
+        "resultRows": 7,
+        "tableRows": 0
+      }
+    },
+    {
+      "file": "C:\\dev\\Samhan-Public\\.claude\\worktrees\\w1237\\docs\\qa\\1248-sol-merge-verdict-r2\\screenshots\\02-response-inversion-1-real-qa.png",
+      "rowCounts": {
+        "moneyInputRows": 5,
+        "resultRows": 7,
+        "tableRows": 0
+      }
+    },
+    {
+      "file": "C:\\dev\\Samhan-Public\\.claude\\worktrees\\w1237\\docs\\qa\\1248-sol-merge-verdict-r2\\screenshots\\03-response-inversion-2-real-qa.png",
+      "rowCounts": {
+        "moneyInputRows": 5,
+        "resultRows": 7,
+        "tableRows": 0
+      }
+    },
+    {
+      "file": "C:\\dev\\Samhan-Public\\.claude\\worktrees\\w1237\\docs\\qa\\1248-sol-merge-verdict-r2\\screenshots\\04-response-inversion-3-real-qa.png",
+      "rowCounts": {
+        "moneyInputRows": 5,
+        "resultRows": 7,
+        "tableRows": 0
+      }
+    },
+    {
+      "file": "C:\\dev\\Samhan-Public\\.claude\\worktrees\\w1237\\docs\\qa\\1248-sol-merge-verdict-r2\\screenshots\\05-whole-network-inversion-before-reload-real-qa.png",
+      "rowCounts": {
+        "moneyInputRows": 5,
+        "resultRows": 7,
+        "tableRows": 0
+      }
+    },
+    {
+      "file": "C:\\dev\\Samhan-Public\\.claude\\worktrees\\w1237\\docs\\qa\\1248-sol-merge-verdict-r2\\screenshots\\06-whole-network-inversion-after-reload-real-qa.png",
+      "rowCounts": {
+        "moneyInputRows": 5,
+        "resultRows": 7,
+        "tableRows": 0
+      }
+    },
+    {
+      "file": "C:\\dev\\Samhan-Public\\.claude\\worktrees\\w1237\\docs\\qa\\1248-sol-merge-verdict-r2\\screenshots\\07-integer-money-before-reload-real-qa.png",
+      "rowCounts": {
+        "moneyInputRows": 5,
+        "resultRows": 7,
+        "tableRows": 0
+      }
+    },
+    {
+      "file": "C:\\dev\\Samhan-Public\\.claude\\worktrees\\w1237\\docs\\qa\\1248-sol-merge-verdict-r2\\screenshots\\08-integer-money-after-reload-real-qa.png",
+      "rowCounts": {
+        "moneyInputRows": 5,
+        "resultRows": 7,
+        "tableRows": 0
+      }
+    }
+  ],
+  "requestEvents": [
+    {
+      "kind": "other",
+      "total": null,
+      "browserRequestAt": 1786927463776,
+      "upstreamStartedAt": 1786927463776,
+      "upstreamDoneAt": 1786927463785,
+      "deliveredAt": 1786927463785,
+      "upstreamStatus": 200
+    },
+    {
+      "kind": "detail",
+      "total": null,
+      "browserRequestAt": 1786927464370,
+      "upstreamStartedAt": 1786927464370,
+      "upstreamDoneAt": 1786927464380,
+      "deliveredAt": 1786927464380,
+      "upstreamStatus": 200
+    },
+    {
+      "kind": "calculate",
+      "total": "2000000",
+      "browserRequestAt": 1786927464431,
+      "upstreamStartedAt": 1786927464431,
+      "upstreamDoneAt": 1786927464448,
+      "deliveredAt": 1786927464448,
+      "upstreamStatus": 200
+    },
+    {
+      "kind": "calculate",
+      "total": "2000000",
+      "browserRequestAt": 1786927464461,
+      "upstreamStartedAt": 1786927464461,
+      "upstreamDoneAt": 1786927464480,
+      "deliveredAt": 1786927464480,
+      "upstreamStatus": 200
+    },
+    {
+      "kind": "calculate",
+      "total": "2000000",
+      "browserRequestAt": 1786927464490,
+      "upstreamStartedAt": 1786927464490,
+      "upstreamDoneAt": 1786927464506,
+      "deliveredAt": 1786927464506,
+      "upstreamStatus": 200
+    },
+    {
+      "kind": "calculate",
+      "total": "2000000",
+      "browserRequestAt": 1786927464516,
+      "upstreamStartedAt": 1786927464516,
+      "upstreamDoneAt": 1786927464530,
+      "deliveredAt": 1786927464530,
+      "upstreamStatus": 200
+    },
+    {
+      "kind": "calculate",
+      "total": "2000000",
+      "browserRequestAt": 1786927464538,
+      "upstreamStartedAt": 1786927464538,
+      "upstreamDoneAt": 1786927464554,
+      "deliveredAt": 1786927464554,
+      "upstreamStatus": 200
+    },
+    {
+      "kind": "calculate",
+      "total": "101",
+      "browserRequestAt": 1786927464776,
+      "upstreamStartedAt": 1786927464776,
+      "upstreamDoneAt": 1786927464792,
+      "deliveredAt": 1786927465706,
+      "upstreamStatus": 200
+    },
+    {
+      "kind": "calculate",
+      "total": "202",
+      "browserRequestAt": 1786927464784,
+      "upstreamStartedAt": 1786927464826,
+      "upstreamDoneAt": 1786927464839,
+      "deliveredAt": 1786927464839,
+      "upstreamStatus": 200
+    },
+    {
+      "kind": "detail",
+      "total": null,
+      "browserRequestAt": 1786927466290,
+      "upstreamStartedAt": 1786927466290,
+      "upstreamDoneAt": 1786927466298,
+      "deliveredAt": 1786927466298,
+      "upstreamStatus": 200
+    },
+    {
+      "kind": "calculate",
+      "total": "3030",
+      "browserRequestAt": 1786927466902,
+      "upstreamStartedAt": 1786927466902,
+      "upstreamDoneAt": 1786927466917,
+      "deliveredAt": 1786927468221,
+      "upstreamStatus": 200
+    },
+    {
+      "kind": "calculate",
+      "total": "4040",
+      "browserRequestAt": 1786927466910,
+      "upstreamStartedAt": 1786927467057,
+      "upstreamDoneAt": 1786927467070,
+      "deliveredAt": 1786927467070,
+      "upstreamStatus": 200
+    },
+    {
+      "kind": "detail",
+      "total": null,
+      "browserRequestAt": 1786927468814,
+      "upstreamStartedAt": 1786927468814,
+      "upstreamDoneAt": 1786927468822,
+      "deliveredAt": 1786927468822,
+      "upstreamStatus": 200
+    },
+    {
+      "kind": "calculate",
+      "total": "50505",
+      "browserRequestAt": 1786927469416,
+      "upstreamStartedAt": 1786927469416,
+      "upstreamDoneAt": 1786927469431,
+      "deliveredAt": 1786927470132,
+      "upstreamStatus": 200
+    },
+    {
+      "kind": "calculate",
+      "total": "60606",
+      "browserRequestAt": 1786927469423,
+      "upstreamStartedAt": 1786927469450,
+      "upstreamDoneAt": 1786927469462,
+      "deliveredAt": 1786927469462,
+      "upstreamStatus": 200
+    },
+    {
+      "kind": "detail",
+      "total": null,
+      "browserRequestAt": 1786927470733,
+      "upstreamStartedAt": 1786927470733,
+      "upstreamDoneAt": 1786927470741,
+      "deliveredAt": 1786927470741,
+      "upstreamStatus": 200
+    },
+    {
+      "kind": "calculate",
+      "total": "717171",
+      "browserRequestAt": 1786927471351,
+      "upstreamStartedAt": 1786927472366,
+      "upstreamDoneAt": 1786927472380,
+      "deliveredAt": 1786927472380,
+      "upstreamStatus": 200
+    },
+    {
+      "kind": "calculate",
+      "total": "828282",
+      "browserRequestAt": 1786927471356,
+      "upstreamStartedAt": 1786927471356,
+      "upstreamDoneAt": 1786927471369,
+      "deliveredAt": 1786927471369,
+      "upstreamStatus": 200
+    },
+    {
+      "kind": "detail",
+      "total": null,
+      "browserRequestAt": 1786927473082,
+      "upstreamStartedAt": 1786927473082,
+      "upstreamDoneAt": 1786927473090,
+      "deliveredAt": 1786927473090,
+      "upstreamStatus": 200
+    },
+    {
+      "kind": "calculate",
+      "total": "1234567",
+      "browserRequestAt": 1786927473702,
+      "upstreamStartedAt": 1786927473702,
+      "upstreamDoneAt": 1786927473714,
+      "deliveredAt": 1786927473714,
+      "upstreamStatus": 200
+    },
+    {
+      "kind": "detail",
+      "total": null,
+      "browserRequestAt": 1786927474366,
+      "upstreamStartedAt": 1786927474366,
+      "upstreamDoneAt": 1786927474373,
+      "deliveredAt": 1786927474373,
+      "upstreamStatus": 200
+    }
+  ],
+  "errors": [],
+  "draftId": "fe35e83c-132e-4016-b64b-ae4cfdd5b9a3"
+}

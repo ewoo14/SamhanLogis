@@ -60,6 +60,40 @@ class SalesCommissionSettlementCalculationServiceTest {
     }
 
     @Test
+    void late_arriving_older_request_cannot_overwrite_newer_request_in_persistence() {
+        UUID id = UUID.randomUUID();
+        SalesCommissionRateContract contract = contract(1, "0.08");
+        SalesCommissionSettlement draft = SalesCommissionSettlement.createDraft(LocalDate.of(2026, 8, 11));
+        when(repository.findByIdForCalculationUpdate(id)).thenReturn(Optional.of(draft));
+        when(repository.save(draft)).thenReturn(draft);
+        when(rateContractRepository.findByVersionNoAndIsDeletedFalse(1)).thenReturn(Optional.of(contract));
+        SalesCommissionSettlementService service = service();
+
+        service.calculate(id, 1, inputWithTotal("828282"), 2L);
+        service.calculate(id, 1, inputWithTotal("717171"), 1L);
+
+        assertThat(draft.getTotalAmount()).isEqualByComparingTo("828282");
+        verify(repository, org.mockito.Mockito.times(1)).save(draft);
+    }
+
+    @Test
+    void normally_arriving_newer_request_is_persisted() {
+        UUID id = UUID.randomUUID();
+        SalesCommissionRateContract contract = contract(1, "0.08");
+        SalesCommissionSettlement draft = SalesCommissionSettlement.createDraft(LocalDate.of(2026, 8, 11));
+        when(repository.findByIdForCalculationUpdate(id)).thenReturn(Optional.of(draft));
+        when(repository.save(draft)).thenReturn(draft);
+        when(rateContractRepository.findByVersionNoAndIsDeletedFalse(1)).thenReturn(Optional.of(contract));
+        SalesCommissionSettlementService service = service();
+
+        service.calculate(id, 1, inputWithTotal("717171"), 1L);
+        service.calculate(id, 1, inputWithTotal("828282"), 2L);
+
+        assertThat(draft.getTotalAmount()).isEqualByComparingTo("828282");
+        verify(repository, org.mockito.Mockito.times(2)).save(draft);
+    }
+
+    @Test
     void draft_recalculation_uses_the_new_repository_contract_version() {
         UUID id = UUID.randomUUID();
         SalesCommissionRateContract version1 = contract(1, "0.08");
@@ -135,6 +169,13 @@ class SalesCommissionSettlementCalculationServiceTest {
     private static SalesCommissionSettlementCalculationInput input() {
         return new SalesCommissionSettlementCalculationInput(
                 new BigDecimal("10000"), BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ZERO, SalesCommissionPaymentMethod.CASH,
+                false, null);
+    }
+
+    private static SalesCommissionSettlementCalculationInput inputWithTotal(String total) {
+        return new SalesCommissionSettlementCalculationInput(
+                new BigDecimal(total), BigDecimal.ZERO, BigDecimal.ZERO,
                 BigDecimal.ZERO, BigDecimal.ZERO, SalesCommissionPaymentMethod.CASH,
                 false, null);
     }

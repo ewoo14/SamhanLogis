@@ -2,6 +2,7 @@ package com.samhanair.logis.slip.domain;
 
 import com.samhanair.logis.common.entity.BaseEntity;
 import com.samhanair.logis.common.financial.VatAmountCalculator;
+import com.samhanair.logis.common.financial.VatInclusiveUnitAmountCalculator;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions;
@@ -107,6 +108,14 @@ public class SlipLine extends BaseEntity {
      */
     @Column(name = "vat_amount", precision = 15, scale = 2)
     private BigDecimal vatAmount;
+
+    /** 일마감에서 사용자가 확정한 출고가(원본 상품 가격과 분리해 보존). */
+    @Column(name = "daily_closing_release_price", precision = 17, scale = 2)
+    private BigDecimal dailyClosingReleasePrice;
+
+    /** 일마감 할인율 저장값. 계약상 소수(50% = 0.5)로 보존하며 조회 시 퍼센트로 표시한다. */
+    @Column(name = "daily_closing_discount_rate", precision = 30, scale = 18)
+    private BigDecimal dailyClosingDiscountRate;
 
     /**
      * 단가 권위 도메인 — #937 재수렴 6차, 개발책임자 결정 A안 (V59 migration).
@@ -249,15 +258,17 @@ public class SlipLine extends BaseEntity {
     /**
      * VAT 포함 단가 기반 생성 — 단가 부가세포함 전환(2026-06-09 개발책임자 확정, 라인 단위 eCount 방식).
      *
-     * <p>사용자 입력 단가는 <b>부가세 포함</b>. 라인 단위로 공급가액/부가세를 분리:
+     * <p>사용자 입력 단가는 <b>부가세 포함</b>. 기존 전표 생성 소비자와의 호환을 위해
+     * 라인 합계에서 공급가액/부가세를 분리:
      * <ul>
      *   <li>합계(VAT포함) = {@code 수량 × unitPriceWithVat}</li>
-     *   <li>공급가액(supplyAmount) = {@code 합계 ÷ 1.1} 원 단위 절사</li>
+     *   <li>공급가액(supplyAmount) = {@code 합계 ÷ 1.1} 원 단위 반올림</li>
      *   <li>부가세(vatAmount) = {@code 합계 − 공급가액}</li>
      *   <li>unitPrice(공급 단가, 저장용 비권위) = {@code 공급가액 ÷ 수량}</li>
      *   <li>lineTotal = 공급가액(VAT 미포함 라인합, 기존 의미 유지)</li>
      * </ul>
-     * 합계/공급가액/부가세는 <b>라인 단위 권위값</b>으로 저장(per-unit 재계산 drift 방지).
+     * 합계/공급가액/부가세는 <b>라인 단위 권위값</b>으로 저장한다. 일마감 금액 편집의
+     * 단가 기준 분리 계약은 {@link #changeUnitPriceWithVat(BigDecimal)} 전용이다.
      *
      * @param unitPriceWithVat 부가세 포함 단가 (per-unit, 0 이상)
      */
@@ -282,15 +293,13 @@ public class SlipLine extends BaseEntity {
                 .setScale(0, RoundingMode.HALF_UP);
         VatAmountCalculator.Split vatSplit = VatAmountCalculator.splitVatInclusive(lineInclVat,
                 RoundingMode.HALF_UP);
-        BigDecimal supply = vatSplit.supplyAmount();
-        BigDecimal vat = vatSplit.vatAmount();
-        BigDecimal supplyUnit = supply.divide(BigDecimal.valueOf(quantity), 2, RoundingMode.HALF_UP);
         // 공급 단가로 일반 생성 후 라인 단위 권위값으로 덮어쓴다.
         SlipLine line = new SlipLine(slip, productId, productName, modelName, specification,
-                quantity, supplyUnit, note, sourceOrderLineId, categoryKey);
-        line.lineTotal = supply;
-        line.supplyAmount = supply;
-        line.vatAmount = vat;
+                quantity, vatSplit.supplyAmount().divide(BigDecimal.valueOf(quantity), 2, RoundingMode.HALF_UP),
+                note, sourceOrderLineId, categoryKey);
+        line.lineTotal = vatSplit.supplyAmount();
+        line.supplyAmount = vatSplit.supplyAmount();
+        line.vatAmount = vatSplit.vatAmount();
         line.unitPriceWithVat = unitPriceWithVat.setScale(2, RoundingMode.HALF_UP);
         // #937 재수렴 6차 A안 — 사용자가 입력한 값은 VAT 포함 단가다(파라미터 자체가 그 계약).
         line.unitPriceDomain = UnitPriceDomain.VAT_INCLUSIVE;
@@ -446,6 +455,8 @@ public class SlipLine extends BaseEntity {
             // (추측으로 채우면 원본과 사본이 다른 단가를 보이게 된다).
             line.unitPriceDomain = source.unitPriceDomain;
         }
+        line.dailyClosingReleasePrice = source.dailyClosingReleasePrice;
+        line.dailyClosingDiscountRate = source.dailyClosingDiscountRate;
         line.parentSetModel = source.parentSetModel;
         line.setHead = source.setHead;
         line.bundleSetOptions = source.bundleSetOptions;
@@ -532,19 +543,25 @@ public class SlipLine extends BaseEntity {
 
     /** 일마감 금액 전용 경로에서 VAT 포함 단가와 권위 금액을 함께 갱신한다. */
     public void changeUnitPriceWithVat(BigDecimal newUnitPriceWithVat) {
-        validateUnitPrice(newUnitPriceWithVat);
-        BigDecimal lineInclVat = newUnitPriceWithVat.multiply(BigDecimal.valueOf(this.quantity))
-                .setScale(0, RoundingMode.HALF_UP);
-        VatAmountCalculator.Split vatSplit = VatAmountCalculator.splitVatInclusive(
-                lineInclVat, RoundingMode.HALF_UP);
-        this.lineTotal = vatSplit.supplyAmount();
-        this.supplyAmount = vatSplit.supplyAmount();
-        this.vatAmount = vatSplit.vatAmount();
+        VatInclusiveUnitAmountCalculator.Breakdown amounts =
+                VatInclusiveUnitAmountCalculator.calculate(newUnitPriceWithVat, this.quantity);
+        this.lineTotal = amounts.supplyAmount();
+        this.supplyAmount = amounts.supplyAmount();
+        this.vatAmount = amounts.vatAmount();
         this.unitPrice = this.supplyAmount.divide(BigDecimal.valueOf(this.quantity), 2,
                 RoundingMode.HALF_UP);
-        this.unitPriceWithVat = newUnitPriceWithVat.setScale(2, RoundingMode.HALF_UP);
+        this.unitPriceWithVat = amounts.unitPriceWithVat();
         this.unitPriceDomain = UnitPriceDomain.VAT_INCLUSIVE;
         validateStorableAmounts();
+    }
+
+    /** 일마감 편집 열의 계산 근거를 전표 라인에 함께 보존한다. */
+    public void changeDailyClosingReferenceAmounts(BigDecimal releasePrice, BigDecimal discountRate) {
+        if (releasePrice == null || releasePrice.signum() < 0 || discountRate == null) {
+            throw new IllegalArgumentException("일마감 출고가·할인율은 필수입니다");
+        }
+        this.dailyClosingReleasePrice = releasePrice;
+        this.dailyClosingDiscountRate = discountRate;
     }
 
     /**
