@@ -22,7 +22,7 @@ vi.mock('../api/closingApi', async (importOriginal) => {
   }
 })
 
-import { DAILY_CLOSING_HEADERS, DailyClosingPage, recalculateLegacyAmounts } from './DailyClosingPage'
+import { DAILY_CLOSING_HEADERS, DailyClosingPage, dailyClosingColumnValue, recalculateLegacyAmounts } from './DailyClosingPage'
 
 const rows = [
   {
@@ -99,6 +99,16 @@ afterEach(() => {
 })
 
 describe('DailyClosingPage S3 레거시 단일표', () => {
+  it.each([
+    ['거래처명', 'partnerName', '거래처'],
+    ['거래처코드', 'partnerCode', 'P-2026-0017'],
+    ['출고가', 'productPrice', '520300'],
+    ['할인율', 'discountRate', '0'],
+    ['총계', 'grandTotal', '520300'],
+  ] as const)('열 헤더 %s 의 값은 %s 원천값이다', (header, _source, expected) => {
+    expect(dailyClosingColumnValue(rows[1]!, header)).toBe(expected)
+  })
+
   it('출고일로 조회하고 레거시 17열을 지정 순서로 표시한다', async () => {
     getDailyClosingRowsMock.mockResolvedValue(rows)
     renderPage()
@@ -224,7 +234,26 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
 
     expect((screen.getByTestId('daily-closing-unit-82') as HTMLInputElement).disabled).toBe(true)
     expect((screen.getByTestId('daily-closing-rate-82') as HTMLInputElement).disabled).toBe(true)
-    expect(screen.getByText('수정 불가')).toBeTruthy()
+    expect((screen.getByTestId('daily-closing-unit-82') as HTMLInputElement).title).toContain('회계전표')
+  })
+
+  it('잠긴 행과 편집 가능한 행의 금액 셀 렌더 구조와 행 높이 기준이 같다', async () => {
+    getDailyClosingRowsMock.mockResolvedValue([
+      { ...editableRows[0]!, accountingPostedAt: '2026-08-14T10:00:00' },
+      { ...editableRows[1]!, accountingPostedAt: '2026-08-14T11:00:00', amountEditable: true },
+    ])
+    renderPage()
+
+    const table = await screen.findByTestId('daily-closing-table')
+    const editableUnitCell = within(table).getByTestId('daily-closing-unit-81').closest('td')!
+    const lockedUnitCell = within(table).getByTestId('daily-closing-unit-82').closest('td')!
+
+    expect(lockedUnitCell.children.length).toBe(editableUnitCell.children.length)
+    expect(editableUnitCell.closest('tr')?.getAttribute('style')).toContain('height: 57px')
+    expect(lockedUnitCell.closest('tr')?.getAttribute('style')).toContain('height: 57px')
+    expect((within(lockedUnitCell).getByRole('textbox') as HTMLInputElement).title).toContain('회계전표')
+    expect(editableUnitCell.querySelector('span')).toBeNull()
+    expect(lockedUnitCell.querySelector('span')).toBeNull()
   })
 
   it('레거시처럼 네 개의 상단 탭과 표 위 액션 줄을 사용한다', async () => {

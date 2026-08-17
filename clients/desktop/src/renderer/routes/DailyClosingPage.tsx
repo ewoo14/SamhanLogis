@@ -347,6 +347,8 @@ function execPartnerDraftGuardMessage(typedDraft: string, confirmedLabel: string
 
 export const DAILY_CLOSING_HEADERS = ['DC','일자','번호','창고명','품목명','수량','단가(VAT포함)','공급가액','부가세','합계','거래처명','거래처코드','출고가','할인율','총계','확인','회계반영일자'] as const
 const LEGACY_MERGE_COLS = new Set(['DC','일자','번호','창고명','거래처명','거래처코드','회계반영일자'])
+// 품목명/상세 링크와 확인 사유가 두 줄인 행을 수용하되, 모든 데이터행의 높이를 고정한다.
+const DAILY_CLOSING_DATA_ROW_HEIGHT = 57
 type DailyClosingHeader = typeof DAILY_CLOSING_HEADERS[number]
 type DailyClosingFilterType = 'exact' | 'empty' | 'not_empty' | 'include' | 'exclude'
 type DailyClosingSortDirection = 'asc' | 'desc'
@@ -379,7 +381,7 @@ const DAILY_CLOSING_HEADER_ICON_STYLE: CSSProperties = {
   backgroundSize: '16px 16px',
 }
 
-function dailyClosingRawCellValue(row: DailyClosingSourceRow, header: DailyClosingHeader): string {
+export function dailyClosingColumnValue(row: DailyClosingSourceRow, header: DailyClosingHeader): string {
   const values: Record<DailyClosingHeader, unknown> = {
     'DC': row.dcCondition,
     '일자': row.slipDate,
@@ -612,7 +614,6 @@ function LegacyAmountEditor({
   return <>
     {amountCell(<>
       {input('unit', current.unit, '단가(VAT포함)')}
-      {disabled ? <span title={amountEditDisabledReason(row)} style={{ marginLeft: 4, fontSize: 11 }}>수정 불가</span> : null}
       {!disabled && values ? <span role="status" style={{ marginLeft: 4, fontSize: 11 }}>수정됨</span> : null}
       {error ? <span role="alert" style={{ display: 'block', fontSize: 11 }}>{error}</span> : null}
     </>, 6)}
@@ -768,7 +769,7 @@ function EditableLegacyDailyClosingTable({
       const globalText = state.globalSearch.trim().toLowerCase()
       const filtered = baseVisible.filter((row) => {
         for (const [column, filter] of Object.entries(state.filters) as [DailyClosingHeader, DailyClosingFilter][]) {
-          const value = dailyClosingRawCellValue(row, column)
+          const value = dailyClosingColumnValue(row, column)
           const text = filter.text.trim()
           if (filter.type === 'exact' && value !== text) return false
           if (filter.type === 'empty' && value.trim() !== '') return false
@@ -777,14 +778,14 @@ function EditableLegacyDailyClosingTable({
           if (filter.type === 'exclude' && value.includes(text)) return false
         }
         return !globalText || DAILY_CLOSING_HEADERS.some((header) =>
-          dailyClosingRawCellValue(row, header).toLowerCase().includes(globalText))
+          dailyClosingColumnValue(row, header).toLowerCase().includes(globalText))
       })
       if (!state.sort) return filtered
       const originalIndex = new Map(baseVisible.map((row, index) => [row, index]))
       return [...filtered].sort((left, right) => {
         const column = state.sort!.col
-        const leftText = dailyClosingRawCellValue(left, column)
-        const rightText = dailyClosingRawCellValue(right, column)
+        const leftText = dailyClosingColumnValue(left, column)
+        const rightText = dailyClosingColumnValue(right, column)
         let comparison = 0
         if (column === '번호') {
           comparison = dailyClosingSortNumber(leftText) - dailyClosingSortNumber(rightText)
@@ -848,7 +849,7 @@ function EditableLegacyDailyClosingTable({
     if (field) return field.value
     const numericHeaders = new Set<DailyClosingHeader>(['번호', '수량', '공급가액', '부가세', '합계', '출고가', '총계'])
     if (numericHeaders.has(header) && cell?.textContent?.trim()) return cell.textContent.trim()
-    return dailyClosingRawCellValue(row, header)
+    return dailyClosingColumnValue(row, header)
   }
   const selectedSum = visible.reduce((sum, _row, rowIndex) => DAILY_CLOSING_HEADERS.reduce((rowSum, _header, columnIndex) => {
     if (!selectedCells.has(cellSelectionKey(rowIndex, columnIndex))) return rowSum
@@ -1053,7 +1054,7 @@ function EditableLegacyDailyClosingTable({
                   return start
                 })()
                 return <Fragment key={rowIdentity}>
-                  <tr data-testid={`daily-closing-data-row-${index}`}>
+                  <tr data-testid={`daily-closing-data-row-${index}`} style={{ height: DAILY_CLOSING_DATA_ROW_HEIGHT }}>
                     {mergedCell(row.dcCondition || '', 'DC', cell, merge, index, 0)}
                     {mergedCell(row.slipDate, '일자', cell, merge, index, 1)}
                     {mergedCell(formatLegacyNumber(row.seqNo), '번호', num, merge, index, 2)}
