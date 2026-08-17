@@ -17,7 +17,7 @@
 **결정(AskUserQuestion)**: ① 실제 시트 읽어 재시드 ② 명시 valueType 메타. 필터=홈/싱글/상업. RANGE/DUAL=TEXT 수용. datalist 콤보박스 현행유지.
 
 ## 2. GAS 품목별 표시 사양 (권위 = index.ejs render*Spec_, 원본 tools/legacy-gas 95%+ 동등)
-홈멀티 실내/외(정격 SINGLE)·판넬(타공/볼트), 싱글세트(최소/정격/최대 RANGE), 상업멀티(정격·배관길이 조건부 TRIPLE), 전열교환기. 실 시트(SRC_SHEET_ID `1RJqO3jT…`) 사양 헤더 = 캐노니컬. 중복헤더 냉방성능(정격) 2컬럼(1st kW/2nd kcal/h).
+홈멀티 실내/외(정격 SINGLE)·판넬(타공/볼트), 싱글세트(최소/정격/최대 RANGE), 상업멀티(정격·배관길이 조건부 TRIPLE), 전열교환기. 실 시트(SRC_SHEET_ID `<SHEET_ID>`) 사양 헤더 = 캐노니컬. 중복헤더 냉방성능(정격) 2컬럼(1st kW/2nd kcal/h).
 
 ## 3. BE (product-service)
 - `SpecKeyValueType`(NUMBER/DIMENSION/**RANGE**/TEXT) enum + `spec_key_template.value_type`. `SpecKeyTemplateResponse` + valueType.

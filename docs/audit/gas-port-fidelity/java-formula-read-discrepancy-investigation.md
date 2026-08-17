@@ -17,7 +17,7 @@ JS는 3회 반복 모두 동일(결정적 정확), Java도 결정적(86/54 고�
 
 ## 핵심 사실 (실측 확인)
 
-1. **동일 시트·동일 범위·동일 render option**: 둘 다 `1RJqO3jT...` 의 `상업멀티_단가인상!A1:Z`, `valueRenderOption=FORMULA`.
+1. **동일 시트·동일 범위·동일 render option**: 둘 다 `<SHEET_ID>` 의 `상업멀티_단가인상!A1:Z`, `valueRenderOption=FORMULA`.
 2. **JS 직접 read 3회 결정적**: 상업 F열(idx 6) `$L$2` = **378**, 홈 idx5 = **107** (googleapis Node 라이브러리).
 3. **DISPLAY↔FORMULA 행 정렬 정상**: 양쪽 417행, 모델명(idx1) 행정합 불일치 **0건**. FORMULA render 에서 modelCode 셀이 수식인 행 **0**.
 4. **`$L$2` 위치**: 전부 F열(idx 6), Z(25) 안쪽 — 범위폭 무관.

@@ -52,7 +52,7 @@ BUILD SUCCESSFUL in 1m 44s
 따라서 이 5건은 PR 회귀이며, 두 서비스에 다음 주입을 복구했다.
 
 ```java
-@Value("${google.sheets.sheet-id:1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ}")
+@Value("${google.sheets.sheet-id:<SHEET_ID>}")
 private String sheetId;
 ```
 

@@ -254,7 +254,7 @@ scan_sheet_id_in_code() {
   local abs_dir
 
   # application.yml 내 default 값으로 직접 박힌 경우만 탐지
-  # 패턴: sheet-id: ${VAR:1RJqO3...} 또는 sheet-id: 1RJqO3...
+  # 패턴: sheet-id: ${VAR:[비공개]} 또는 sheet-id: [비공개]
   # 화이트리스트: docs/ 와 테스트 파일에서 reference 문서 내 mention 은 제외
   # 단, src/main/resources/application.yml 내 default 값 존재는 허용
   # (BOOTSTRAP_SHEET_ID 환경변수로 오버라이드 가능하므로 정보 노출 낮음)
@@ -269,7 +269,7 @@ scan_sheet_id_in_code() {
       is_whitelisted "$file_path" && continue
 
       # 문서 내 단순 mention (URL, 괄호 안 값) 은 정보 노출 위험 낮아 허용
-      # 단, 환경변수 대입 형태 GOOGLE_SHEETS_SHEET_ID=1RJqO3... 는 위반
+      # 단, 환경변수 대입 형태 GOOGLE_SHEETS_SHEET_ID=[비공개] 는 위반
       if echo "$line" | grep -qE 'GOOGLE_SHEETS_SHEET_ID\s*=\s*1[A-Za-z0-9_-]{43}'; then
         printf '%s\n' "  [SHEET_ID_ASSIGN] ${line}"
         eval "${found_ref}=1"
