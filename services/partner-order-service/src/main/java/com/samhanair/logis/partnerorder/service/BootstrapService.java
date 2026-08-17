@@ -304,7 +304,7 @@ public class BootstrapService {
         // 시트/V2 seed fallback 보다 우선하므로(정상 catalog 없음 방지 목적) 이 오판이 발생하면
         // 유효한 시트/seed 데이터를 빈 배열로 영구 override — order-app 0행 회귀(#688 S3 정찰 적발).
         boolean hasProductData = Stream.of(homemulti, commercialMulti, singleSets, oldProducts,
-                singleParts, commercialParts, materialPrices)
+                singleParts, commercialParts)
                 .anyMatch(rows -> rows != null && !rows.isEmpty());
         if (!hasProductData) {
             return Map.of();

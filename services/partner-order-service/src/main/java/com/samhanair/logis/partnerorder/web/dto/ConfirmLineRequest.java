@@ -43,4 +43,12 @@ public record ConfirmLineRequest(
                               int quantity, BigDecimal unitPrice, String remark) {
         this(productId, modelCode, categoryKey, quantity, unitPrice, remark, false, null, null);
     }
+
+    /** 가격 계산 테스트·기존 내부 호출자 호환 생성자 — setAllocation만 지정한다. */
+    public ConfirmLineRequest(UUID productId, String modelCode, String categoryKey,
+                              int quantity, BigDecimal unitPrice, String remark,
+                              boolean setAllocation) {
+        this(productId, modelCode, categoryKey, quantity, unitPrice, remark,
+                setAllocation, null, null);
+    }
 }

@@ -129,6 +129,8 @@ export interface SlipDetail extends SlipSummary {
   lockFlag: boolean
   /** 발행 출처. 구 응답 누락 시 기존 수기 전표와 동일하게 처리한다. */
   sourceType?: SlipSourceType
+  /** 원천 견적번호 또는 주문번호 — UUID는 화면에 노출하지 않는다. */
+  sourceReference?: string | null
   memo: string | null
   lines: SlipLineDetail[]
   partnerCode?: string | null

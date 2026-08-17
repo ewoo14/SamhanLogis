@@ -1686,6 +1686,11 @@ public class Slip extends BaseEntity {
     @Column(name = "source_id", length = 64)
     private String sourceId;
 
+    /** 원천 전표 업무 식별자(견적번호 또는 주문 UUID) — 조회 서비스가 사용자 번호로 해석한다. */
+    public String getSourceId() {
+        return sourceId;
+    }
+
     /**
      * 호출자 발급 idempotency 키 — Phase 6 M5 신규.
      * 같은 키 + 같은 본문 → 200 (기존 slipNo). 같은 키 + 다른 본문 → 409 Conflict.
