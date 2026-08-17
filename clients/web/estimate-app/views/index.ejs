@@ -5250,7 +5250,9 @@ function calcSetUnitPrice(s){
     if(panelExcluded) panelDelta-=baseP;
     else if(chosenPanel && chosenPanel.model!==basePanel.model){
       const fallback = componentDeliveryPrice_(chosenPanel)-baseP;
-      panelDelta += configuredDelta(el('#ss_panel')?.value||'', fallback);
+      // 레거시는 판넬 납품가 차액 전액을 세트가에 반영한다.
+      // SINGLE_MAT은 리모컨 등 별도 옵션값 축에만 적용하고 판넬 정본을 덮어쓰지 않는다.
+      panelDelta += fallback;
     }
   }
 

@@ -1,0 +1,352 @@
+{
+  "panel360Basic": {
+    "header": "1,660,000",
+    "rows": [
+      {
+        "model": "AC060CN6PBH1",
+        "price": "606,000",
+        "qty": "1"
+      },
+      {
+        "model": "AC060CXAPBH1",
+        "price": "910,000",
+        "qty": "1"
+      },
+      {
+        "model": "AR-EH05",
+        "price": "16,000",
+        "qty": "1"
+      },
+      {
+        "model": "AWR-WE13N",
+        "price": "56,000",
+        "qty": ""
+      },
+      {
+        "model": "AWR-WG00N",
+        "price": "91,000",
+        "qty": ""
+      },
+      {
+        "model": "PC6EUCK1NW",
+        "price": "678,000",
+        "qty": ""
+      },
+      {
+        "model": "PC6EUXK1NW",
+        "price": "188,000",
+        "qty": ""
+      },
+      {
+        "model": "PC6NBDK1NW",
+        "price": "188,000",
+        "qty": ""
+      },
+      {
+        "model": "PC6NBNK1NW",
+        "price": "188,000",
+        "qty": ""
+      },
+      {
+        "model": "PC6NUCK1NW",
+        "price": "678,000",
+        "qty": ""
+      },
+      {
+        "model": "PC6NUDK1NW",
+        "price": "128,000",
+        "qty": ""
+      },
+      {
+        "model": "PC6NUNK1NW",
+        "price": "128,000",
+        "qty": "1"
+      },
+      {
+        "model": "PC6NUXK1NW",
+        "price": "188,000",
+        "qty": ""
+      }
+    ]
+  },
+  "panel360Air": {
+    "header": "2,210,000",
+    "rows": [
+      {
+        "model": "AC060CN6PBH1",
+        "price": "606,000",
+        "qty": "1"
+      },
+      {
+        "model": "AC060CXAPBH1",
+        "price": "910,000",
+        "qty": "1"
+      },
+      {
+        "model": "AR-EH05",
+        "price": "16,000",
+        "qty": "1"
+      },
+      {
+        "model": "AWR-WE13N",
+        "price": "56,000",
+        "qty": ""
+      },
+      {
+        "model": "AWR-WG00N",
+        "price": "91,000",
+        "qty": ""
+      },
+      {
+        "model": "PC6EUCK1NW",
+        "price": "678,000",
+        "qty": "1"
+      },
+      {
+        "model": "PC6EUXK1NW",
+        "price": "188,000",
+        "qty": ""
+      },
+      {
+        "model": "PC6NBDK1NW",
+        "price": "188,000",
+        "qty": ""
+      },
+      {
+        "model": "PC6NBNK1NW",
+        "price": "188,000",
+        "qty": ""
+      },
+      {
+        "model": "PC6NUCK1NW",
+        "price": "678,000",
+        "qty": ""
+      },
+      {
+        "model": "PC6NUDK1NW",
+        "price": "128,000",
+        "qty": ""
+      },
+      {
+        "model": "PC6NUNK1NW",
+        "price": "128,000",
+        "qty": ""
+      },
+      {
+        "model": "PC6NUXK1NW",
+        "price": "188,000",
+        "qty": ""
+      }
+    ]
+  },
+  "remoteWired": {
+    "header": "1,700,000",
+    "rows": [
+      {
+        "model": "AC060CN6PBH1",
+        "price": "606,000",
+        "qty": "1"
+      },
+      {
+        "model": "AC060CXAPBH1",
+        "price": "910,000",
+        "qty": "1"
+      },
+      {
+        "model": "AR-EH05",
+        "price": "16,000",
+        "qty": ""
+      },
+      {
+        "model": "AWR-WE13N",
+        "price": "56,000",
+        "qty": "1"
+      },
+      {
+        "model": "AWR-WG00N",
+        "price": "91,000",
+        "qty": ""
+      },
+      {
+        "model": "PC6EUCK1NW",
+        "price": "678,000",
+        "qty": ""
+      },
+      {
+        "model": "PC6EUXK1NW",
+        "price": "188,000",
+        "qty": ""
+      },
+      {
+        "model": "PC6NBDK1NW",
+        "price": "188,000",
+        "qty": ""
+      },
+      {
+        "model": "PC6NBNK1NW",
+        "price": "188,000",
+        "qty": ""
+      },
+      {
+        "model": "PC6NUCK1NW",
+        "price": "678,000",
+        "qty": ""
+      },
+      {
+        "model": "PC6NUDK1NW",
+        "price": "128,000",
+        "qty": ""
+      },
+      {
+        "model": "PC6NUNK1NW",
+        "price": "128,000",
+        "qty": "1"
+      },
+      {
+        "model": "PC6NUXK1NW",
+        "price": "188,000",
+        "qty": ""
+      }
+    ]
+  },
+  "panel4wayLift": {
+    "header": "1,360,000",
+    "rows": [
+      {
+        "model": "AC060BN4PBH1",
+        "price": "462,000",
+        "qty": "1"
+      },
+      {
+        "model": "AC060BXAPBH3",
+        "price": "694,000",
+        "qty": "1"
+      },
+      {
+        "model": "AR-EH05",
+        "price": "16,000",
+        "qty": "1"
+      },
+      {
+        "model": "AWR-WE13N",
+        "price": "56,000",
+        "qty": ""
+      },
+      {
+        "model": "AWR-WG00N",
+        "price": "91,000",
+        "qty": ""
+      },
+      {
+        "model": "PC4NBFK1NW",
+        "price": "188,000",
+        "qty": ""
+      },
+      {
+        "model": "PC4NUCK4NW",
+        "price": "678,000",
+        "qty": ""
+      },
+      {
+        "model": "PC4NUFK1NW",
+        "price": "128,000",
+        "qty": ""
+      },
+      {
+        "model": "PC4NUXK1NW",
+        "price": "188,000",
+        "qty": "1"
+      }
+    ]
+  },
+  "panel4wayAir": {
+    "header": "1,850,000",
+    "rows": [
+      {
+        "model": "AC060BN4PBH1",
+        "price": "462,000",
+        "qty": "1"
+      },
+      {
+        "model": "AC060BXAPBH3",
+        "price": "694,000",
+        "qty": "1"
+      },
+      {
+        "model": "AR-EH05",
+        "price": "16,000",
+        "qty": "1"
+      },
+      {
+        "model": "AWR-WE13N",
+        "price": "56,000",
+        "qty": ""
+      },
+      {
+        "model": "AWR-WG00N",
+        "price": "91,000",
+        "qty": ""
+      },
+      {
+        "model": "PC4NBFK1NW",
+        "price": "188,000",
+        "qty": ""
+      },
+      {
+        "model": "PC4NUCK4NW",
+        "price": "678,000",
+        "qty": "1"
+      },
+      {
+        "model": "PC4NUFK1NW",
+        "price": "128,000",
+        "qty": ""
+      },
+      {
+        "model": "PC4NUXK1NW",
+        "price": "188,000",
+        "qty": ""
+      }
+    ]
+  },
+  "materialSeparate": {
+    "header": "1,200,000",
+    "rows": [
+      {
+        "model": "AC060BXAPBH3",
+        "price": "720,000",
+        "qty": "1"
+      },
+      {
+        "model": "AP060RNPPBH1",
+        "price": "480,000",
+        "qty": "1"
+      },
+      {
+        "model": "FPH-1412XS3",
+        "price": "130,000",
+        "qty": ""
+      }
+    ]
+  },
+  "materialIncluded": {
+    "header": "1,330,000",
+    "rows": [
+      {
+        "model": "AC060BXAPBH3",
+        "price": "720,000",
+        "qty": "1"
+      },
+      {
+        "model": "AP060RNPPBH1",
+        "price": "480,000",
+        "qty": "1"
+      },
+      {
+        "model": "FPH-1412XS3",
+        "price": "130,000",
+        "qty": "1"
+      }
+    ]
+  }
+}

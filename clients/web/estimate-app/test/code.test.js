@@ -300,6 +300,32 @@ describe('순수 유틸 (Apps Script 호환)', () => {
     expect(context.configuredSingleOptionDelta_('알수없음', 12345)).toBe(12345);
   });
 
+  test('싱글 판넬 선택은 SINGLE_MAT 옵션값이 아니라 구성품 납품가 차액 전액을 반영하고 기본 복귀한다', () => {
+    const parts = {
+      base: { model: 'PANEL-BASE', price: 128000 },
+      black: { model: 'PANEL-BLACK', price: 188000 },
+    };
+    const state = { panel: '블랙판넬' };
+    const context = loadCurrentEstimateViewFunction('calcSetUnitPrice', {
+      SINGLE_MAT: { 블랙판넬: 50000 },
+      PRICE_INC: { single: {} },
+      priceFrom: (part) => part.price,
+      setBasePriceRightFirst: () => 1300000,
+      adjustSingleSetBasePrice: (_set, price) => price,
+      componentDeliveryPrice_: (part) => part.price,
+      getBasePanelRow: () => parts.base,
+      pickPanelRow: () => state.panel === '블랙판넬' ? parts.black : parts.base,
+      getDefaultRemoteRows: () => [],
+      materialsSumForSet: () => 0,
+      el: (selector) => selector === '#ss_panel' ? { value: state.panel } : null,
+      document: { getElementById: () => null },
+    });
+
+    expect(context.calcSetUnitPrice({ model: 'AC060BS4PBH7SY' })).toBe(1360000);
+    state.panel = '';
+    expect(context.calcSetUnitPrice({ model: 'AC060BS4PBH7SY' })).toBe(1300000);
+  });
+
   test('싱글중대형 AC060CS6PBH1SY 자재 포함은 component_variant 자재 금액을 세트가에 더한다', () => {
     const context = loadCurrentEstimateViewFunction('materialsSumForSet', {
       SINGLE_DEFAULTS: { '자재 포함 여부': '별도' },
