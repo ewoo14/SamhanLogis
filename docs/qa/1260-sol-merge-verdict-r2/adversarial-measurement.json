@@ -1,0 +1,54 @@
+{
+  "head": "db77a38bf6c76da8d44c5ea2bbb7bd7d4519aed8",
+  "screenOptionCounts": {
+    "homeMulti": { "remote": 6, "panel": 5 },
+    "commercialMulti": { "remote": 6, "panel": 7, "panel360": 2 },
+    "single": { "remote": 3, "panel": 5, "panel360": 2 }
+  },
+  "homeRemoteScreenFlow": {
+    "sourceQuantities": { "360": 2, "infinite": 3, "general1Way": 4 },
+    "basicExpectedLegacy": { "AR-EC05": 6, "AR-CH01": 3 },
+    "basicActualScreen": { "AWR-WE13N": 2, "AR-EC05": 0, "AR-CH01": 0 },
+    "wiredActualScreen": { "AWR-WE13N": 2, "AIM-A01N": 9 },
+    "colorActualScreen": { "AWR-WG00N": 9, "AIM-A01N": 9 }
+  },
+  "infiniteBigPanelScreenFlow": {
+    "sourceQuantity": 1,
+    "basic": { "PC1ZNSK1NW": 1 },
+    "year25": { "PC1ZNWK1NW": 1 },
+    "airCleaning": { "PC1ZNCK1NW": 0 },
+    "airCleaningMotion": { "PC1ZNRK1NW": 1 }
+  },
+  "singleWiredExclusion": {
+    "selected": "유선",
+    "excluded": true,
+    "emittedRemoteParts": []
+  },
+  "isolatedComponentChange": {
+    "single": {
+      "injectedComponentRows": 1,
+      "optionCountAfter": 4,
+      "reflected": true
+    },
+    "commercial": {
+      "injectedPanelComponentRows": 1,
+      "optionCountAfter": 7,
+      "reflected": false
+    }
+  },
+  "freshTests": {
+    "legacyQuantityGolden": 194,
+    "legacyQuantityGoldenPlusPriceParity": 201,
+    "estimateApp": 356,
+    "orderApp": 253
+  },
+  "panelClassification": {
+    "기본": 68,
+    "공청": 68,
+    "블랙": 57,
+    "승강": 57,
+    "total": 250
+  },
+  "reachableDefects": 3,
+  "verdict": "머지 불가"
+}
