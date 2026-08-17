@@ -16,31 +16,49 @@ async function login(page: Page): Promise<void> {
   const response = await page.request.post(`${API_BASE}/auth/login`, {
     data: { loginId: 'dev_master', password: resolveQaCredential('QA_DEV_DEFAULT_PASSWORD') },
   })
-  if (!response.ok()) throw new Error(`로그인 실패: HTTP ${response.status()}`)
-  const body = await response.json()
-  const token = body.data?.token ?? ''
-  const role = body.data?.role ?? 'MASTER'
-  const userId = body.data?.userId ?? ''
-  await page.addInitScript(({ token: tok, role: r, userId: uid }) => {
-    Object.defineProperty(window, 'samhanAuth', {
-      configurable: true,
-      value: {
-        getToken: async () => ({ token: tok, userId: uid, role: r, fullName: 'QA', partnerCode: null }),
-        setToken: async () => undefined,
-        clearToken: async () => undefined,
-      },
-    })
-  }, { token, role, userId })
+  if (!response.ok()) {
+    throw new Error(`로그인 실패: HTTP ${response.status()} 본문: ${await response.text()}`)
+  }
+  const cookieHeader = response.headers()['set-cookie'] ?? ''
+  const token = cookieHeader.match(/(?:^|;\s*)access_token=([^;]+)/)?.[1]
+  if (!token) throw new Error(`로그인 응답에 access_token 쿠키가 없습니다. 본문: ${await response.text()}`)
+  await page.context().addCookies([{
+    name: 'access_token',
+    value: token,
+    domain: '127.0.0.1',
+    path: '/',
+    httpOnly: true,
+    sameSite: 'Lax',
+  }])
 }
 
 test('견적품목 구성품 고정금액·반올림 단위 저장 후 재조회하고 원복한다', async ({ page }) => {
+  const authResponses: string[] = []
+  page.on('response', async (response) => {
+    if (!response.url().includes('/auth/')) return
+    try {
+      authResponses.push(`HTTP ${response.status()} ${response.url()} ${await response.text()}`)
+    } catch {
+      authResponses.push(`HTTP ${response.status()} ${response.url()} <본문 읽기 실패>`)
+    }
+  })
   await login(page)
   await page.goto(`${BASE_URL}/#/products/${BUNDLE_CODE}/edit`)
   const loginId = page.getByRole('textbox', { name: '사용자 ID (필수)' })
+  const updateDialog = page.getByRole('status').filter({ hasText: '업데이트 서버에 연결하지 못했습니다' })
+  if (await updateDialog.isVisible().catch(() => false)) {
+    await updateDialog.getByRole('button', { name: '닫기' }).click()
+  }
   if (await loginId.isVisible().catch(() => false)) {
     await loginId.fill('dev_master')
     await page.getByRole('textbox', { name: '비밀번호 (필수)' }).fill(resolveQaCredential('QA_DEV_DEFAULT_PASSWORD'))
+    await expect(page.getByRole('button', { name: '로그인', exact: true })).toBeEnabled()
     await page.getByRole('button', { name: '로그인', exact: true }).click()
+  }
+  await page.waitForTimeout(5000)
+  if (await page.getByTestId('product-form-components-editor').count() === 0) {
+    await page.screenshot({ path: path.join(SHOTS, '04-login-blocked.png'), fullPage: true })
+    throw new Error(`라이브 QA 로그인 후 화면 진입 실패. URL=${page.url()}\n${authResponses.join('\n')}`)
   }
   await page.getByTestId('product-form-components-editor').waitFor({ state: 'visible', timeout: 30000 })
   const firstRow = page.getByTestId('product-form-component-row-0')

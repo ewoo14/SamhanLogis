@@ -40,6 +40,9 @@ jest.mock('axios', () => {
       // DC 설정 미존재 거래처 — dcConfig null
       return ok({ success: true, data: { partner: { partnerCode: '5555555555' }, dcConfig: null } });
     }
+    if (/\/internal\/partners\/by-bizno\/4044040440$/.test(url)) {
+      return Promise.resolve({ status: 404, data: { success: false, error: '거래처를 찾을 수 없습니다' } });
+    }
     // #31 — DC 벌크 (legacy getAllNotionDcConfigs_ 대체)
     if (/\/internal\/partner-dc-configs$/.test(url)) {
       return ok({
@@ -544,6 +547,14 @@ describe('initDcConfigFromNotion — 필드별 가드 merge', () => {
     expect(cfg.homeDiscount).toBe(0.45);
     expect(cfg.commDiscount).toBe(0.45);
     expect(cfg.unitRoundTo).toBe(0);
+  });
+
+  test('할인율 조회 404 → 임의 기본값 없이 미확정 상태로 반환', async () => {
+    const cfg = await code.initDcConfigFromNotion('404-40-40440');
+    expect(cfg.dcConfigUnavailable).toBe(true);
+    expect(cfg.dcConfigError).toEqual(expect.objectContaining({ status: 404 }));
+    expect(cfg.homeDiscount).toBeNull();
+    expect(cfg.commDiscount).toBeNull();
   });
 });
 

@@ -1953,7 +1953,11 @@ async function getAllNotionDcConfigs_(forceRefresh) {
       headers: { 'X-Internal-Token': DC_INTERNAL_TOKEN },
     });
     if (resp.status !== 200) {
-      Logger.log(`[getAllNotionDcConfigs_] dc-config 벌크 ${resp.status} → 빈 맵`);
+      Logger.log(`[getAllNotionDcConfigs_] dc-config 벌크 ${resp.status} → 금액 미확정`);
+      Object.defineProperty(map, '__unavailable', {
+        value: { status: resp.status, message: 'DC 설정 벌크 조회에 실패했습니다' },
+        enumerable: false,
+      });
       return map;
     }
     const list = (resp.data && resp.data.data) || [];
@@ -1977,7 +1981,11 @@ async function getAllNotionDcConfigs_(forceRefresh) {
     });
     cachePutJSON_(cacheKey, map, 60 * 10);
   } catch (e) {
-    Logger.log(`[getAllNotionDcConfigs_] 벌크 조회 예외 → 빈 맵 (${e.message})`);
+    Logger.log(`[getAllNotionDcConfigs_] 벌크 조회 예외 → 금액 미확정 (${e.message})`);
+    Object.defineProperty(map, '__unavailable', {
+      value: { status: Number(e && e.response && e.response.status) || null, message: String(e.message || e) },
+      enumerable: false,
+    });
   }
   return map;
 }
@@ -1995,6 +2003,10 @@ async function getCustomerDataAsync(forceRefresh) {
   // 노션 거래처별 할인설정 맵 사업자번호 기준 매칭 (우리 DB 벌크 치환)
   const dcMap = await getAllNotionDcConfigs_(forceRefresh === true);
   const pickDc = (c) => {
+    if (dcMap.__unavailable) return {
+      dcConfigUnavailable: true,
+      dcConfigError: dcMap.__unavailable,
+    };
     const byBiz = c.bizno ? dcMap[String(c.bizno).replace(/[^\d]/g, '')] : null;
     if (byBiz) return byBiz;
     const codeKey = String(c.code || '').replace(/[^\d]/g, '');
@@ -2119,12 +2131,34 @@ async function initDcConfigFromNotion(bizno) {
         };
       }
     } else if (resp.status === 404) {
-      Logger.log(`[initDcConfigFromNotion] 미등록 거래처(bizNo=${biznoDigits}) → default 환원`);
+      Logger.log(`[initDcConfigFromNotion] DC 설정 조회 404 (bizNo=${biznoDigits}) → 금액 미확정`);
+      return Object.assign(cfg, {
+        homeDiscount: null,
+        commDiscount: null,
+        dcConfigUnavailable: true,
+        dcConfigError: { status: 404, message: 'DC 설정 조회 결과를 찾을 수 없습니다' },
+        customer: cust,
+      });
     } else {
-      Logger.log(`[initDcConfigFromNotion] dc-config 조회 ${resp.status} → default 환원`);
+      Logger.log(`[initDcConfigFromNotion] dc-config 조회 ${resp.status} → 금액 미확정`);
+      return Object.assign(cfg, {
+        homeDiscount: null,
+        commDiscount: null,
+        dcConfigUnavailable: true,
+        dcConfigError: { status: resp.status, message: 'DC 설정 조회에 실패했습니다' },
+        customer: cust,
+      });
     }
   } catch (e) {
-    Logger.log(`[initDcConfigFromNotion] dc-config 조회 실패 → default 환원 (${e.message})`);
+    const status = Number(e && e.response && e.response.status) || null;
+    Logger.log(`[initDcConfigFromNotion] dc-config 조회 실패 → 금액 미확정 (${e.message})`);
+    return Object.assign(cfg, {
+      homeDiscount: null,
+      commDiscount: null,
+      dcConfigUnavailable: true,
+      dcConfigError: { status, message: String(e.message || e) },
+      customer: cust,
+    });
   }
 
   // legacy 라이브 merge 시맨틱 — homeDiscount/commDiscount 는 number && ≠0 일 때만,

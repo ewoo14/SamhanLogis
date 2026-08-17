@@ -2601,12 +2601,25 @@ function applyEstimateTotalAdjustments(rows, opts) {
 
 // 거래처 노션 할인설정 자동적용
 function applyCustomerDiscounts(dc) {
+  const unavailable = !!(dc && dc.dcConfigUnavailable);
+  window.DC_CONFIG_UNAVAILABLE = unavailable;
+  const noticeId = 'dc-config-unavailable-notice';
+  document.getElementById(noticeId)?.remove();
+  if (unavailable) {
+    const notice = document.createElement('div');
+    notice.id = noticeId;
+    notice.setAttribute('role', 'alert');
+    notice.style.cssText = 'padding:10px;margin:8px 0;background:#fff3cd;color:#664d03;border:1px solid #ffecb5;border-radius:4px;font-weight:600;';
+    notice.textContent = '할인율을 조회하지 못해 금액을 확정할 수 없습니다. 거래처/DC 설정을 확인한 뒤 다시 시도해 주세요.';
+    const anchor = document.getElementById('custSearch')?.parentElement || document.body;
+    anchor.parentElement?.insertBefore(notice, anchor.nextSibling);
+  }
   dc = dc || {};
   const numOr = (v, d) => (typeof v === 'number' && isFinite(v)) ? v : d;
 
   // 노션값 우선 없으면 전역 기본값
-  const homeRate = numOr(dc.homeDiscount, (typeof CONFIG.homeDiscount === 'number' ? CONFIG.homeDiscount : 0.45));
-  const commRate = numOr(dc.commDiscount, (typeof CONFIG.commDiscount === 'number' ? CONFIG.commDiscount : 0.45));
+  const homeRate = unavailable ? null : numOr(dc.homeDiscount, (typeof CONFIG.homeDiscount === 'number' ? CONFIG.homeDiscount : 0.45));
+  const commRate = unavailable ? null : numOr(dc.commDiscount, (typeof CONFIG.commDiscount === 'number' ? CONFIG.commDiscount : 0.45));
   const d360    = numOr(dc.discount360, 0);
   const d4way   = numOr(dc.discount4way, 0);
   const dStand  = numOr(dc.discountStand, 0);
@@ -2641,8 +2654,8 @@ function applyCustomerDiscounts(dc) {
     el.dispatchEvent(new Event('change', { bubbles: true }));
   };
 
-  setField('home_rate', Math.round(homeRate * 100));
-  setField('comm_rate', Math.round(commRate * 100));
+  setField('home_rate', homeRate == null ? '' : Math.round(homeRate * 100));
+  setField('comm_rate', commRate == null ? '' : Math.round(commRate * 100));
   setField('ss_disc_360', d360);
   setField('ss_disc_4way', d4way);
   setField('ss_disc_1way', d1way);
@@ -4360,6 +4373,7 @@ function priceFrom(obj, { priceKeys = ['price','unitPrice','priceRight'], listKe
 
 // 홈멀티 단가 계산
 function homeUnitPrice(model){
+  if (window.DC_CONFIG_UNAVAILABLE === true) return 0;
   const r = homeRowByModel.get(model);
   if(!r) return 0;
 
@@ -4421,6 +4435,7 @@ function partUnitPrice(p){
 }
 
 function singleUnitPrice(it){
+  if (window.DC_CONFIG_UNAVAILABLE === true) return 0;
   // 기본가 원본
   let base = Math.round(Number(it.priceRaw ?? it.price ?? 0));
   
@@ -4471,6 +4486,7 @@ function singleUnitPrice(it){
 
 // 상업멀티 단가 산정
 function commUnitPrice(model){
+  if (window.DC_CONFIG_UNAVAILABLE === true) return 0;
   const r = (COMMULTI||[]).find(x=>x.model===model);
   if(!r) return 0;
 
