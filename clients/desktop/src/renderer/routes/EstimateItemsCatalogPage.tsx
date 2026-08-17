@@ -19,7 +19,7 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   DndContext,
   PointerSensor,
@@ -1021,7 +1021,9 @@ export function EstimateItemsCatalogPage() {
   const isMobile = useIsMobile()
   const queryClient = useQueryClient()
   const { canAccess } = usePermissions()
+  const navigate = useNavigate()
   const canEdit = canAccess('products.admin', 'update')
+  const canViewPriceSchedule = canAccess('products.price-schedule', 'view')
   const [searchParams, setSearchParams] = useSearchParams()
 
   const [searchInput, setSearchInput] = useState('')
@@ -1650,6 +1652,16 @@ export function EstimateItemsCatalogPage() {
             기초품목에서 선택한 판매 노출 항목과 카테고리별 표시순서를 관리합니다.
           </span>
         </div>
+        {canViewPriceSchedule ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => navigate('/products/price-schedule')}
+            data-testid="estimate-items-price-schedule-link"
+          >
+            변동단가 기본값 설정
+          </Button>
+        ) : null}
       </div>
 
       {canEdit ? null : (

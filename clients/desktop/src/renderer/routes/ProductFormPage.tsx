@@ -948,6 +948,7 @@ function BundleComponentsEditor({ modelCode, canEdit }: { modelCode: string; can
       allocationMode: 'FIXED',
       allocationWeight: null,
       fixedAllocationAmount: null,
+      allocationRoundUnit: 1000,
     }])
     setNewCode('')
   }
@@ -965,6 +966,7 @@ function BundleComponentsEditor({ modelCode, canEdit }: { modelCode: string; can
     allocationMode: item.allocationMode,
     allocationWeight: item.allocationWeight,
     fixedAllocationAmount: item.fixedAllocationAmount,
+    allocationRoundUnit: item.allocationRoundUnit ?? 1000,
   })))
 
   return (
@@ -1004,7 +1006,14 @@ function BundleComponentsEditor({ modelCode, canEdit }: { modelCode: string; can
             onValueChange={(value) => updateDraft(index, { fixedAllocationAmount: value || null })}
             enableAmountKeyboardStep
           />
-          <Input label="반올림 단위" type="number" min="1" defaultValue="1000" disabled={!canEdit} />
+          <Input
+            label="반올림 단위"
+            type="number"
+            min="1"
+            value={String(item.allocationRoundUnit ?? 1000)}
+            disabled={!canEdit}
+            onChange={(event) => updateDraft(index, { allocationRoundUnit: event.target.value ? Number(event.target.value) : 1000 })}
+          />
           <label style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', opacity: 0 }}>
             <input
               type="checkbox"

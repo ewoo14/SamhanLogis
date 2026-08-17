@@ -771,6 +771,16 @@ public class Product extends BaseEntity {
         }
     }
 
+    /** 세트 구성품 자동 배분 반올림 단위를 변경한다. */
+    public void changeAllocationRoundUnit(BigDecimal allocationRoundUnit) {
+        if (allocationRoundUnit == null) return;
+        validateNonNegative(allocationRoundUnit, "반올림 단위");
+        if (allocationRoundUnit.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("반올림 단위는 1 이상이어야 합니다.");
+        }
+        this.allocationRoundUnit = allocationRoundUnit;
+    }
+
     // ============================================================
     // Stage 1 — 이카운트 + HVAC 특화 단가 보강 setter
     // (seed + admin 운영 변경. reflection 직접 접근 금지 가드)

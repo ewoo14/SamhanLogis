@@ -18,15 +18,26 @@ class VatAmountCalculatorTest {
     }
 
     @Test
-    @DisplayName("VAT 포함 합계 기본 분리는 기존 주문의 원 단위 절사를 보존한다")
-    void splitPreservesLegacyDefault() {
+    @DisplayName("VAT 포함 합계 기본 분리는 레거시 원 단위 HALF_UP을 사용한다")
+    void splitUsesLegacyHalfUpDefault() {
         VatAmountCalculator.Split split = VatAmountCalculator.splitVatInclusive(
                 new BigDecimal("110005"));
 
-        assertThat(split.supplyAmount()).isEqualByComparingTo("100004");
-        assertThat(split.vatAmount()).isEqualByComparingTo("10001");
+        assertThat(split.supplyAmount()).isEqualByComparingTo("100005");
+        assertThat(split.vatAmount()).isEqualByComparingTo("10000");
         assertThat(split.supplyAmount().add(split.vatAmount()))
                 .isEqualByComparingTo(split.lineTotal());
+    }
+
+    @Test
+    @DisplayName("기존 저장 금액을 계산해도 입력 금액은 변경하지 않는다")
+    void calculationDoesNotMutateStoredAmount() {
+        BigDecimal storedLineTotal = new BigDecimal("110005.00");
+
+        VatAmountCalculator.Split split = VatAmountCalculator.splitVatInclusive(storedLineTotal);
+
+        assertThat(storedLineTotal).isEqualByComparingTo("110005.00");
+        assertThat(split.lineTotal()).isSameAs(storedLineTotal);
     }
 
     @Test

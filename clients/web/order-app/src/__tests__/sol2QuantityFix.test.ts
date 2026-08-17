@@ -39,10 +39,14 @@ describe('#967 SOL2 결함 3 — 싱글 파생 3계열', () => {
     ['받침대', 'roundFoot'],
     ['유선보드', 'wiredBoard'],
     ['실링펌프', 'ceilingPump'],
-  ])('%s 손입력 77은 원천 변경 후에도 보존되고 잠긴다', (_label, key) => {
+  ])('%s는 원천 변경 후 레거시 공식값으로 재계산된다', (_label, key) => {
     const result = runSingleScenario(key);
-    expect(result.valueAfterSourceChange).toBe(77);
-    expect(result.lockedAfterSourceChange).toBe(true);
+    // tools/legacy-gas/거래처 발송 주문서/index.html:4765-4778,4792-4800
+    // 레거시 단독 파생 수량은 singleQty.set(...)으로 직접 재계산하며
+    // 단독 품목의 수동잠금 개념이 없다. 따라서 결과는 각각 0, 2, 2이다.
+    const expected = { roundFoot: 0, wiredBoard: 2, ceilingPump: 2 }[key];
+    expect(result.valueAfterSourceChange).toBe(expected);
+    expect(result.lockedAfterSourceChange).toBe(false);
   });
 });
 

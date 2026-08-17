@@ -33,10 +33,12 @@ public class PartnerOrderPartnerIdentityResolver {
     public UUID requirePartnerId(String partnerCode, String bizCode) {
         validateInput(partnerCode, bizCode);
         PartnerSummary summary = lookupSummary(partnerCode);
+        boolean codeFallback = partnerCode.trim().equals(bizCode.trim())
+                && partnerCode.trim().equals(summary.partnerCode());
         if (summary.partnerId() == null
-                || summary.businessNo() == null || summary.businessNo().isBlank()
                 || !partnerCode.trim().equals(summary.partnerCode())
-                || !sameBusinessNumber(bizCode, summary.businessNo())) {
+                || (!codeFallback && (summary.businessNo() == null || summary.businessNo().isBlank()
+                || !sameBusinessNumber(bizCode, summary.businessNo())))) {
             throw unresolved(partnerCode);
         }
         return summary.partnerId();

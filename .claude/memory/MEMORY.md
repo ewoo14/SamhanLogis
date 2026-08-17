@@ -297,3 +297,13 @@
 - [🚨 GAS 판정선 — 기능·결과 표시방식은 동등 · UI 디자인은 자유](feedback_gas_parity_function_and_result_not_ui.md)
 
 - [🚨 트랙은 반드시 PR 과 함께 — "빠른 fix" 라도 main 직커밋 금지](feedback_track_always_opens_with_pr.md)
+
+- [🚨🚨 일마감은 견적품목 기준 · 견적품목은 카테고리별로 납품가가 다르다](feedback_daily_closing_uses_estimate_items.md)
+
+- [🚨🚨 옵션 목록은 구성품 설정에서 나온다 — 화면에 박지 마라](feedback_options_come_from_component_settings.md)
+
+- [🚨 같은 워크트리에 라운드를 겹쳐 돌리면 나중 것이 앞의 작업을 지운다](feedback_same_worktree_rounds_overwrite.md)
+
+- [🚨🚨 docker build --no-cache 는 Gradle 을 안 돌린다 — 낡은 JAR 를 복사한다](feedback_docker_build_copies_stale_jar.md)
+
+- [🚨 라이브QA 스택은 변경 계층으로 고른다 — 백엔드 바뀐 트랙은 격리 필수](feedback_live_qa_stack_choice_by_change_layer.md)

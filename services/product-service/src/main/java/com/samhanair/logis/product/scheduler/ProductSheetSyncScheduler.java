@@ -73,17 +73,7 @@ public class ProductSheetSyncScheduler {
      */
     @Scheduled(cron = "${app.scheduling.product-sync-cron:0 */5 * * * *}")
     public void scheduledSync() {
-        if (!schedulingEnabled) {
-            log.debug("[ProductSheetSyncScheduler] scheduling 비활성 — skip");
-            return;
-        }
-        if (!cronEnabled) {
-            log.debug("[ProductSheetSyncScheduler] cron-enabled=false — 자동 sync skip (수동 trigger 전용)");
-            return;
-        }
-        log.info("[ProductSheetSyncScheduler] cron sync trigger");
-        runProductSyncForCron();
-        runLookupSyncForCron();
+        log.info("[ProductSheetSyncScheduler] Google Sheets runtime 연동 폐기 — DB source-of-truth 유지");
     }
 
     /** 기존 6카테고리 상품 sync 를 cron 경로에서 독립 실행한다. */
@@ -119,17 +109,7 @@ public class ProductSheetSyncScheduler {
      */
     @EventListener(ApplicationReadyEvent.class)
     public void onApplicationReady() {
-        if (!schedulingEnabled) {
-            log.info("[ProductSheetSyncScheduler] scheduling 비활성 — 부팅 sync skip");
-            return;
-        }
-        if (!cronEnabled) {
-            log.info("[ProductSheetSyncScheduler] cron-enabled=false — 부팅 sync skip (수동 trigger 전용)");
-            return;
-        }
-        log.info("[ProductSheetSyncScheduler] 부팅 시 1회 sync trigger");
-        runProductSyncForBoot();
-        runLookupSyncForBoot();
+        log.info("[ProductSheetSyncScheduler] Google Sheets runtime 연동 폐기 — 부팅 sync skip");
     }
 
     /** 기존 6카테고리 상품 sync 를 부팅 경로에서 독립 실행한다. */

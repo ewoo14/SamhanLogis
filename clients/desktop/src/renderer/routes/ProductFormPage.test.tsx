@@ -115,6 +115,109 @@ vi.mock('../api/productCatalogApi', async (importOriginal) => {
     expect(row.textContent).toContain('반올림 단위')
   })
 
+  it('신규 구성품의 입력한 고정금액을 구성품 저장 요청에 포함한다', async () => {
+    const seed = seedFor('SET-NEW-FIXED-AMOUNT-1241')
+    seed.summary.productType = 'BUNDLE'
+    seed.detail.itemKind = 'SET'
+    mocks.searchProductSummaries.mockResolvedValue([seed.summary])
+    mocks.getProductByModelName.mockResolvedValue(seed.detail)
+    mocks.listProducts.mockResolvedValue(emptyPage())
+    mocks.updateBundleComponents.mockImplementation(async (_modelCode, items) => items)
+
+    renderPage('/products/SET-NEW-FIXED-AMOUNT-1241/edit')
+    await screen.findByTestId('product-form-components-editor')
+    fireEvent.change(screen.getByTestId('product-form-component-add-code'), {
+      target: { value: 'NEW-1241' },
+    })
+    fireEvent.click(screen.getByText('추가'))
+
+    const row = await screen.findByTestId('product-form-component-row-0')
+    const amountInput = row.querySelector('input[type="text"]') as HTMLInputElement
+    fireEvent.change(amountInput, { target: { value: '123456' } })
+    fireEvent.click(screen.getByTestId('product-form-components-save'))
+
+    await waitFor(() => expect(mocks.updateBundleComponents).toHaveBeenCalledTimes(1))
+    expect(mocks.updateBundleComponents.mock.calls[0][1][0]).toEqual(expect.objectContaining({
+      componentProductCode: 'NEW-1241',
+      fixedAllocationAmount: '123456',
+    }))
+  })
+
+  it('신규 구성품의 고정금액을 비우면 서버 확정 경로인 null을 보낸다', async () => {
+    const seed = seedFor('SET-NEW-FIXED-EMPTY-1241')
+    seed.summary.productType = 'BUNDLE'
+    seed.detail.itemKind = 'SET'
+    mocks.searchProductSummaries.mockResolvedValue([seed.summary])
+    mocks.getProductByModelName.mockResolvedValue(seed.detail)
+    mocks.listProducts.mockResolvedValue(emptyPage())
+    mocks.updateBundleComponents.mockImplementation(async (_modelCode, items) => items)
+
+    renderPage('/products/SET-NEW-FIXED-EMPTY-1241/edit')
+    await screen.findByTestId('product-form-components-editor')
+    fireEvent.change(screen.getByTestId('product-form-component-add-code'), {
+      target: { value: 'NEW-EMPTY-1241' },
+    })
+    fireEvent.click(screen.getByText('추가'))
+    fireEvent.click(screen.getByTestId('product-form-components-save'))
+
+    await waitFor(() => expect(mocks.updateBundleComponents).toHaveBeenCalledTimes(1))
+    expect(mocks.updateBundleComponents.mock.calls[0][1][0]).toEqual(expect.objectContaining({
+      fixedAllocationAmount: null,
+    }))
+  })
+
+  it('반올림 단위 입력을 allocationRoundUnit으로 저장 요청에 포함하고 기본값도 유지한다', async () => {
+    const seed = seedFor('SET-ROUND-UNIT-1241')
+    seed.summary.productType = 'BUNDLE'
+    seed.detail.itemKind = 'SET'
+    mocks.searchProductSummaries.mockResolvedValue([seed.summary])
+    mocks.getProductByModelName.mockResolvedValue(seed.detail)
+    mocks.listProducts.mockResolvedValue(emptyPage())
+    mocks.updateBundleComponents.mockImplementation(async (_modelCode, items) => items)
+    renderPage('/products/SET-ROUND-UNIT-1241/edit', [{
+      id: 'round-1241', componentProductCode: 'ROUND-1', componentName: 'Round',
+      defaultQty: 1, qtyMode: 'FOLLOW_SET', componentKind: 'ACCESSORY', componentVariant: null,
+      componentShape: null, isDefault: false, specText: null, displayOrder: 1,
+      allocationMode: 'FIXED', allocationWeight: null, fixedAllocationAmount: null,
+    } as BundleComponentItem])
+
+    const row = await screen.findByTestId('product-form-component-row-0')
+    const roundInput = Array.from(row.querySelectorAll('input[type="number"]')).find((input) =>
+      (input.parentElement?.textContent ?? '').includes('반올림 단위')) as HTMLInputElement
+    fireEvent.change(roundInput, { target: { value: '500' } })
+    fireEvent.click(screen.getByTestId('product-form-components-save'))
+
+    await waitFor(() => expect(mocks.updateBundleComponents).toHaveBeenCalledTimes(1))
+    expect(mocks.updateBundleComponents.mock.calls[0][1][0]).toEqual(expect.objectContaining({
+      allocationRoundUnit: 500,
+    }))
+  })
+
+  it('기존 구성품의 배분 계약은 일부 수정 저장에서도 그대로 보존한다', async () => {
+    const seed = seedFor('SET-PRESERVE-1241')
+    seed.summary.productType = 'BUNDLE'
+    seed.detail.itemKind = 'SET'
+    mocks.searchProductSummaries.mockResolvedValue([seed.summary])
+    mocks.getProductByModelName.mockResolvedValue(seed.detail)
+    mocks.listProducts.mockResolvedValue(emptyPage())
+    mocks.updateBundleComponents.mockImplementation(async (_modelCode, items) => items)
+    renderPage('/products/SET-PRESERVE-1241/edit', [{
+      id: 'preserve-1241', componentProductCode: 'PRESERVE-1', componentName: 'Preserve',
+      defaultQty: 1, qtyMode: 'FOLLOW_SET', componentKind: 'INDOOR', componentVariant: null,
+      componentShape: null, isDefault: true, specText: null, displayOrder: 1,
+      allocationMode: 'AUTO', allocationWeight: 4, fixedAllocationAmount: null,
+    } as BundleComponentItem])
+
+    const row = await screen.findByTestId('product-form-component-row-0')
+    fireEvent.change(row.querySelector('input[type="number"]')!, { target: { value: '2' } })
+    fireEvent.click(screen.getByTestId('product-form-components-save'))
+
+    await waitFor(() => expect(mocks.updateBundleComponents).toHaveBeenCalledTimes(1))
+    expect(mocks.updateBundleComponents.mock.calls[0][1][0]).toEqual(expect.objectContaining({
+      allocationMode: 'AUTO', allocationWeight: 4, fixedAllocationAmount: null,
+    }))
+  })
+
 vi.mock('react-router-dom', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react-router-dom')>()
   return { ...actual, useNavigate: () => mocks.navigate }

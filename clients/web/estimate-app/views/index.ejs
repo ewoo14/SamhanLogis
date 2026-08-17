@@ -2311,13 +2311,13 @@ const ACTIVE_HOME_QUANTITY_SYNC_RULES = Array.isArray(HOME_QUANTITY_SYNC_RULES)
 function getBaseListPrice(type, model, defaultVal) {
   if (type === 'home' || type === 'HOME') {
     const isInc = document.getElementById('chkHomeInc')?.checked;
-    if (isInc && PRICE_INC.home[model]) return PRICE_INC.home[model];
+    if (!isInc && PRICE_INC.home[model]) return PRICE_INC.home[model];
   } else if (type === 'comm' || type === 'COMM') {
     const isInc = document.getElementById('chkCommInc')?.checked;
-    if (isInc && PRICE_INC.comm[model]) return PRICE_INC.comm[model];
+    if (!isInc && PRICE_INC.comm[model]) return PRICE_INC.comm[model];
   } else if (type === 'single' || type === 'SINGLE') {
     const isInc = document.getElementById('chkSingleInc')?.checked;
-    if (isInc && PRICE_INC.single && PRICE_INC.single[model] && PRICE_INC.single[model].list) return PRICE_INC.single[model].list;
+    if (!isInc && PRICE_INC.single && PRICE_INC.single[model] && PRICE_INC.single[model].list) return PRICE_INC.single[model].list;
   }
   return defaultVal;
 }
@@ -2638,12 +2638,25 @@ function applyEstimateTotalAdjustments(rows, opts) {
 
 // 거래처 노션 할인설정 자동적용
 function applyCustomerDiscounts(dc) {
+  const unavailable = !!(dc && dc.dcConfigUnavailable);
+  window.DC_CONFIG_UNAVAILABLE = unavailable;
+  const noticeId = 'dc-config-unavailable-notice';
+  document.getElementById(noticeId)?.remove();
+  if (unavailable) {
+    const notice = document.createElement('div');
+    notice.id = noticeId;
+    notice.setAttribute('role', 'alert');
+    notice.style.cssText = 'padding:10px;margin:8px 0;background:#fff3cd;color:#664d03;border:1px solid #ffecb5;border-radius:4px;font-weight:600;';
+    notice.textContent = '할인율을 조회하지 못해 금액을 확정할 수 없습니다. 거래처/DC 설정을 확인한 뒤 다시 시도해 주세요.';
+    const anchor = document.getElementById('custSearch')?.parentElement || document.body;
+    anchor.parentElement?.insertBefore(notice, anchor.nextSibling);
+  }
   dc = dc || {};
   const numOr = (v, d) => (typeof v === 'number' && isFinite(v)) ? v : d;
 
   // 노션값 우선 없으면 전역 기본값
-  const homeRate = numOr(dc.homeDiscount, (typeof CONFIG.homeDiscount === 'number' ? CONFIG.homeDiscount : 0.45));
-  const commRate = numOr(dc.commDiscount, (typeof CONFIG.commDiscount === 'number' ? CONFIG.commDiscount : 0.45));
+  const homeRate = unavailable ? null : numOr(dc.homeDiscount, (typeof CONFIG.homeDiscount === 'number' ? CONFIG.homeDiscount : 0.45));
+  const commRate = unavailable ? null : numOr(dc.commDiscount, (typeof CONFIG.commDiscount === 'number' ? CONFIG.commDiscount : 0.45));
   const d360    = numOr(dc.discount360, 0);
   const d4way   = numOr(dc.discount4way, 0);
   const dStand  = numOr(dc.discountStand, 0);
@@ -2678,8 +2691,8 @@ function applyCustomerDiscounts(dc) {
     el.dispatchEvent(new Event('change', { bubbles: true }));
   };
 
-  setField('home_rate', Math.round(homeRate * 100));
-  setField('comm_rate', Math.round(commRate * 100));
+  setField('home_rate', homeRate == null ? '' : Math.round(homeRate * 100));
+  setField('comm_rate', commRate == null ? '' : Math.round(commRate * 100));
   setField('ss_disc_360', d360);
   setField('ss_disc_4way', d4way);
   setField('ss_disc_1way', d1way);
@@ -4413,6 +4426,7 @@ function priceFrom(obj, { priceKeys = ['price','unitPrice','priceRight'], listKe
 
 // 홈멀티 단가 계산
 function homeUnitPrice(model){
+  if (window.DC_CONFIG_UNAVAILABLE === true) return 0;
   const r = homeRowByModel.get(model);
   if(!r) return 0;
 
@@ -4466,7 +4480,7 @@ function partUnitPrice(p){
   let basePrice = priceFrom(p,{ priceKeys:['price','unitPrice'], listKeys:['list','출고가','listPrice','msrp'] });
   
   const isInc = document.getElementById('chkSingleInc')?.checked;
-  if (isInc && typeof PRICE_INC !== 'undefined' && PRICE_INC.single && PRICE_INC.single[p.model] && PRICE_INC.single[p.model].price) {
+  if (!isInc && typeof PRICE_INC !== 'undefined' && PRICE_INC.single && PRICE_INC.single[p.model] && PRICE_INC.single[p.model].price) {
     basePrice = PRICE_INC.single[p.model].price;
   }
   
@@ -4474,11 +4488,12 @@ function partUnitPrice(p){
 }
 
 function singleUnitPrice(it){
+  if (window.DC_CONFIG_UNAVAILABLE === true) return 0;
   // 기본가 원본
   let base = Math.round(Number(it.priceRaw ?? it.price ?? 0));
   
   const isInc = document.getElementById('chkSingleInc')?.checked;
-  if (isInc && typeof PRICE_INC !== 'undefined' && PRICE_INC.single && PRICE_INC.single[it.model] && PRICE_INC.single[it.model].price) {
+  if (!isInc && typeof PRICE_INC !== 'undefined' && PRICE_INC.single && PRICE_INC.single[it.model] && PRICE_INC.single[it.model].price) {
     base = PRICE_INC.single[it.model].price;
   }
 
@@ -4524,6 +4539,7 @@ function singleUnitPrice(it){
 
 // 상업멀티 단가 산정
 function commUnitPrice(model){
+  if (window.DC_CONFIG_UNAVAILABLE === true) return 0;
   const r = (COMMULTI||[]).find(x=>x.model===model);
   if(!r) return 0;
 
@@ -5215,7 +5231,7 @@ function calcSetUnitPrice(s){
 
   let baseL = setBasePriceRightFirst(s);
   const isInc = document.getElementById('chkSingleInc')?.checked;
-  if (isInc && typeof PRICE_INC !== 'undefined' && PRICE_INC.single && PRICE_INC.single[s.model] && PRICE_INC.single[s.model].price) {
+  if (!isInc && typeof PRICE_INC !== 'undefined' && PRICE_INC.single && PRICE_INC.single[s.model] && PRICE_INC.single[s.model].price) {
     baseL = PRICE_INC.single[s.model].price;
   }
 
@@ -6721,7 +6737,7 @@ function renderCommOptions() {
   box.appendChild(chk('받침대 제외', false, 'comm_ex_base'));
   box.appendChild(chk('실외기확장', false, 'comm_ext_out'));
   box.appendChild(roundSel('comm'));
-  box.appendChild(chk('인상 전 단가', !!PRICE_DEFAULT_VARIANT.commercialMulti, 'chkCommInc'));
+  box.appendChild(chk('변동단가', !!PRICE_DEFAULT_VARIANT.commercialMulti, 'chkCommInc'));
 
   box.querySelectorAll('input,select').forEach(c=>{
     if(c.id.includes('commFilter')) return;
@@ -7486,7 +7502,7 @@ function renderOldOptions() {
 
   box.innerHTML = '';
   // 옵션 내용 추가
-  box.appendChild(chk('단가변동', oldPriceChangeEnabled, 'chkOldInc'));
+  box.appendChild(chk('변동단가', oldPriceChangeEnabled, 'chkOldInc'));
   box.appendChild(numInp('할인율(%)', 'old_rate', getOldDiscountPercent(), 1));
   box.appendChild(roundSel('old'));
 
@@ -7895,7 +7911,7 @@ function renderHomeOptions() {
   box.appendChild(chk('발통포함',!!HOME_DEFAULTS['발통포함'],'home_foot'));
   
   box.appendChild(roundSel('home'));
-  box.appendChild(chk('인상 전 단가', !!PRICE_DEFAULT_VARIANT.homemulti, 'chkHomeInc'));
+  box.appendChild(chk('변동단가', !!PRICE_DEFAULT_VARIANT.homemulti, 'chkHomeInc'));
 
   box.querySelectorAll('input,select').forEach(c=>{
     if(!c.id.includes('homeFilter')) {
@@ -7938,7 +7954,7 @@ function renderSingleOptions() {
   const singleShapes = ['원형', '사각'];
   box.appendChild(sel('360판넬',singleShapes,SINGLE_DEFAULTS['360판넬'] || singleShapes[0] || '','ss_p360'));
   box.appendChild(sel('자재 포함 여부',['포함','별도'],SINGLE_DEFAULTS['자재 포함 여부']||'별도','ss_mat'));
-  box.appendChild(chk('인상 전 단가', !!PRICE_DEFAULT_VARIANT.singleSets, 'chkSingleInc'));
+  box.appendChild(chk('변동단가', !!PRICE_DEFAULT_VARIANT.singleSets, 'chkSingleInc'));
   box.appendChild(chk('품목확장', false, 'ss_expand'));
 
   box.querySelectorAll('input,select').forEach(c => {

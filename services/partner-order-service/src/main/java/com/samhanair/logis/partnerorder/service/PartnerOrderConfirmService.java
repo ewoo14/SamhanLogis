@@ -2,6 +2,8 @@ package com.samhanair.logis.partnerorder.service;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.partnerorder.client.DcConfigClient;
 import com.samhanair.logis.partnerorder.client.ProductClient;
 import com.samhanair.logis.partnerorder.client.ProductClassification;
@@ -97,6 +99,7 @@ public class PartnerOrderConfirmService {
     private NotificationClient notificationClient;
 
     private final EntityManager entityManager;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
      * 임시저장 → 확정 흐름. draftId 가 있으면 draft 의 draftSeq 를 idempotencyKey 시드로 사용.
@@ -135,6 +138,8 @@ public class PartnerOrderConfirmService {
         // race condition 발생).
         long draftSeq = resolveDraftSeq(partnerCode, draftId);
         String idempotencyKey = "PO-CONF-" + partnerCode + "-" + draftSeq;
+        JsonNode legacySnapshot = readLegacySnapshot(partnerCode, draftId);
+        JsonNode legacyOrder = legacySnapshot == null ? null : legacySnapshot.get("order");
 
         // 멱등 검사 — 이미 확정된 키면 기존 결과 반환 (재호출 가드)
         var existing = orderRepository.findByIdempotencyKey(idempotencyKey);
@@ -175,20 +180,30 @@ public class PartnerOrderConfirmService {
 
         PartnerOrder order = PartnerOrder.createFromConfirm(
                 partnerId, partnerCode, bizCode, orderNo, idempotencyKey, BigDecimal.ZERO,
-                request.deliveryAddress());
+                text(legacyOrder, "addr", request.deliveryAddress()),
+                date(legacyOrder, "due"),
+                text(legacyOrder, "auditAddr", null),
+                text(legacyOrder, "tel", null),
+                date(legacyOrder, "payDue"),
+                text(legacyOrder, "memo", null));
 
         for (int i = 0; i < reqLines.size(); i++) {
             ConfirmLineRequest line = reqLines.get(i);
             PartnerOrderPriceCalculationService.Line calculatedLine = calculation.lines().get(i);
             ProductSummary p = calculatedLine.product();
             BigDecimal priceVat = calculatedLine.finalPrice();
+            BigDecimal legacyPrice = legacyUnitPrice(legacySnapshot, i);
+            if (line.setAllocation() && "singleSets".equals(line.categoryKey())
+                    && legacyPrice != null && legacyPrice.signum() > 0) {
+                priceVat = legacyPrice;
+            }
             if (priceVat == null || priceVat.signum() <= 0) {
                 throw new BusinessException(ErrorCode.INTERNAL_ERROR,
                         "확정 최종 단가가 0원입니다: " + modelCodeSnapshot(p));
             }
             // 주문 라인 modelName 컬럼은 화면 표시 modelCode snapshot 으로 사용한다.
             String lineModelCode = modelCodeSnapshot(p);
-            PartnerOrderLine entity = PartnerOrderLine.create(
+            PartnerOrderLine entity = PartnerOrderLine.createFromLegacyPrice(
                     p.id(), lineModelCode, p.name(), line.categoryKey(),
                     line.quantity(), priceVat, line.remark());
             order.addLine(entity); // totalAmount 자동 누적
@@ -330,6 +345,42 @@ public class PartnerOrderConfirmService {
         } catch (NumberFormatException ignored) {
             return 0;
         }
+    }
+
+    /** 레거시 snapshot의 주문 헤더를 확정 주문에 복원한다. */
+    private JsonNode readLegacySnapshot(String partnerCode, UUID draftId) {
+        if (draftId == null) return null;
+        PartnerOrderDraft draft = draftRepository.findById(draftId).orElse(null);
+        if (draft == null || !partnerCode.equals(draft.getPartnerCode())) return null;
+        try {
+            JsonNode root = objectMapper.readTree(draft.getPayloadJson());
+            return root;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private String text(JsonNode order, String key, String fallback) {
+        if (order == null || order.get(key) == null || order.get(key).asText().isBlank()) return fallback;
+        return order.get(key).asText().trim();
+    }
+
+    private LocalDate date(JsonNode order, String key) {
+        String value = text(order, key, null);
+        if (value == null) return null;
+        try {
+            return LocalDate.parse(value.substring(0, Math.min(value.length(), 10)));
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    private BigDecimal legacyUnitPrice(JsonNode root, int index) {
+        if (root == null || !root.has("items") || !root.get("items").isArray()
+                || index >= root.get("items").size()) return null;
+        JsonNode price = root.get("items").get(index).get("price");
+        if (price == null || !price.isNumber()) return null;
+        return price.decimalValue();
     }
 
     private String modelCodeSnapshot(ProductSummary product) {

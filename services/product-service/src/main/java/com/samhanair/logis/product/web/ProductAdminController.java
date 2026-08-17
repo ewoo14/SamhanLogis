@@ -66,23 +66,8 @@ public class ProductAdminController {
     @PostMapping("/sync")
     @RequirePermission(page = "products.sync", action = PermissionAction.CREATE)
     public ResponseEntity<ApiResponse<ProductSheetSyncService.SyncSummary>> triggerSync() {
-        sheetsClient.invalidateCache();
-        ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
-        ProductLookupSheetSyncService.SyncSummary lookupSummary = lookupSyncService.syncAll();
-        mergeLookupSummary(summary, lookupSummary);
-        lastSnapshot.set(new LastSyncSnapshot(Instant.now(), summary));
-        HttpStatus status = summary.failedTabs == 0
-                ? HttpStatus.OK
-                : summary.successfulTabs == 0
-                        ? HttpStatus.BAD_GATEWAY
-                        : HttpStatus.MULTI_STATUS;
-        ApiResponse<ProductSheetSyncService.SyncSummary> response = summary.failedTabs == 0
-                ? ApiResponse.ok(summary)
-                : ApiResponse.fail(
-                        summary.successfulTabs == 0 ? "SYNC_FAILED" : "SYNC_PARTIAL_FAILURE",
-                        summary.successfulTabs == 0 ? "시트 sync 전체 실패" : "시트 sync 일부 실패",
-                        summary);
-        return ResponseEntity.status(status).body(response);
+        return ResponseEntity.status(HttpStatus.GONE)
+                .body(ApiResponse.fail("SHEET_SYNC_DISABLED", "Google Sheets 연동은 폐기되었으며 DB 카탈로그만 사용합니다.", null));
     }
 
     /**

@@ -12546,6 +12546,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       siteAddress: '현장 A동',
       contactPhone: '010-1234-5678',
       dueDate: '2026-05-30',
+      paymentDueDate: null,
       memo: 'rev1 시점 복원본',
     }
     return envelope({
@@ -12696,6 +12697,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       siteAddress: null,
       contactPhone: null,
       dueDate: null,
+      paymentDueDate: null,
       memo: 'mock restored',
       isDeleted: false,
       deletedAt: null,
@@ -12773,6 +12775,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       siteAddress: '현장 A동',
       contactPhone: '010-1234-5678',
       dueDate: '2026-05-30',
+      paymentDueDate: null,
       memo: `hold mock — orderId=${orderId}`,
     }
     return envelope({
@@ -12815,6 +12818,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       siteAddress: '현장 A동',
       contactPhone: '010-1234-5678',
       dueDate: '2026-05-30',
+      paymentDueDate: null,
       memo: `release mock — orderId=${orderId}`,
     }
     return envelope({
@@ -13280,6 +13284,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         siteAddress: '현장 B동',
         contactPhone: '010-0000-0000',
         dueDate: '2026-06-01',
+        paymentDueDate: null,
         memo: null,
         lines: [
           {
@@ -13352,6 +13357,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         siteAddress: '현장 A동',
         contactPhone: '010-1234-5678',
         dueDate: '2026-06-20',
+        paymentDueDate: null,
         memo: null,
         lines: poId === 'ord-bundle-only' ? [bundleLine] : [bundleLine, singleLine],
       }
@@ -13387,6 +13393,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       siteAddress: '현장 A동',
       contactPhone: '010-1234-5678',
       dueDate: body?.dueDate ?? null,
+      paymentDueDate: body?.paymentDueDate ?? null,
       memo: body?.memo ?? null,
     }
     return envelope({

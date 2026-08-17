@@ -1503,11 +1503,11 @@ const COMM_PARTS_INC = J(COMM_PARTS_INC_RAW, {});
 const PRICE_CHANGE_SCHEDULE = J(PRICE_CHANGE_SCHEDULE_RAW, {});
 const oldQty=new Map();
 
-// Model B: due<변동일→*_INC(인상전), due>=변동일→base(인상후)
+// 레거시 정합: due<변동일→base, due>=변동일→*_INC (경계일 포함)
 function incActive(categoryKey, due) {
   const effectiveDate = PRICE_CHANGE_SCHEDULE && PRICE_CHANGE_SCHEDULE[categoryKey];
   if (!effectiveDate || !due) return false;
-  return due < String(effectiveDate);
+  return due >= String(effectiveDate);
 }
 
 let CONFIG=J(CFG_RAW,{
@@ -2824,7 +2824,10 @@ function partUnitPrice(p){
     return 8000;
   }
   const due = document.getElementById('due')?.value || '';
-  if (incActive('singleSets', due) && SINGLE_PARTS_INC[p.model]) {
+  // 구성품 bootstrap의 price는 BundleComponent 관계 납품가 우선값이다.
+  // 관계값이 없는 레거시 세트도 price가 전역 납품가 fallback으로 채워지므로,
+  // 인상 전 전역 캐시가 관계 단가를 다시 덮어쓰지 않게 한다.
+  if (!p?.setModel && incActive('singleSets', due) && SINGLE_PARTS_INC[p.model]) {
     return SINGLE_PARTS_INC[p.model];
   }
   return priceFrom(p,{
@@ -5742,7 +5745,12 @@ function setSingleDerivedQty_(candidate, fallback, quantity, reason){
   const actual = String(candidate || '').trim();
   const target = actual || String(fallback || '').trim();
   if(!actual && Number(quantity) > 0) noteSingleCatalogMissing_(target, reason);
-  if(actual) setDerivedQty('single', singleQty, actual, quantity);
+  if(actual){
+    // 레거시는 원품 재계산 시 자동 부속의 수동 override도 공식값으로 덮어쓴다.
+    if(typeof DERIVED_QTY_TARGETS !== 'undefined') DERIVED_QTY_TARGETS.single?.add?.(actual);
+    if(typeof MANUAL_QTY_LOCKS !== 'undefined') MANUAL_QTY_LOCKS.single?.delete?.(actual);
+    singleQty.set(actual, Math.max(0, Math.round(Number(quantity) || 0)));
+  }
   return target;
 }
 
@@ -6793,6 +6801,7 @@ function buildSendRows(){
           model: it.model,
           qty: it.qty,
           price: it.price,
+          setAllocation: true,
           fixedDc
         });
       });
@@ -6842,6 +6851,7 @@ function buildSendRows(){
         unit: it.unit || 'EA',
         qty: it.qty,
         price: it.price,
+        setAllocation: true,
         has360: flags.has360,
         has4way: flags.has4way,
         hasStand: flags.hasStand,
