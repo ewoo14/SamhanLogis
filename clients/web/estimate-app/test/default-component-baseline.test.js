@@ -27,6 +27,7 @@ function loadBaselineHelpers(parts, domValues = {}) {
     el: (selector) => (selector in domValues ? { value: domValues[selector] } : null),
   };
   const helpers = [
+    'componentVariant_',
     'isDefaultComponent_',
     'getDefaultRemoteRows',
     'getBasePanelRow',

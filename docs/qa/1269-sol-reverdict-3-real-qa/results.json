@@ -1,0 +1,294 @@
+{
+  "auth": {
+    "authorized": true,
+    "rows": 851
+  },
+  "target": {
+    "id": "무풍 4way 냉난방 프리미엄|15|20"
+  },
+  "basic": {
+    "header": "1,300,000",
+    "rows": [
+      {
+        "name": "└ [구성] 무풍 4way 냉난방 프리미엄 실내기",
+        "model": "AC060BN4PBH1",
+        "price": "462,000",
+        "qty": "1"
+      },
+      {
+        "name": "└ [구성] 무풍 4way 냉난방 프리미엄 실외기",
+        "model": "AC060BXAPBH3",
+        "price": "694,000",
+        "qty": "1"
+      },
+      {
+        "name": "└ [구성] 무선리모컨(냉난방전용)",
+        "model": "AR-EH05",
+        "price": "16,000",
+        "qty": "1"
+      },
+      {
+        "name": "└ [구성] 유선리모컨(통합)",
+        "model": "AWR-WE13N",
+        "price": "56,000",
+        "qty": ""
+      },
+      {
+        "name": "└ [구성] 유선리모컨(컬러)",
+        "model": "AWR-WG00N",
+        "price": "91,000",
+        "qty": ""
+      },
+      {
+        "name": "└ [구성] 판넬 무풍4Way(블랙 WIFI)",
+        "model": "PC4NBFK1NW",
+        "price": "188,000",
+        "qty": ""
+      },
+      {
+        "name": "└ [구성] 판넬 4way 무풍 공기청정 WIFI",
+        "model": "PC4NUCK4NW",
+        "price": "678,000",
+        "qty": ""
+      },
+      {
+        "name": "└ [구성] 판넬 4way 무풍 WIFI 내장",
+        "model": "PC4NUFK1NW",
+        "price": "128,000",
+        "qty": "1"
+      },
+      {
+        "name": "└ [구성] 판넬 무풍4Way(승강) WIFI내장",
+        "model": "PC4NUXK1NW",
+        "price": "188,000",
+        "qty": ""
+      }
+    ],
+    "screenshot": "C:\\dev\\Samhan-Public\\.claude\\worktrees\\wsrd\\docs\\qa\\1269-sol-reverdict-3-real-qa\\01-AC060-4way-기본-세트상세.png"
+  },
+  "black": {
+    "header": "1,350,000",
+    "rows": [
+      {
+        "name": "└ [구성] 무풍 4way 냉난방 프리미엄 실내기",
+        "model": "AC060BN4PBH1",
+        "price": "458,000",
+        "qty": "1"
+      },
+      {
+        "name": "└ [구성] 무풍 4way 냉난방 프리미엄 실외기",
+        "model": "AC060BXAPBH3",
+        "price": "688,000",
+        "qty": "1"
+      },
+      {
+        "name": "└ [구성] 무선리모컨(냉난방전용)",
+        "model": "AR-EH05",
+        "price": "16,000",
+        "qty": "1"
+      },
+      {
+        "name": "└ [구성] 유선리모컨(통합)",
+        "model": "AWR-WE13N",
+        "price": "56,000",
+        "qty": ""
+      },
+      {
+        "name": "└ [구성] 유선리모컨(컬러)",
+        "model": "AWR-WG00N",
+        "price": "91,000",
+        "qty": ""
+      },
+      {
+        "name": "└ [구성] 판넬 무풍4Way(블랙 WIFI)",
+        "model": "PC4NBFK1NW",
+        "price": "188,000",
+        "qty": "1"
+      },
+      {
+        "name": "└ [구성] 판넬 4way 무풍 공기청정 WIFI",
+        "model": "PC4NUCK4NW",
+        "price": "678,000",
+        "qty": ""
+      },
+      {
+        "name": "└ [구성] 판넬 4way 무풍 WIFI 내장",
+        "model": "PC4NUFK1NW",
+        "price": "128,000",
+        "qty": ""
+      },
+      {
+        "name": "└ [구성] 판넬 무풍4Way(승강) WIFI내장",
+        "model": "PC4NUXK1NW",
+        "price": "188,000",
+        "qty": ""
+      }
+    ],
+    "screenshot": "C:\\dev\\Samhan-Public\\.claude\\worktrees\\wsrd\\docs\\qa\\1269-sol-reverdict-3-real-qa\\02-AC060-4way-블랙-세트상세.png"
+  },
+  "back": {
+    "header": "1,300,000",
+    "rows": [
+      {
+        "name": "└ [구성] 무풍 4way 냉난방 프리미엄 실내기",
+        "model": "AC060BN4PBH1",
+        "price": "462,000",
+        "qty": "1"
+      },
+      {
+        "name": "└ [구성] 무풍 4way 냉난방 프리미엄 실외기",
+        "model": "AC060BXAPBH3",
+        "price": "694,000",
+        "qty": "1"
+      },
+      {
+        "name": "└ [구성] 무선리모컨(냉난방전용)",
+        "model": "AR-EH05",
+        "price": "16,000",
+        "qty": "1"
+      },
+      {
+        "name": "└ [구성] 유선리모컨(통합)",
+        "model": "AWR-WE13N",
+        "price": "56,000",
+        "qty": ""
+      },
+      {
+        "name": "└ [구성] 유선리모컨(컬러)",
+        "model": "AWR-WG00N",
+        "price": "91,000",
+        "qty": ""
+      },
+      {
+        "name": "└ [구성] 판넬 무풍4Way(블랙 WIFI)",
+        "model": "PC4NBFK1NW",
+        "price": "188,000",
+        "qty": ""
+      },
+      {
+        "name": "└ [구성] 판넬 4way 무풍 공기청정 WIFI",
+        "model": "PC4NUCK4NW",
+        "price": "678,000",
+        "qty": ""
+      },
+      {
+        "name": "└ [구성] 판넬 4way 무풍 WIFI 내장",
+        "model": "PC4NUFK1NW",
+        "price": "128,000",
+        "qty": "1"
+      },
+      {
+        "name": "└ [구성] 판넬 무풍4Way(승강) WIFI내장",
+        "model": "PC4NUXK1NW",
+        "price": "188,000",
+        "qty": ""
+      }
+    ]
+  },
+  "sweep": {
+    "componentRows": 1447,
+    "distinctVariants": 7,
+    "setsWithComponents": 207,
+    "stateRuns": 2277,
+    "states": 11,
+    "byKind": {
+      "INDOOR": {
+        "activeRows": 2277,
+        "nonThousand": 11,
+        "examples": [
+          {
+            "state": "",
+            "set": "AP052CAPPBH1S",
+            "model": "AP052CNPPBH1",
+            "price": 1094500
+          },
+          {
+            "state": "판넬제외",
+            "set": "AP052CAPPBH1S",
+            "model": "AP052CNPPBH1",
+            "price": 1094500
+          },
+          {
+            "state": "블랙판넬",
+            "set": "AP052CAPPBH1S",
+            "model": "AP052CNPPBH1",
+            "price": 1094500
+          },
+          {
+            "state": "승강판넬",
+            "set": "AP052CAPPBH1S",
+            "model": "AP052CNPPBH1",
+            "price": 1094500
+          },
+          {
+            "state": "공청판넬",
+            "set": "AP052CAPPBH1S",
+            "model": "AP052CNPPBH1",
+            "price": 1094500
+          },
+          {
+            "state": "유선리모컨",
+            "set": "AP052CAPPBH1S",
+            "model": "AP052CNPPBH1",
+            "price": 1094500
+          },
+          {
+            "state": "컬러유선리모컨",
+            "set": "AP052CAPPBH1S",
+            "model": "AP052CNPPBH1",
+            "price": 1094500
+          },
+          {
+            "state": "자재포함",
+            "set": "AP052CAPPBH1S",
+            "model": "AP052CNPPBH1",
+            "price": 1094500
+          },
+          {
+            "state": "원형",
+            "set": "AP052CAPPBH1S",
+            "model": "AP052CNPPBH1",
+            "price": 1094500
+          },
+          {
+            "state": "사각",
+            "set": "AP052CAPPBH1S",
+            "model": "AP052CNPPBH1",
+            "price": 1094500
+          },
+          {
+            "state": "기본복귀",
+            "set": "AP052CAPPBH1S",
+            "model": "AP052CNPPBH1",
+            "price": 1094500
+          }
+        ]
+      },
+      "OUTDOOR": {
+        "activeRows": 2277,
+        "nonThousand": 0,
+        "examples": []
+      },
+      "PANEL": {
+        "activeRows": 580,
+        "nonThousand": 0,
+        "examples": []
+      },
+      "REMOTE": {
+        "activeRows": 1668,
+        "nonThousand": 0,
+        "examples": []
+      },
+      "MATERIAL": {
+        "activeRows": 190,
+        "nonThousand": 0,
+        "examples": []
+      },
+      "ACCESSORY": {
+        "activeRows": 495,
+        "nonThousand": 0,
+        "examples": []
+      }
+    }
+  }
+}

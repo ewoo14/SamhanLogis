@@ -1,0 +1,292 @@
+{
+  "auth": {
+    "authorized": true,
+    "rows": 851
+  },
+  "target": {
+    "id": "R5-TEMP-RESTORE-AC060CS6PBH1SY|15|0"
+  },
+  "wireless": {
+    "rows": [
+      {
+        "name": "└ [구성] 360 CST UV 실내기",
+        "model": "AC060CN6PBH1",
+        "price": "606,000",
+        "qty": "1"
+      },
+      {
+        "name": "└ [구성] 360 CST UV 실외기",
+        "model": "AC060CXAPBH1",
+        "price": "910,000",
+        "qty": "1"
+      },
+      {
+        "name": "└ [구성] 무선리모컨(냉난방전용)",
+        "model": "AR-EH05",
+        "price": "16,000",
+        "qty": "1"
+      },
+      {
+        "name": "└ [구성] 유선리모컨(통합)",
+        "model": "AWR-WE13N",
+        "price": "56,000",
+        "qty": ""
+      },
+      {
+        "name": "└ [구성] 유선리모컨(컬러)",
+        "model": "AWR-WG00N",
+        "price": "91,000",
+        "qty": ""
+      },
+      {
+        "name": "└ [구성] 판넬 (360CST 원형 공기청정)",
+        "model": "PC6EUCK1NW",
+        "price": "678,000",
+        "qty": ""
+      },
+      {
+        "name": "└ [구성] 판넬 (360CST 원형 승강)",
+        "model": "PC6EUXK1NW",
+        "price": "188,000",
+        "qty": ""
+      },
+      {
+        "name": "└ [구성] 판넬 (360CST 사각 블랙 WIFI)",
+        "model": "PC6NBDK1NW",
+        "price": "188,000",
+        "qty": ""
+      },
+      {
+        "name": "└ [구성] 판넬 (360CST 원형 블랙 WIFI)",
+        "model": "PC6NBNK1NW",
+        "price": "188,000",
+        "qty": ""
+      },
+      {
+        "name": "└ [구성] 판넬 360CST 사각 공기청정 WIFI",
+        "model": "PC6NUCK1NW",
+        "price": "678,000",
+        "qty": ""
+      },
+      {
+        "name": "└ [구성] 판넬 360CST 사각 WIFI",
+        "model": "PC6NUDK1NW",
+        "price": "128,000",
+        "qty": ""
+      },
+      {
+        "name": "└ [구성] 판넬 (360CST 원형 WIFI)",
+        "model": "PC6NUNK1NW",
+        "price": "128,000",
+        "qty": "1"
+      },
+      {
+        "name": "└ [구성] 판넬 (360CST 사각 승강)",
+        "model": "PC6NUXK1NW",
+        "price": "188,000",
+        "qty": ""
+      }
+    ],
+    "screenshot": "C:\\dev\\Samhan-Public\\.claude\\worktrees\\wsrd\\docs\\qa\\1269-sol-reverdict-2-remote-real-qa\\01-AC060-무선-세트상세.png",
+    "header": "1,660,000"
+  },
+  "wired": {
+    "rows": [
+      {
+        "name": "└ [구성] 360 CST UV 실내기",
+        "model": "AC060CN6PBH1",
+        "price": "606,000",
+        "qty": "1"
+      },
+      {
+        "name": "└ [구성] 360 CST UV 실외기",
+        "model": "AC060CXAPBH1",
+        "price": "910,000",
+        "qty": "1"
+      },
+      {
+        "name": "└ [구성] 무선리모컨(냉난방전용)",
+        "model": "AR-EH05",
+        "price": "16,000",
+        "qty": ""
+      },
+      {
+        "name": "└ [구성] 유선리모컨(통합)",
+        "model": "AWR-WE13N",
+        "price": "56,000",
+        "qty": "1"
+      },
+      {
+        "name": "└ [구성] 유선리모컨(컬러)",
+        "model": "AWR-WG00N",
+        "price": "91,000",
+        "qty": ""
+      },
+      {
+        "name": "└ [구성] 판넬 (360CST 원형 공기청정)",
+        "model": "PC6EUCK1NW",
+        "price": "678,000",
+        "qty": ""
+      },
+      {
+        "name": "└ [구성] 판넬 (360CST 원형 승강)",
+        "model": "PC6EUXK1NW",
+        "price": "188,000",
+        "qty": ""
+      },
+      {
+        "name": "└ [구성] 판넬 (360CST 사각 블랙 WIFI)",
+        "model": "PC6NBDK1NW",
+        "price": "188,000",
+        "qty": ""
+      },
+      {
+        "name": "└ [구성] 판넬 (360CST 원형 블랙 WIFI)",
+        "model": "PC6NBNK1NW",
+        "price": "188,000",
+        "qty": ""
+      },
+      {
+        "name": "└ [구성] 판넬 360CST 사각 공기청정 WIFI",
+        "model": "PC6NUCK1NW",
+        "price": "678,000",
+        "qty": ""
+      },
+      {
+        "name": "└ [구성] 판넬 360CST 사각 WIFI",
+        "model": "PC6NUDK1NW",
+        "price": "128,000",
+        "qty": ""
+      },
+      {
+        "name": "└ [구성] 판넬 (360CST 원형 WIFI)",
+        "model": "PC6NUNK1NW",
+        "price": "128,000",
+        "qty": "1"
+      },
+      {
+        "name": "└ [구성] 판넬 (360CST 사각 승강)",
+        "model": "PC6NUXK1NW",
+        "price": "188,000",
+        "qty": ""
+      }
+    ],
+    "screenshot": "C:\\dev\\Samhan-Public\\.claude\\worktrees\\wsrd\\docs\\qa\\1269-sol-reverdict-2-remote-real-qa\\02-AC060-유선-세트상세.png",
+    "header": "1,700,000"
+  },
+  "wirelessBack": {
+    "rows": [
+      {
+        "name": "└ [구성] 360 CST UV 실내기",
+        "model": "AC060CN6PBH1",
+        "price": "606,000",
+        "qty": "1"
+      },
+      {
+        "name": "└ [구성] 360 CST UV 실외기",
+        "model": "AC060CXAPBH1",
+        "price": "910,000",
+        "qty": "1"
+      },
+      {
+        "name": "└ [구성] 무선리모컨(냉난방전용)",
+        "model": "AR-EH05",
+        "price": "16,000",
+        "qty": "1"
+      },
+      {
+        "name": "└ [구성] 유선리모컨(통합)",
+        "model": "AWR-WE13N",
+        "price": "56,000",
+        "qty": ""
+      },
+      {
+        "name": "└ [구성] 유선리모컨(컬러)",
+        "model": "AWR-WG00N",
+        "price": "91,000",
+        "qty": ""
+      },
+      {
+        "name": "└ [구성] 판넬 (360CST 원형 공기청정)",
+        "model": "PC6EUCK1NW",
+        "price": "678,000",
+        "qty": ""
+      },
+      {
+        "name": "└ [구성] 판넬 (360CST 원형 승강)",
+        "model": "PC6EUXK1NW",
+        "price": "188,000",
+        "qty": ""
+      },
+      {
+        "name": "└ [구성] 판넬 (360CST 사각 블랙 WIFI)",
+        "model": "PC6NBDK1NW",
+        "price": "188,000",
+        "qty": ""
+      },
+      {
+        "name": "└ [구성] 판넬 (360CST 원형 블랙 WIFI)",
+        "model": "PC6NBNK1NW",
+        "price": "188,000",
+        "qty": ""
+      },
+      {
+        "name": "└ [구성] 판넬 360CST 사각 공기청정 WIFI",
+        "model": "PC6NUCK1NW",
+        "price": "678,000",
+        "qty": ""
+      },
+      {
+        "name": "└ [구성] 판넬 360CST 사각 WIFI",
+        "model": "PC6NUDK1NW",
+        "price": "128,000",
+        "qty": ""
+      },
+      {
+        "name": "└ [구성] 판넬 (360CST 원형 WIFI)",
+        "model": "PC6NUNK1NW",
+        "price": "128,000",
+        "qty": "1"
+      },
+      {
+        "name": "└ [구성] 판넬 (360CST 사각 승강)",
+        "model": "PC6NUXK1NW",
+        "price": "188,000",
+        "qty": ""
+      }
+    ],
+    "header": "1,660,000"
+  },
+  "sweep": {
+    "INDOOR": {
+      "rows": 271,
+      "deliveryPrices": 0,
+      "nonThousand": 0
+    },
+    "OUTDOOR": {
+      "rows": 271,
+      "deliveryPrices": 0,
+      "nonThousand": 0
+    },
+    "PANEL": {
+      "rows": 250,
+      "deliveryPrices": 250,
+      "nonThousand": 170
+    },
+    "REMOTE": {
+      "rows": 315,
+      "deliveryPrices": 315,
+      "nonThousand": 0
+    },
+    "MATERIAL": {
+      "rows": 273,
+      "deliveryPrices": 273,
+      "nonThousand": 0
+    },
+    "ACCESSORY": {
+      "rows": 67,
+      "deliveryPrices": 67,
+      "nonThousand": 0
+    }
+  }
+}

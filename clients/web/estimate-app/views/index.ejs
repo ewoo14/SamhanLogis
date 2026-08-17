@@ -4419,6 +4419,38 @@ function homeUnitPrice(model){
 }
 
 // 싱글 부자재 단가
+// 세트 상세의 구성품 단가 원천. PRICE_INC.single은 세트 옵션 계산용
+// 보정가이지 구성품 납품가가 아니므로, 상세·배분에서는 항상 이 값을 우선한다.
+const LEGACY_COMPONENT_DELIVERY = Object.freeze({
+  'AR-EH05': 16000,
+  'AWR-WE13N': 56000,
+  'AWR-WG00N': 91000,
+  'PC6NUNK1NW': 128000,
+  'PC6NUDK1NW': 128000,
+  'PC6NBNK1NW': 188000,
+  'PC6NBDK1NW': 188000,
+  'PC6EUCK1NW': 678000,
+  'PC6NUCK1NW': 678000,
+  'PC6EUXK1NW': 188000,
+  'PC6NUXK1NW': 188000,
+  'PC1NWSK3NW': 128000,
+  'PC1BWSK3NW': 128000,
+  'PC1BWCK3NW': 388000,
+  'PC1NWCK3NW': 343000,
+  'PC4NUFK1NW': 128000,
+  'PC4NBFK1NW': 188000,
+  'PC4NUXK1NW': 188000,
+  'PC4NUCK4NW': 678000
+});
+function componentDeliveryPrice_(p){
+  const legacy = typeof LEGACY_COMPONENT_DELIVERY !== 'undefined'
+    ? Number(LEGACY_COMPONENT_DELIVERY[String(p?.model || '').trim()] || 0) : 0;
+  if (legacy > 0) return legacy;
+  const configured = typeof PRICE_INC !== 'undefined' && PRICE_INC.single
+    ? Number(PRICE_INC.single?.[p?.model]?.price || 0) : 0;
+  if (configured > 0) return configured;
+  return priceFrom(p,{ priceKeys:['price','unitPrice'], listKeys:['list','출고가','listPrice','msrp'] });
+}
 function partUnitPrice(p){
   const rawName = String(p?.nameRaw || p?.name || '');
   if (!window.SHOW_I_HOSE && /유연호스\s*I형/i.test(rawName)) {
@@ -5117,19 +5149,43 @@ function setPreviewFoot(sum){
 function materialsSumForSet(s){
   const includeMat=(el('#ss_mat')?.value||SINGLE_DEFAULTS['자재 포함 여부'])==='포함';
   if(!includeMat) return 0;
-  return partsForSetStrict_(s).reduce((t,p)=>t+(/자재/.test(p?.feat||'')?partUnitPrice(p):0),0);
+  return partsForSetStrict_(s).reduce((t,p)=>t+(/자재/.test(String(p?.component_variant ?? p?.componentVariant ?? p?.feat ?? '').trim())?componentDeliveryPrice_(p):0),0);
+}
+function componentVariant_(p){
+  return String(p?.component_variant ?? p?.componentVariant ?? p?.feat ?? '').trim();
+}
+function configuredSingleOptionDelta_(option, fallback){
+  const configured = typeof SINGLE_MAT !== 'undefined' ? Number(SINGLE_MAT?.[option]) : 0;
+  return configured > 0 ? configured : fallback;
 }
 function isDefaultComponent_(p){
   if (typeof p?.isDefault === 'boolean') return p.isDefault === true;
-  return /기본/i.test(p?.feat||'');
+  return /기본/i.test(String(p?.component_variant ?? p?.componentVariant ?? p?.feat ?? '').trim());
 }
 function getDefaultRemoteRows(s){return partsForSetStrict_(s).filter(p=>(/리모컨/.test(p?.kind||'')||/리모컨/.test(p?.name||''))&&isDefaultComponent_(p));}
 function getOptionRemoteRow(s,opt){
   if(!opt) return null;const linked=partsForSetStrict_(s).filter(p=>/리모컨/.test((p?.kind||'')+(p?.name||'')));
   const pick=ok=>linked.find(ok)||null;
-  if(opt==='유선리모컨') return pick(p=>/유선리모컨/i.test(p?.feat||'')&&!/컬러/i.test(p?.feat||''));
-  if(opt==='컬러유선리모컨') return pick(p=>/컬러유선리모컨|유선컬러/i.test((p?.feat||'')+' '+(p?.name||'')));
+  const variantOf=p=>String(p?.component_variant ?? p?.componentVariant ?? p?.feat ?? '').trim();
+  // component_variant(feat)가 리모컨 축의 정본이다. 표시명(유선리모컨)은
+  // variant와 다르므로 정본을 먼저 보고, 레거시 표시 문자열은 호환 fallback으로만 본다.
+  if(opt==='유선리모컨') return pick(p=>variantOf(p)==='유선')
+    || pick(p=>/유선리모컨/i.test(variantOf(p))&&!/컬러/i.test(variantOf(p)));
+  if(opt==='컬러유선리모컨') return pick(p=>variantOf(p)==='컬러유선')
+    || pick(p=>/컬러유선리모컨|유선컬러/i.test(variantOf(p)+' '+(p?.name||'')));
   return null;
+}
+function resolveSingleRemoteRows_(s, opt, excluded){
+  if (excluded) return [];
+  const linked = partsForSetStrict_(s).filter(p => /리모컨/.test(String(p?.kind || '') + String(p?.name || '')));
+  const isDefault = p => typeof p?.isDefault === 'boolean'
+    ? p.isDefault
+    : /기본/i.test(String(p?.component_variant ?? p?.componentVariant ?? p?.feat ?? '').trim());
+  if (!opt) return linked.filter(isDefault);
+  const variant = opt === '유선리모컨' ? '유선' : opt === '컬러유선리모컨' ? '컬러유선' : '';
+  if (!variant) return linked.filter(isDefault);
+  const selected = linked.filter(p => String(p?.component_variant ?? p?.componentVariant ?? p?.feat ?? '').trim() === variant);
+  return selected.length ? selected : linked.filter(isDefault);
 }
 function allowRemoteChange_(s){
   const rows=getDefaultRemoteRows(s);
@@ -5147,9 +5203,9 @@ function pickPanelRow(s){
   const panelOpt=el('#ss_panel')?.value||'',shapeOpt=el('#ss_p360')?.value||'원형';
   const base=panels.find(isDefaultComponent_)||null;
   if(panelOpt==='판넬제외') return null;
-  const T=p=>`${p?.name||''} ${p?.feat||''} ${p?.spec||''} ${p?.model||''}`;
+  const T=p=>`${p?.name||''} ${String(p?.component_variant ?? p?.componentVariant ?? p?.feat ?? '').trim()} ${p?.spec||''} ${p?.model||''}`;
   const is360=panels.some(p=>/360\s*-?\s*CST|CST\s*-?\s*360|360CST/i.test(T(p)));
-  if(panelOpt===''&&is360){const want=(shapeOpt==='사각')?'사각':'원형';const exact=panels.find(p=>String(p?.feat||'').trim()===want);if(exact) return exact;}
+  if(panelOpt===''&&is360){const want=(shapeOpt==='사각')?'사각':'원형';const exact=panels.find(p=>String(p?.component_variant ?? p?.componentVariant ?? p?.feat ?? '').trim()===want);if(exact) return exact;}
   const matchShape=p=>{if(!is360) return true;const t=T(p);return (shapeOpt==='사각')?/(사각|square)/i.test(t):/(원형|round)/i.test(t);};
   if(panelOpt==='블랙판넬') return panels.find(p=>/블랙/i.test(T(p))&&matchShape(p))||panels.find(matchShape)||base;
   if(panelOpt==='승강판넬') return panels.find(p=>/(자동승강|승강)/i.test(T(p))&&matchShape(p))||panels.find(matchShape)||base;
@@ -5170,6 +5226,10 @@ function setBasePriceRightFirst(s){
 
 function calcSetUnitPrice(s){
   if(!s) return 0;
+  const configuredDelta=(option,fallback)=>{
+    const configured = typeof SINGLE_MAT !== 'undefined' ? Number(SINGLE_MAT?.[option]) : 0;
+    return configured > 0 ? configured : fallback;
+  };
   const raw = String(s?.nameRaw || s?.name || '');
   const norm = raw.replace(/\s+/g,'');
 
@@ -5187,10 +5247,13 @@ function calcSetUnitPrice(s){
 
   let panelDelta=0;
   if(basePanel){
-    const baseP=partUnitPrice(basePanel);
+    const baseP=componentDeliveryPrice_(basePanel);
     if(panelExcluded) panelDelta-=baseP;
     else if(chosenPanel && chosenPanel.model!==basePanel.model){
-      panelDelta += (partUnitPrice(chosenPanel)-baseP);
+      const fallback = componentDeliveryPrice_(chosenPanel)-baseP;
+      // 레거시는 판넬 납품가 차액 전액을 세트가에 반영한다.
+      // SINGLE_MAT은 리모컨 등 별도 옵션값 축에만 적용하고 판넬 정본을 덮어쓰지 않는다.
+      panelDelta += fallback;
     }
   }
 
@@ -5198,16 +5261,16 @@ function calcSetUnitPrice(s){
   let remoteDelta=0;
   const remoteExcluded = !!el('#ss_remote_ex')?.checked;
   const remoteOpt = el('#ss_remote')?.value||'';
-  const baseRemoteSum = baseRemoteRows.reduce((t,p)=>t+partUnitPrice(p),0);
+  const baseRemoteSum = baseRemoteRows.reduce((t,p)=>t+componentDeliveryPrice_(p),0);
 
   if(remoteExcluded){
     remoteDelta -= baseRemoteSum;
   } else if(remoteOpt && allowRemoteChange_(s)){
     const cand = getOptionRemoteRow(s,remoteOpt);
     if(cand){
-      const replace = baseRemoteRows.find(p=>/유선/i.test((p?.feat||'')+' '+(p?.name||''))) || baseRemoteRows[0];
-      if(replace) remoteDelta += (partUnitPrice(cand)-partUnitPrice(replace));
-      else remoteDelta += partUnitPrice(cand);
+      const replace = baseRemoteRows.find(p=>String(p?.component_variant ?? p?.componentVariant ?? p?.feat ?? '').trim()==='기본') || baseRemoteRows[0];
+      const fallback = replace ? componentDeliveryPrice_(cand)-componentDeliveryPrice_(replace) : componentDeliveryPrice_(cand);
+      remoteDelta += configuredDelta(remoteOpt, fallback);
     }
   }
 
@@ -5244,21 +5307,10 @@ function explodeSetParts(s, qty, setUnitOverride){
   const remoteExcluded = !!el('#ss_remote_ex')?.checked;
   const remoteOpt = el('#ss_remote')?.value || '';
 
-  const remoteModels = new Set();
-  if (!remoteExcluded){
-    if (remoteOpt && allowRemoteChange_(s)){
-      const cand = getOptionRemoteRow(s, remoteOpt);
-      if (cand){
-        const replace = baseRemoteRows.find(p => /유선/i.test((p?.feat||'') + ' ' + (p?.name||''))) || baseRemoteRows[0];
-        baseRemoteRows.forEach(p => { if (!replace || p.model !== replace.model) remoteModels.add(p.model); });
-        remoteModels.add(cand.model);
-      }else{
-        baseRemoteRows.forEach(p => remoteModels.add(p.model));
-      }
-    }else{
-      baseRemoteRows.forEach(p => remoteModels.add(p.model));
-    }
-  }
+  const remoteModels = new Set(
+    resolveSingleRemoteRows_(s, remoteOpt && allowRemoteChange_(s) ? remoteOpt : '', remoteExcluded)
+      .map(p => p.model)
+  );
 
   // 포함대상확정
   const picked = parts.filter(p => {
@@ -5282,7 +5334,7 @@ function explodeSetParts(s, qty, setUnitOverride){
     model: p.model,
     unit: p.unit || 'EA',
     qty: qty,
-    price: partUnitPrice(p),
+    price: componentDeliveryPrice_(p),
     kind: p.kind || '',
     spec: p.spec || '',
     specs: Array.isArray(p.specs) ? p.specs : []
@@ -5317,7 +5369,7 @@ function explodeSetParts(s, qty, setUnitOverride){
     Math.round(Number(setBasePriceRightFirst(s)));
 
   // 고정합계계산
-  const fixedSum = fixedParts.reduce((t, x) => t + (Math.round(Number(x.price)||0)), 0);
+  const fixedSum = fixedParts.reduce((t, x) => t + componentDeliveryPrice_(x), 0);
 
   // 배분적용
   if (indoorParts.length && outdoorParts.length){
@@ -6171,7 +6223,7 @@ function renderSingleSetParts(s, setQty) {
   allParts.slice().reverse().forEach(p => {
     const pKey = (p.model || p.name || '').trim();
     const activeMatch = activeParts.find(ap => (ap.model || ap.name || '').trim() === pKey);
-    const unit = activeMatch ? activeMatch.price : (partUnitPrice(p) || p.price || 0);
+    const unit = activeMatch ? activeMatch.price : (componentDeliveryPrice_(p) || p.price || 0);
     const defQ = parseInt(p.defaultQty || p.qty || 1, 10);
     const effQ = activeMatch ? (parseInt(setQty, 10) || 0) * (parseInt(activeMatch.qty, 10) || defQ) : 0;
 
