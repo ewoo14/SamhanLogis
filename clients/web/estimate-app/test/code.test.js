@@ -187,6 +187,20 @@ function runCardFeeCase(loadFn, rows, checked = true) {
 }
 
 describe('순수 유틸 (Apps Script 호환)', () => {
+  test('싱글 리모컨 옵션은 기본 무선 행을 제거하고 유선 행만 활성화한다', () => {
+    const context = loadCurrentEstimateViewFunction('resolveSingleRemoteRows_', {
+      partsForSetStrict_: () => [
+        { model: 'AR-EH05', kind: '리모컨', name: '무선리모컨', component_variant: '기본', isDefault: true },
+        { model: 'AWR-WE13N', kind: '리모컨', name: '유선리모컨(통합)', component_variant: '유선', isDefault: false },
+      ],
+    });
+
+    expect(context.resolveSingleRemoteRows_({ model: 'AC060CS6PBH1SY' }, '유선리모컨', false)
+      .map((row) => row.model)).toEqual(['AWR-WE13N']);
+    expect(context.resolveSingleRemoteRows_({ model: 'AC060CS6PBH1SY' }, '', false)
+      .map((row) => row.model)).toEqual(['AR-EH05']);
+  });
+
   test('싱글 구성품 납품가는 옵션 계산가가 아니라 유선 56000원·무선 16000원 원천을 반환한다', () => {
     const context = loadCurrentEstimateViewFunction('componentDeliveryPrice_', {
       PRICE_INC: { single: {

@@ -5167,6 +5167,17 @@ function getOptionRemoteRow(s,opt){
     || pick(p=>/컬러유선리모컨|유선컬러/i.test(variantOf(p)+' '+(p?.name||'')));
   return null;
 }
+function resolveSingleRemoteRows_(s, opt, excluded){
+  if (excluded) return [];
+  const linked = partsForSetStrict_(s).filter(p => /리모컨/.test(String(p?.kind || '') + String(p?.name || '')));
+  const isDefault = p => typeof p?.isDefault === 'boolean'
+    ? p.isDefault
+    : /기본/i.test(String(p?.component_variant ?? p?.componentVariant ?? p?.feat ?? '').trim());
+  if (!opt) return linked.filter(isDefault);
+  const variant = opt === '유선리모컨' ? '유선' : opt === '컬러유선리모컨' ? '컬러유선' : '';
+  if (!variant) return linked.filter(isDefault);
+  return linked.filter(p => String(p?.component_variant ?? p?.componentVariant ?? p?.feat ?? '').trim() === variant);
+}
 function allowRemoteChange_(s){
   const rows=getDefaultRemoteRows(s);
   return rows.some(row=>/^(AR-?EH05|AR-?EC05|AR-?KH05)$/i.test(String(row.model||'').trim()));
@@ -5285,21 +5296,10 @@ function explodeSetParts(s, qty, setUnitOverride){
   const remoteExcluded = !!el('#ss_remote_ex')?.checked;
   const remoteOpt = el('#ss_remote')?.value || '';
 
-  const remoteModels = new Set();
-  if (!remoteExcluded){
-    if (remoteOpt && allowRemoteChange_(s)){
-      const cand = getOptionRemoteRow(s, remoteOpt);
-      if (cand){
-        const replace = baseRemoteRows.find(p => /유선/i.test((p?.feat||'') + ' ' + (p?.name||''))) || baseRemoteRows[0];
-        baseRemoteRows.forEach(p => { if (!replace || p.model !== replace.model) remoteModels.add(p.model); });
-        remoteModels.add(cand.model);
-      }else{
-        baseRemoteRows.forEach(p => remoteModels.add(p.model));
-      }
-    }else{
-      baseRemoteRows.forEach(p => remoteModels.add(p.model));
-    }
-  }
+  const remoteModels = new Set(
+    resolveSingleRemoteRows_(s, remoteOpt && allowRemoteChange_(s) ? remoteOpt : '', remoteExcluded)
+      .map(p => p.model)
+  );
 
   // 포함대상확정
   const picked = parts.filter(p => {
