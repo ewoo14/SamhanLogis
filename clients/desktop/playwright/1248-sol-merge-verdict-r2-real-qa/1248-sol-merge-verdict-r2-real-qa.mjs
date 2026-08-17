@@ -8,7 +8,7 @@ import { resolveQaShotsDir } from '../../../../scripts/lib/qa-shots-dir.mjs'
 const here = path.dirname(fileURLToPath(import.meta.url))
 const repo = path.resolve(here, '../../../..')
 const artifactDir = resolveQaShotsDir(path.join(repo, 'docs', 'qa', '1248-sol-merge-verdict-r2'))
-const shotsDir = path.join(artifactDir, 'screenshots')
+const shotsDir = resolveQaShotsDir(path.join(artifactDir, 'screenshots'))
 mkdirSync(shotsDir, { recursive: true })
 
 const isolatedGateway = 'http://127.0.0.1:28648'
