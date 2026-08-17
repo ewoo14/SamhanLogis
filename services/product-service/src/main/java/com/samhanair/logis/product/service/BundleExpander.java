@@ -363,19 +363,16 @@ public class BundleExpander {
         }
         BigDecimal fixedSum = reserved.stream().map(p -> p.fixedAllocationAmount != null
                 ? p.fixedAllocationAmount : p.price).map(BundleExpander::round).reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal remain = round(setUnit).subtract(fixedSum).max(BigDecimal.ZERO);
         int inWeight = indoor.stream().mapToInt(p -> p.allocationWeight == null ? 0 : p.allocationWeight).sum();
         int outWeight = outdoor.stream().mapToInt(p -> p.allocationWeight == null ? 0 : p.allocationWeight).sum();
         if (inWeight + outWeight <= 0) {
             redistributeLegacy(picked, parent, setUnit, explicitUnitOverride);
             return;
         }
+        Split split = splitIndoorOutdoorToK(setUnit, fixedSum, inWeight, outWeight);
         BigDecimal roundUnit = nz(parent.getAllocationRoundUnit());
-        BigDecimal indoorTotal = roundToUnit(remain.multiply(BigDecimal.valueOf(inWeight))
-                .divide(BigDecimal.valueOf(inWeight + outWeight), 2, RoundingMode.HALF_UP), roundUnit);
-        assignWeighted(indoor, indoorTotal, roundUnit);
-        assignWeighted(outdoor, remain.subtract(indoor.stream().map(p -> p.price)
-                .reduce(BigDecimal.ZERO, BigDecimal::add)), roundUnit);
+        assignWeighted(indoor, split.indoor, roundUnit);
+        assignWeighted(outdoor, split.outdoor, roundUnit);
         for (Part p : reserved) p.price = p.fixedAllocationAmount != null ? p.fixedAllocationAmount : p.price;
     }
 

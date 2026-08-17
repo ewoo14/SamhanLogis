@@ -40,6 +40,22 @@ public class SlipDiscountCalculator {
                 .toList(), info);
     }
 
+    /** 서버 DC 계산 결과와 클라이언트 제출 단가를 비교한다. */
+    public void verifyClientPrices(String partnerCode, List<Line> lines,
+                                   Map<String, BigDecimal> clientPrices) {
+        DiscountPriceClient.CalculationResult result = client.calculateDetailed(partnerCode, lines);
+        if (!result.available()) {
+            throw new IllegalStateException("DC 서버 계산 결과를 확인할 수 없습니다.");
+        }
+        for (Line line : lines) {
+            BigDecimal serverPrice = result.prices().get(line.lineId());
+            BigDecimal clientPrice = clientPrices == null ? null : clientPrices.get(line.lineId());
+            if (serverPrice == null || clientPrice == null || serverPrice.compareTo(clientPrice) != 0) {
+                throw new IllegalArgumentException("서버 DC 단가와 클라이언트 단가가 다릅니다: " + line.lineId());
+            }
+        }
+    }
+
     public record Line(String lineId, String category, BigDecimal listPrice,
                        BigDecimal fixedDiscountRate, int quantity) {
         public boolean hasVariableDiscount() {

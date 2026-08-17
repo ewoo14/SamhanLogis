@@ -19,17 +19,23 @@ async function login(page: Page): Promise<void> {
   if (!response.ok()) {
     throw new Error(`로그인 실패: HTTP ${response.status()} 본문: ${await response.text()}`)
   }
-  const cookieHeader = response.headers()['set-cookie'] ?? ''
-  const token = cookieHeader.match(/(?:^|;\s*)access_token=([^;]+)/)?.[1]
-  if (!token) throw new Error(`로그인 응답에 access_token 쿠키가 없습니다. 본문: ${await response.text()}`)
-  await page.context().addCookies([{
-    name: 'access_token',
-    value: token,
-    domain: '127.0.0.1',
-    path: '/',
-    httpOnly: true,
-    sameSite: 'Lax',
-  }])
+  const body = await response.json()
+  const session = body?.data
+  if (!session?.token) throw new Error(`로그인 응답에 data.token이 없습니다. 본문: ${JSON.stringify(body)}`)
+  await page.addInitScript((snapshot) => {
+    Object.defineProperty(window, 'samhanAuth', { configurable: true, value: {
+      getToken: async () => snapshot,
+      setToken: async () => undefined,
+      clearToken: async () => undefined,
+    } })
+  }, {
+    token: session.token,
+    userId: session.userId,
+    role: session.role,
+    fullName: session.displayName,
+    partnerCode: session.partnerCode ?? null,
+    groups: session.groups ?? [],
+  })
 }
 
 test('견적품목 구성품 고정금액·반올림 단위 저장 후 재조회하고 원복한다', async ({ page }) => {

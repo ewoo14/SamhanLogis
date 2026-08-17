@@ -628,6 +628,30 @@ class BundleExpanderIT extends AbstractPostgresIT {
     }
 
     // ── helpers ─────────────────────────────────────────────
+    @Test
+    void RED_contract_rounding_matches_legacy_thousand_won_split() {
+        Category cat = categoryRepository.save(Category.create("DATA-ROUNDING-RED", "test", null, 131));
+        Product parent = bundleSet("DATA_ROUNDING_RED", "bundle", cat, new BigDecimal("999999"));
+        product("ROUND_IN", "indoor", cat, ProductCategory.SINGLE_PART, new BigDecimal("800000"));
+        product("ROUND_OUT", "outdoor", cat, ProductCategory.SINGLE_PART, new BigDecimal("200000"));
+
+        BundleComponent indoor = BundleComponent.seed(parent.getId(), "ROUND_IN", BigDecimal.ONE,
+                BundleComponent.QtyMode.FOLLOW_SET, BundleComponent.ComponentKind.INDOOR, null, true, null);
+        indoor.changeAllocation(BundleComponent.AllocationMode.AUTO, 6, null);
+        BundleComponent outdoor = BundleComponent.seed(parent.getId(), "ROUND_OUT", BigDecimal.ONE,
+                BundleComponent.QtyMode.FOLLOW_SET, BundleComponent.ComponentKind.OUTDOOR, null, true, null);
+        outdoor.changeAllocation(BundleComponent.AllocationMode.AUTO, 4, null);
+        componentRepository.saveAll(List.of(indoor, outdoor));
+        flush();
+
+        var lines = expander.expand("DATA_ROUNDING_RED", BigDecimal.ONE);
+
+        assertThat(unit(lines, "ROUND_IN")).isEqualByComparingTo("599001");
+        assertThat(unit(lines, "ROUND_OUT")).isEqualByComparingTo("400998");
+        assertThat(unit(lines, "ROUND_IN").add(unit(lines, "ROUND_OUT")))
+                .isEqualByComparingTo("999999");
+    }
+
     private Product bundleSet(String code, String name, Category cat, BigDecimal price) {
         Product p = Product.seedFromSheet(name, code, cat, price, price,
                 ProductType.BUNDLE, ProductCategory.SINGLE_SET, UsageScope.BOTH, EstimateCategory.SINGLE_SET);
