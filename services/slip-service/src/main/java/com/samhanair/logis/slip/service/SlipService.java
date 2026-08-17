@@ -331,8 +331,11 @@ public class SlipService {
                     String lineId = summary != null && summary.productCode() != null
                             ? summary.productCode()
                             : line.productId().toString();
-                    BigDecimal listPrice = summary != null && summary.sellingPrice() != null
-                            ? summary.sellingPrice() : line.unitPrice();
+                    // VAT 포함 입력은 화면이 제출한 총액을 먼저 공급가/부가세로 분리해야
+                    // 하므로 카탈로그 정가로 치환하지 않는다.
+                    BigDecimal listPrice = Boolean.TRUE.equals(line.priceVatInclusive())
+                            || summary == null || summary.sellingPrice() == null
+                            ? line.unitPrice() : summary.sellingPrice();
                     return new SlipDiscountCalculator.Line(lineId,
                             summary == null ? null : summary.categoryKey(), listPrice,
                             summary == null ? null : summary.fixedDiscountRate(), line.quantity());
@@ -344,7 +347,12 @@ public class SlipService {
         }
         if (req.slipType() == SlipType.OUTBOUND && resolvedPartnerCode != null
                 && !resolvedPartnerCode.isBlank()) {
-            slipDiscountCalculator.verifyClientPrices(resolvedPartnerCode, discountLines, clientPrices);
+            try {
+                slipDiscountCalculator.verifyClientPrices(resolvedPartnerCode, discountLines, clientPrices);
+            } catch (IllegalStateException unavailable) {
+                // 외부 DC 계산 불가 시에는 DiscountPriceClient의 기존 입력 단가 fallback을 사용한다.
+                // 서버 계산이 가능했는데 단가가 다르면 IllegalArgumentException이므로 계속 전파한다.
+            }
         }
         SlipDiscountCalculator.Calculation discountCalculation = req.slipType() == SlipType.OUTBOUND
                 && resolvedPartnerCode != null && !resolvedPartnerCode.isBlank()

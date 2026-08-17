@@ -3,8 +3,10 @@ package com.samhanair.logis.slip.service;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import org.springframework.stereotype.Component;
 
 /** 전표 라인별 DC 단가를 계산하고, 계산 누락 라인은 입력 정가를 보존한다. */
+@Component
 public class SlipDiscountCalculator {
     private final DiscountPriceClient client;
 
