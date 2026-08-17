@@ -60,8 +60,9 @@ public class SlipQueryController {
     @RequirePermission(page = "accounting.daily-closing", action = PermissionAction.VIEW)
     @GetMapping("/daily-closing")
     public ApiResponse<List<DailyClosingRowResponse>> dailyClosing(
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate slipDate) {
-        return ApiResponse.ok(dailyClosingQueryService.findRows(slipDate));
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate slipDate,
+            @RequestParam(defaultValue = "OUTBOUND") SlipType slipType) {
+        return ApiResponse.ok(dailyClosingQueryService.findRows(slipDate, slipType));
     }
 
     /** 확정 입출고를 모델코드별로 집계한다. 매입 기록이 없으면 이익률은 null이다. */

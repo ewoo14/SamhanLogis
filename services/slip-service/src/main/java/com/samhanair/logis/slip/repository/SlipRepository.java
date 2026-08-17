@@ -249,6 +249,21 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
     @org.springframework.data.jpa.repository.Query("""
             SELECT DISTINCT s FROM Slip s
             WHERE s.isDeleted = false
+              AND s.slipType = :slipType
+              AND s.slipDate = :slipDate
+              AND s.status IN :statuses
+            ORDER BY s.seqNo ASC
+            """)
+    List<Slip> findDailyClosingSlips(
+            @org.springframework.data.repository.query.Param("slipDate") LocalDate slipDate,
+            @org.springframework.data.repository.query.Param("slipType") SlipType slipType,
+            @org.springframework.data.repository.query.Param("statuses") Collection<SlipStatus> statuses);
+
+    /** 기존 outbound 전용 호출자 호환용. */
+    @EntityGraph(attributePaths = "lines")
+    @org.springframework.data.jpa.repository.Query("""
+            SELECT DISTINCT s FROM Slip s
+            WHERE s.isDeleted = false
               AND s.slipType = com.samhanair.logis.slip.domain.SlipType.OUTBOUND
               AND s.slipDate = :slipDate
               AND s.status IN :statuses

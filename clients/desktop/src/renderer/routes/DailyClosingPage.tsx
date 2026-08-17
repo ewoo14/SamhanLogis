@@ -37,6 +37,9 @@ import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { today } from '../utils/dateUtils'
 import { fmtKrw } from '../utils/currencyUtils'
+import { buildDailyClosingAccountingSlipRequest } from './dailyClosingAccountingSlip'
+import { createSalesSlipDraft } from '../api/salesAccountingSlipApi'
+import { createPurchaseSlipDraft } from '../api/purchaseAccountingSlipApi'
 
 type ClosingKindFilter = 'ALL' | DailyClosingKind
 
@@ -631,23 +634,28 @@ function LegacyAmountEditor({
 function EditableLegacyDailyClosingTable({
   slipDate,
   tab,
+  closingKind,
   active,
   registerSave,
+  onAccountingSlipResult,
 }: {
   slipDate: string
   tab: 'RESULT' | 'PRE_ISSUED'
+  closingKind: ClosingKindFilter
   active: boolean
   registerSave: (save: (() => void) | null, dirtyCount: number) => void
+  onAccountingSlipResult?: (message: string, error?: boolean) => void
 }) {
   const [expanded, setExpanded] = useState<string | null>(null)
   const [drafts, setDrafts] = useState<Record<string, CalculatedAmountValues>>({})
   const [committedValues, setCommittedValues] = useState<Record<string, CalculatedAmountValues>>({})
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({})
+  const [accountingPending, setAccountingPending] = useState<string | null>(null)
   const saveRef = useRef<() => void>(() => undefined)
   const previousSlipDate = useRef(slipDate)
   const query = useQuery({
-    queryKey: ['daily-closing-source-rows', slipDate],
-    queryFn: () => getDailyClosingRows(slipDate),
+    queryKey: ['daily-closing-source-rows', slipDate, closingKind],
+    queryFn: () => getDailyClosingRows(slipDate, closingKind === 'PURCHASE' ? 'INBOUND' : 'OUTBOUND'),
   })
   const rows = (Array.isArray(query.data) ? query.data : []).filter((row) => !dailyClosingIsDeleted(row))
   const [viewStates, setViewStates] = useState<Record<'RESULT' | 'PRE_ISSUED', DailyClosingViewState>>({
@@ -960,8 +968,46 @@ function EditableLegacyDailyClosingTable({
     summaryRows: DailyClosingSourceRow[],
     summaryStyle: CSSProperties,
     summaryNumStyle: CSSProperties,
+    allowAccounting = false,
   ) => {
     const summary = amountSummary(summaryRows)
+    const source = summaryRows[0]
+    const sourceReady = source && summaryRows.every((row) => row.slipId && row.lineId && row.slipNo
+      && row.partnerId && row.productCode && row.sourceLineNo
+      && row.taxType && row.quantity > 0 && Number(row.unitPriceWithVat) > 0)
+    const accountingKey = source ? `${source.slipDate}-${source.seqNo}` : ''
+    const createAccounting = async () => {
+      if (!source || !sourceReady || accountingPending) return
+      setAccountingPending(accountingKey)
+      try {
+        const request = buildDailyClosingAccountingSlipRequest(summaryRows.map((row) => ({
+          sourceKind: tab === 'RESULT' ? 'SALES_SLIP' : 'PURCHASE_SLIP',
+          slipDate: row.slipDate,
+          slipId: row.slipId!,
+          slipNo: row.slipNo!,
+          lineId: row.lineId!,
+          sourceLineNo: row.sourceLineNo!,
+          partnerId: row.partnerId!,
+          partnerCode: row.partnerCode,
+          partnerName: row.partnerName,
+          productCode: row.productCode!,
+          productName: row.productName,
+          quantity: row.quantity,
+          unitPriceWithVat: row.unitPriceWithVat ?? 0,
+          taxType: row.taxType!,
+          accountingPostedAt: row.accountingPostedAt,
+        })))
+        const response = request.kind === 'SALES'
+          ? await createSalesSlipDraft(request.body)
+          : await createPurchaseSlipDraft(request.body)
+        onAccountingSlipResult?.(`${response.slipNo} 회계전표 생성 성공`)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : '회계전표 생성 실패'
+        onAccountingSlipResult?.(message, true)
+      } finally {
+        setAccountingPending(null)
+      }
+    }
     return <tr data-testid={testId} style={{ backgroundColor: summaryStyle.backgroundColor }}>
       <th colSpan={5} style={{ ...summaryStyle, textAlign: 'center', verticalAlign: 'middle' }}>{label}</th>
       <th style={summaryNumStyle}>{formatLegacyNumber(summary.quantity)}</th>
@@ -973,7 +1019,21 @@ function EditableLegacyDailyClosingTable({
       <th style={summaryNumStyle}>{formatLegacyNumber(summary.price)}</th>
       <th style={summaryNumStyle}>{formatLegacyNumber(summary.rate)}</th>
       <th style={summaryNumStyle}>{formatLegacyNumber(summary.grand)}</th>
-      <th style={summaryStyle} />
+      <th style={{ ...summaryStyle, whiteSpace: 'nowrap' }}>
+        {allowAccounting && source ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            data-testid={`daily-closing-accounting-create-${source.seqNo}`}
+            disabled={!sourceReady || Boolean(source.accountingPostedAt) || accountingPending !== null}
+            title={!sourceReady ? '회계전표 생성에 필요한 원본값이 없습니다.' : undefined}
+            onClick={() => void createAccounting()}
+          >
+            {source.accountingPostedAt ? '이미 생성됨' : accountingPending === accountingKey ? '생성 중' : '회계전표 생성'}
+          </Button>
+        ) : null}
+      </th>
       <th style={summaryStyle} />
     </tr>
   }
@@ -1114,6 +1174,7 @@ function EditableLegacyDailyClosingTable({
                     visible.slice(groupStart, index + 1),
                     subtotalCell,
                     subtotalNum,
+                    true,
                   ) : null}
                 </Fragment>
               })}
@@ -1146,6 +1207,7 @@ export function DailyClosingPage() {
   const [showExecutionPanel, setShowExecutionPanel] = useState(false)
   const [saveAllAction, setSaveAllAction] = useState<(() => void) | null>(null)
   const [unsavedAmountCount, setUnsavedAmountCount] = useState(0)
+  const [accountingSlipResult, setAccountingSlipResult] = useState<{ message: string; error: boolean } | null>(null)
   const [partnerCode, setPartnerCode] = useState('')
   const [closingKind, setClosingKind] = useState<ClosingKindFilter>('SALES')
   const [sourceKind, setSourceKind] = useState<DailyClosingSourceKind>('TAX_INVOICE')
@@ -1945,9 +2007,20 @@ export function DailyClosingPage() {
       <EditableLegacyDailyClosingTable
         slipDate={filterDate}
         tab={visibleSourceTab}
+        closingKind={closingKind}
         active={viewTab === 'RESULT' || viewTab === 'PRE_ISSUED'}
         registerSave={registerAmountSave}
+        onAccountingSlipResult={(message, error = false) => setAccountingSlipResult({ message, error })}
       />
+      {accountingSlipResult ? (
+        <div
+          role={accountingSlipResult.error ? 'alert' : 'status'}
+          data-testid="daily-closing-accounting-result"
+          style={{ marginBottom: 12, color: accountingSlipResult.error ? 'var(--color-danger-700)' : 'var(--color-success-700)' }}
+        >
+          {accountingSlipResult.message}
+        </div>
+      ) : null}
 
       {viewTab === 'HISTORY' ? <Card style={{ marginBottom: 16 }}>
         <h3 style={{ margin: '0 0 12px' }}>마감 이력</h3>

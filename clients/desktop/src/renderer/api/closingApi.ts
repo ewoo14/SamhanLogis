@@ -36,6 +36,11 @@ export interface DailyClosingSourceRow {
   total: string | number | null
   partnerName: string
   partnerCode: string
+  partnerId?: string | null
+  slipNo?: string | null
+  productCode?: string | null
+  sourceLineNo?: number | null
+  taxType?: 'TAXABLE' | 'ZERO_RATED' | 'EXEMPT' | null
   productPrice: string | number | null
   discountRate: string | number | null
   grandTotal: string | number | null
@@ -58,10 +63,13 @@ export interface DailyClosingSourceRow {
 }
 
 /** 출고일 기준으로 레거시 일마감 원본행을 조회한다. */
-export async function getDailyClosingRows(slipDate: string): Promise<DailyClosingSourceRow[]> {
+export async function getDailyClosingRows(
+  slipDate: string,
+  slipType: 'OUTBOUND' | 'INBOUND' = 'OUTBOUND',
+): Promise<DailyClosingSourceRow[]> {
   const res = await apiClient.get<ApiEnvelope<DailyClosingSourceRow[]>>(
     '/slips/query/daily-closing',
-    { params: { slipDate } },
+    { params: { slipDate, slipType } },
   )
   return res.data.data
 }
