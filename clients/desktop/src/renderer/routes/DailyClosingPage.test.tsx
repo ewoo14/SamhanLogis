@@ -22,6 +22,22 @@ vi.mock('../api/closingApi', async (importOriginal) => {
   }
 })
 
+const createSalesSlipDraftMock = vi.fn()
+const createPurchaseSlipDraftMock = vi.fn()
+const listAccountingSlipLinkEligibilityMock = vi.fn()
+vi.mock('../api/salesAccountingSlipApi', async (importOriginal) => {
+  const actual = await importOriginal()
+  return { ...actual, createSalesSlipDraft: (...args: unknown[]) => createSalesSlipDraftMock(...args) }
+})
+vi.mock('../api/purchaseAccountingSlipApi', async (importOriginal) => {
+  const actual = await importOriginal()
+  return { ...actual, createPurchaseSlipDraft: (...args: unknown[]) => createPurchaseSlipDraftMock(...args) }
+})
+vi.mock('../api/accountingSlipLinkApi', async (importOriginal) => {
+  const actual = await importOriginal()
+  return { ...actual, listAccountingSlipLinkEligibility: (...args: unknown[]) => listAccountingSlipLinkEligibilityMock(...args) }
+})
+
 import { DAILY_CLOSING_HEADERS, DailyClosingPage, recalculateLegacyAmounts } from './DailyClosingPage'
 
 const rows = [
@@ -96,6 +112,67 @@ afterEach(() => {
   canAccessMock.mockReturnValue(true)
   getDailyClosingRowsMock.mockReset()
   updateDailyClosingAmountMock.mockReset()
+  createSalesSlipDraftMock.mockReset()
+  createPurchaseSlipDraftMock.mockReset()
+  listAccountingSlipLinkEligibilityMock.mockReset()
+})
+
+describe('DailyClosingPage 서버 정본 재진입 잠금', () => {
+  it('전표 생성 후 화면을 나갔다 다시 들어오면 생성 버튼과 금액 입력을 계속 잠근다', async () => {
+    const sourceRow = {
+      ...editableRows[0],
+      seqNo: 91,
+      slipNo: 'OUT-REENTRY-91',
+      slipId: 'source-slip-91',
+      lineId: 'source-line-91',
+      sourceLineNo: 1,
+      taxType: 'TAXABLE',
+      partnerId: 'partner-91',
+      productCode: 'SKU-91',
+      accountingPostedAt: null,
+    }
+    let created = false
+    getDailyClosingRowsMock.mockResolvedValue([sourceRow])
+    createSalesSlipDraftMock.mockImplementation(async () => {
+      created = true
+      return { slipNo: 'ACC-REENTRY-91' }
+    })
+    listAccountingSlipLinkEligibilityMock.mockImplementation(async () => created
+      ? [{ sourceSlipNo: 'OUT-REENTRY-91', readModel: { linkedSlips: [{ slipNo: 'ACC-REENTRY-91' }] } }]
+      : [{ sourceSlipNo: 'OUT-REENTRY-91', readModel: { linkedSlips: [] } }])
+
+    const first = renderPage()
+    fireEvent.click(await screen.findByTestId('daily-closing-tab-pre_issued'))
+    await waitFor(() => expect(listAccountingSlipLinkEligibilityMock).toHaveBeenCalledTimes(1))
+    const createButton = await screen.findByTestId('daily-closing-accounting-create-91')
+    expect((createButton as HTMLButtonElement).disabled).toBe(false)
+    fireEvent.click(createButton)
+    await waitFor(() => expect(createSalesSlipDraftMock).toHaveBeenCalledTimes(1))
+
+    first.unmount()
+    renderPage()
+    fireEvent.click(await screen.findByTestId('daily-closing-tab-pre_issued'))
+
+    await waitFor(() => expect(listAccountingSlipLinkEligibilityMock).toHaveBeenCalledTimes(2))
+    expect((await screen.findByTestId('daily-closing-accounting-create-91') as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByTestId('daily-closing-unit-91') as HTMLInputElement).disabled).toBe(true)
+  })
+
+  it('서버 정본에 아직 연결이 없으면 재진입 후에도 생성과 금액 편집을 허용한다', async () => {
+    const sourceRow = { ...editableRows[0], seqNo: 92, slipNo: 'OUT-REENTRY-92', slipId: 'source-slip-92', lineId: 'source-line-92', sourceLineNo: 1, taxType: 'TAXABLE', partnerId: 'partner-92', productCode: 'SKU-92', accountingPostedAt: null }
+    getDailyClosingRowsMock.mockResolvedValue([sourceRow])
+    listAccountingSlipLinkEligibilityMock.mockResolvedValue([{ sourceSlipNo: 'OUT-REENTRY-92', readModel: { linkedSlips: [] } }])
+
+    const first = renderPage()
+    fireEvent.click(await screen.findByTestId('daily-closing-tab-pre_issued'))
+    first.unmount()
+    renderPage()
+    fireEvent.click(await screen.findByTestId('daily-closing-tab-pre_issued'))
+
+    const createButton = await screen.findByTestId('daily-closing-accounting-create-92')
+    expect((createButton as HTMLButtonElement).disabled).toBe(false)
+    expect((screen.getByTestId('daily-closing-unit-92') as HTMLInputElement).disabled).toBe(false)
+  })
 })
 
 describe('DailyClosingPage S3 레거시 단일표', () => {
@@ -224,7 +301,7 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
 
     expect((screen.getByTestId('daily-closing-unit-82') as HTMLInputElement).disabled).toBe(true)
     expect((screen.getByTestId('daily-closing-rate-82') as HTMLInputElement).disabled).toBe(true)
-    expect(screen.getByText('수정 불가')).toBeTruthy()
+    expect((screen.getByTestId('daily-closing-unit-82') as HTMLInputElement).title).toContain('회계전표')
   })
 
   it('레거시처럼 네 개의 상단 탭과 표 위 액션 줄을 사용한다', async () => {

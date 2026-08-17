@@ -40,6 +40,7 @@ import { fmtKrw } from '../utils/currencyUtils'
 import { buildDailyClosingAccountingSlipRequest } from './dailyClosingAccountingSlip'
 import { createSalesSlipDraft } from '../api/salesAccountingSlipApi'
 import { createPurchaseSlipDraft } from '../api/purchaseAccountingSlipApi'
+import { listAccountingSlipLinkEligibility } from '../api/accountingSlipLinkApi'
 
 type ClosingKindFilter = 'ALL' | DailyClosingKind
 
@@ -617,7 +618,6 @@ function LegacyAmountEditor({
   return <>
     {amountCell(<>
       {input('unit', current.unit, '단가(VAT포함)')}
-      {disabled ? <span title={amountEditDisabledReason(row)} style={{ marginLeft: 4, fontSize: 11 }}>수정 불가</span> : null}
       {!disabled && values ? <span role="status" style={{ marginLeft: 4, fontSize: 11 }}>수정됨</span> : null}
       {error ? <span role="alert" style={{ display: 'block', fontSize: 11 }}>{error}</span> : null}
     </>, 6)}
@@ -663,6 +663,37 @@ function EditableLegacyDailyClosingTable({
       : getDailyClosingRows(slipDate),
   })
   const rows = (Array.isArray(query.data) ? query.data : []).filter((row) => !dailyClosingIsDeleted(row))
+  const accountingEligibilityQuery = useQuery({
+    queryKey: [
+      'daily-closing-accounting-eligibility',
+      slipDate,
+      closingKind,
+      rows.map((row) => `${row.slipId ?? ''}:${row.slipNo ?? ''}`).join('|'),
+    ],
+    enabled: rows.length > 0,
+    queryFn: async () => {
+      const result = await listAccountingSlipLinkEligibility(
+        Array.from(new Map(rows
+          .filter((row) => row.slipNo)
+          .map((row) => [
+            `${row.slipId ?? ''}:${row.slipNo}`,
+            {
+              sourceSlipIdToken: row.slipId ?? undefined,
+              sourceSlipNo: row.slipNo ?? undefined,
+              sourceSlipType: closingKind === 'PURCHASE' ? 'INBOUND' as const : 'OUTBOUND' as const,
+            },
+          ])).values()),
+        true,
+      )
+      return result ?? []
+    },
+  })
+  const serverAccountingCreated = useMemo(() => new Set(
+    (accountingEligibilityQuery.data ?? [])
+      .filter((item) => (item.readModel?.linkedSlips?.length ?? 0) > 0)
+      .map((item) => item.sourceSlipNo)
+      .filter((sourceSlipNo): sourceSlipNo is string => Boolean(sourceSlipNo)),
+  ), [accountingEligibilityQuery.data])
   const [viewStates, setViewStates] = useState<Record<'RESULT' | 'PRE_ISSUED', DailyClosingViewState>>({
     RESULT: { ...EMPTY_DAILY_CLOSING_VIEW_STATE },
     PRE_ISSUED: { ...EMPTY_DAILY_CLOSING_VIEW_STATE },
@@ -1032,11 +1063,13 @@ function EditableLegacyDailyClosingTable({
             size="sm"
             variant="ghost"
             data-testid={`daily-closing-accounting-create-${source.seqNo}`}
-            disabled={!sourceReady || Boolean(source.accountingPostedAt) || accountingCreated.has(accountingKey) || accountingPending !== null}
+            disabled={!sourceReady || Boolean(source.accountingPostedAt) || accountingCreated.has(accountingKey)
+              || serverAccountingCreated.has(source.slipNo ?? '') || accountingPending !== null}
             title={!sourceReady ? '회계전표 생성에 필요한 원본값이 없습니다.' : undefined}
             onClick={() => void createAccounting()}
           >
-            {source.accountingPostedAt || accountingCreated.has(accountingKey) ? '이미 생성됨' : accountingPending === accountingKey ? '생성 중' : '회계전표 생성'}
+            {source.accountingPostedAt || accountingCreated.has(accountingKey) || serverAccountingCreated.has(source.slipNo ?? '')
+              ? '이미 생성됨' : accountingPending === accountingKey ? '생성 중' : '회계전표 생성'}
           </Button>
         ) : null}
       </th>
@@ -1138,7 +1171,8 @@ function EditableLegacyDailyClosingTable({
                     {selectableCell(formatLegacyNumber(row.quantity), index, 5, num)}
                     <LegacyAmountEditor
                       row={row}
-                      accountingCreated={accountingCreated.has(`${row.slipDate}-${row.seqNo}`)}
+                      accountingCreated={accountingCreated.has(`${row.slipDate}-${row.seqNo}`)
+                        || serverAccountingCreated.has(row.slipNo ?? '')}
                       values={drafts[rowKey(row)]
                         ?? committedValues[rowKey(row)]
                         ?? null}
