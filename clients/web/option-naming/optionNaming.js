@@ -50,6 +50,15 @@ function configuredOptionVariants(rows, kind) {
   return [...new Set(values)];
 }
 
+function configuredOptionShapes(rows) {
+  const values = (Array.isArray(rows) ? rows : [])
+    .filter(row => String(row?.componentKind ?? row?.kind ?? '').toUpperCase() === 'PANEL')
+    .map(row => row?.componentShape ?? row?.shape)
+    .map(value => String(value ?? '').trim())
+    .filter(value => value === '원형' || value === '사각');
+  return [...new Set(values)];
+}
+
 function resolveSingleRemoteOption(value, excluded) {
   return excluded ? '제외' : normalizeRemoteOption(value);
 }
@@ -60,4 +69,5 @@ module.exports = {
   normalizePanelOption,
   resolveSingleRemoteOption,
   configuredOptionVariants,
+  configuredOptionShapes,
 };

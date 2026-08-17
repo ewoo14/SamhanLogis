@@ -209,7 +209,9 @@ public class EstimateCatalogInternalController {
             String capacity,
             String maxIndoor,
             String productType,
-            ProductStatus status) {
+            ProductStatus status,
+            String panelType,
+            String remoteType) {
     }
 
     /** 구성품 행 — legacy 싱글 구성품/상업멀티 구성 row 동등 (자체 단가는 product join). */
@@ -222,6 +224,7 @@ public class EstimateCatalogInternalController {
             BigDecimal releasePrice,
             String kind,
             String variant,
+            String componentShape,
             Boolean isDefault,
             BigDecimal defaultQty,
             String specText,
@@ -280,7 +283,9 @@ public class EstimateCatalogInternalController {
                             spec.get(SPEC_CAPACITY),
                             spec.get(SPEC_MAX_INDOOR),
                             p.getProductType() == null ? null : p.getProductType().name(),
-                            p.getStatus());
+                            p.getStatus(),
+                            p.getPanelType(),
+                            p.getRemoteType());
                 })
                 .toList();
         return ApiResponse.ok(rows);
@@ -352,6 +357,7 @@ public class EstimateCatalogInternalController {
                             cp == null ? null : cp.getReleasePrice(),
                             c.getComponentKind() == null ? null : c.getComponentKind().name(),
                             c.getComponentVariant(),
+                            c.getComponentShape(),
                             c.getIsDefault(),
                             c.getDefaultQty(),
                             c.getSpecText(),

@@ -8,6 +8,7 @@ const {
   normalizePanelOption,
   resolveSingleRemoteOption,
   configuredOptionVariants,
+  configuredOptionShapes,
 } = require('../../option-naming/optionNaming');
 
 test('D-03 옵션 명칭 DB 속성축 통일', async (t) => {
@@ -59,6 +60,18 @@ test('D-03 옵션 명칭 DB 속성축 통일', async (t) => {
     assert.deepEqual(configuredOptionVariants(rows, 'MATERIAL'), []);
   });
 
+  await t.test('360 판넬 모양도 component_shape만 옵션 목록이 된다', () => {
+    assert.deepEqual(configuredOptionShapes([
+      { componentKind: 'PANEL', componentShape: '원형' },
+      { componentKind: 'PANEL', componentShape: '사각' },
+      { componentKind: 'PANEL', componentShape: null },
+      { componentKind: 'PANEL', componentShape: '원형' },
+    ]), ['원형', '사각']);
+    assert.deepEqual(configuredOptionShapes([
+      { componentKind: 'PANEL', componentVariant: '원형' },
+    ]), []);
+  });
+
   await t.test('세 화면 소스가 공통 명칭과 홈 기본 분기를 보존한다', () => {
     const estimate = fs.readFileSync(path.resolve(__dirname, '../views/index.ejs'), 'utf8');
     const order = fs.readFileSync(path.resolve(__dirname, '../../order-app/index.html'), 'utf8');
@@ -70,6 +83,8 @@ test('D-03 옵션 명칭 DB 속성축 통일', async (t) => {
       assert.match(source, /R_CH|REMOTE_INF_DEFAULT/);
       assert.match(source, /REMOTE_WIRELESS/);
       assert.match(source, /d03ConfiguredVariants_/);
+      assert.match(source, /d03ConfiguredShapes_/);
+      assert.doesNotMatch(source, /sel\('360판넬',\s*\['원형',\s*'사각'\]/);
     }
   });
 });
