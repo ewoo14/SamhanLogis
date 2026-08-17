@@ -2466,7 +2466,7 @@ function isCommPumpRow(r){
 // 상업멀티 리모컨 계산
 function computeCommRemoteModelForIndoor_(row){
   // 옵션
-  const opt = (document.getElementById('comm_remote')?.value) || '무선';
+  const opt = d03RemoteOption(document.getElementById('comm_remote')?.value || '무선');
   const nm  = rawNameOf(row) || '';
 
   // 제외
@@ -2477,13 +2477,13 @@ function computeCommRemoteModelForIndoor_(row){
 
   // 덕트 예외
   if (/덕트|DUCT/i.test(nm)){
-    if (opt === '컬러유선') return 'AWR-WG00N';
+    if (opt === '컬러') return 'AWR-WG00N';
     return 'AWR-WE13N'; // 무선·유선 모두 유선으로
   }
 
   // 유선 옵션 강제
   if (opt === '유선')     return 'AWR-WE13N';
-  if (opt === '컬러유선') return 'AWR-WG00N';
+  if (opt === '컬러') return 'AWR-WG00N';
 
   // UV-C 포함
   if (opt === '무선' && /UV-?C/i.test(nm)) {
@@ -3273,8 +3273,9 @@ function getDefaultRemoteRows(s){return partsForSetStrict_(s).filter(p=>(/리모
 function getOptionRemoteRow(s,opt){
   if(!opt) return null;const linked=partsForSetStrict_(s).filter(p=>/리모컨/.test((p?.kind||'')+(p?.name||'')));
   const pick=ok=>linked.find(ok)||null;
-  if(opt==='유선리모컨') return pick(p=>/유선리모컨/i.test(p?.feat||'')&&!/컬러/i.test(p?.feat||''));
-  if(opt==='컬러유선리모컨') return pick(p=>/컬러유선리모컨|유선컬러/i.test((p?.feat||'')+' '+(p?.name||'')));
+  opt = d03RemoteOption(opt);
+  if(opt==='유선') return pick(p=>/유선리모컨/i.test(p?.feat||'')&&!/컬러/i.test(p?.feat||''));
+  if(opt==='컬러') return pick(p=>/컬러유선리모컨|유선컬러|컬러/i.test((p?.feat||'')+' '+(p?.name||'')));
   return null;
 }
 function allowRemoteChange_(s){
@@ -3290,16 +3291,16 @@ function getBasePanelRow(s){return partsForSetStrict_(s).filter(p=>/(판넬|패�
 function pickPanelRow(s){
   const panels=partsForSetStrict_(s).filter(p=>/(판넬|패널)/.test((p?.kind||'')+(p?.name||'')));
   if(!panels.length) return null;
-  const panelOpt=el('#ss_panel')?.value||'',shapeOpt=el('#ss_p360')?.value||'원형';
+  const panelOpt=d03PanelOption(el('#ss_panel')?.value||''),shapeOpt=el('#ss_p360')?.value||'원형';
   const base=panels.find(p=>/기본/i.test(p?.feat||''))||null;
   if(panelOpt==='판넬제외') return null;
   const T=p=>`${p?.name||''} ${p?.feat||''} ${p?.spec||''} ${p?.model||''}`;
   const is360=panels.some(p=>/360\s*-?\s*CST|CST\s*-?\s*360|360CST/i.test(T(p)));
   if(panelOpt===''&&is360){const want=(shapeOpt==='사각')?'사각':'원형';const exact=panels.find(p=>String(p?.feat||'').trim()===want);if(exact) return exact;}
   const matchShape=p=>{if(!is360) return true;const t=T(p);return (shapeOpt==='사각')?/(사각|square)/i.test(t):/(원형|round)/i.test(t);};
-  if(panelOpt==='블랙판넬') return panels.find(p=>/블랙/i.test(T(p))&&matchShape(p))||panels.find(matchShape)||base;
-  if(panelOpt==='승강판넬') return panels.find(p=>/(자동승강|승강)/i.test(T(p))&&matchShape(p))||panels.find(matchShape)||base;
-  if(panelOpt==='공청판넬') return panels.find(p=>/(공기청정|공청)/i.test(T(p))&&matchShape(p))||panels.find(matchShape)||base;
+  if(panelOpt==='블랙') return panels.find(p=>/블랙/i.test(T(p))&&matchShape(p))||panels.find(matchShape)||base;
+  if(panelOpt==='승강') return panels.find(p=>/(자동승강|승강)/i.test(T(p))&&matchShape(p))||panels.find(matchShape)||base;
+  if(panelOpt==='공청') return panels.find(p=>/(공기청정|공청)/i.test(T(p))&&matchShape(p))||panels.find(matchShape)||base;
   return panels.find(p=>/기본/i.test(p?.feat||'')&&matchShape(p))||panels.find(matchShape)||base;
 }
 
@@ -4335,16 +4336,19 @@ function onCommOptionChange(controlId){
 // 상업멀티 옵션 렌더
 function renderCommOptions(reset=false){
   const box=el('#commOpts'); if(!box) return;
-  const panel = reset ? '기본판넬' : (el('#comm_panel')?.value || '기본판넬');
+  const panel = reset ? '기본' : (d03PanelOption(el('#comm_panel')?.value) || '기본');
   const p360 = reset ? '원형' : (el('#comm_p360')?.value || '원형');
-  const remote = reset ? '무선' : (el('#comm_remote')?.value || '무선');
+  const commVariantRows = COMM_PARTS.length ? COMM_PARTS : COMMULTI;
+  const configuredRemotes = d03ConfiguredVariants_(commVariantRows, 'REMOTE');
+  const configuredPanels = d03ConfiguredVariants_(commVariantRows, 'PANEL');
+  const remote = reset ? (configuredRemotes[0] || '제외') : (el('#comm_remote')?.value || configuredRemotes[0] || '제외');
   const exHose = reset ? false : !!el('#comm_ex_hose')?.checked;
   const exBase = reset ? false : !!el('#comm_ex_base')?.checked;
   if(!reset && el('#comm_panel') && el('#comm_p360') && el('#comm_remote') && el('#comm_ex_hose') && el('#comm_ex_base')) return;
   box.innerHTML='';
-  box.appendChild(sel('판넬변경',['판넬제외','기본판넬','블랙판넬','승강판넬','공청판넬','동작감지'],panel,'comm_panel'));
+  box.appendChild(sel('판넬변경',['판넬제외',...configuredPanels],configuredPanels.includes(panel) ? panel : (configuredPanels[0] || '판넬제외'),'comm_panel'));
   box.appendChild(sel('360판넬',['원형','사각'],p360,'comm_p360'));
-  box.appendChild(sel('리모컨',['제외','무선','유선','컬러유선'],remote,'comm_remote'));
+  box.appendChild(sel('리모컨',[...d03ConfiguredVariants_(COMM_PARTS,'REMOTE'),'제외'],remote,'comm_remote'));
   box.appendChild(chk('유연호스 제외', exHose, 'comm_ex_hose'));
   box.appendChild(chk('받침대 제외', exBase, 'comm_ex_base'));
 
@@ -5148,8 +5152,10 @@ function sel(label,arr,def,id){const w=document.createElement('label');w.classNa
 function renderHomeOptions(){
   const box=el('#homeOpts');box.innerHTML='';
   let defRemote=HOME_DEFAULTS['리모컨']||'기본';if(defRemote==='선택 안함') defRemote='기본';
-  box.appendChild(sel('리모컨',['기본','유선','컬러','제외'],defRemote,'home_remote'));
-  box.appendChild(sel('판넬변경',['','판넬제외','공청판넬','인피니트 25년형','인피니트 공청+동작감지 AI'],HOME_DEFAULTS['판넬변경']||'','home_panel'));
+  if (defRemote === '컬러유선') defRemote = '컬러';
+  box.appendChild(sel('리모컨',[...d03ConfiguredVariants_(HOMEMULTI,'REMOTE'),'제외'],defRemote,'home_remote'));
+  const homePanelDefault = HOME_DEFAULTS['판넬변경'] === '기본판넬' ? '기본' : (HOME_DEFAULTS['판넬변경'] || '');
+  box.appendChild(sel('판넬변경',['판넬제외',...d03ConfiguredVariants_(HOMEMULTI,'PANEL')],homePanelDefault,'home_panel'));
   box.appendChild(chk('유연호스 제외',!!HOME_DEFAULTS['유연호스 제외'],'home_no_hose'));
   box.appendChild(chk('분기관 제외',!!HOME_DEFAULTS['분기관 제외'],'home_no_branch'));
   box.appendChild(chk('발통포함',!!HOME_DEFAULTS['발통포함'],'home_foot'));
@@ -5158,10 +5164,13 @@ function renderHomeOptions(){
 }
 function renderSingleOptions(){
   const box=el('#singleOpts');box.innerHTML='';
-  box.appendChild(sel('유선리모컨',['','유선리모컨','컬러유선리모컨'],SINGLE_DEFAULTS['유선리모컨']||'','ss_remote'));
+  const singleRemoteDefault = SINGLE_DEFAULTS['유선리모컨'] === '유선리모컨'
+    ? '유선' : (SINGLE_DEFAULTS['유선리모컨'] === '컬러유선리모컨' ? '컬러' : (SINGLE_DEFAULTS['유선리모컨'] || ''));
+  box.appendChild(sel('리모컨',d03ConfiguredVariants_(SINGLE_PARTS,'REMOTE'),singleRemoteDefault,'ss_remote'));
   box.appendChild(chk('리모컨 제외',!!SINGLE_DEFAULTS['리모컨 제외'],'ss_remote_ex'));
   box.appendChild(chk('실외기 받침대 포함',!!SINGLE_DEFAULTS['실외기 받침대 포함'],'ss_base'));
-  box.appendChild(sel('판넬변경',['','판넬제외','블랙판넬','승강판넬','공청판넬'],SINGLE_DEFAULTS['판넬변경']||'','ss_panel'));
+  const singlePanelDefault = SINGLE_DEFAULTS['판넬변경'] === '기본판넬' ? '기본' : (SINGLE_DEFAULTS['판넬변경'] || '');
+  box.appendChild(sel('판넬변경',['판넬제외',...d03ConfiguredVariants_(SINGLE_PARTS,'PANEL')],singlePanelDefault,'ss_panel'));
   box.appendChild(sel('360판넬',['원형','사각'],'원형','ss_p360'));
   box.appendChild(sel('자재 포함 여부',['포함','별도'],SINGLE_DEFAULTS['자재 포함 여부']||'별도','ss_mat'));
   box.querySelectorAll('input,select').forEach(c=>c.addEventListener('change',()=>{
@@ -5208,7 +5217,7 @@ function recomputeSingleBaseFoot(){
 function recomputeSingleExtras(){
   let boardQty=0;
   const remoteExcluded=!!el('#ss_remote_ex')?.checked;const remoteOpt=el('#ss_remote')?.value||'';
-  if(!remoteExcluded&&(remoteOpt==='유선리모컨'||remoteOpt==='컬러유선리모컨')){
+  if(!remoteExcluded&&(d03RemoteOption(remoteOpt)==='유선'||d03RemoteOption(remoteOpt)==='컬러')){
     SINGLE_SETS.forEach(s=>{
       if(/운임|절삭/i.test(s?.name||'')) return;
       if(!is1WaySet_(s)) return;
@@ -5284,14 +5293,59 @@ function findHomePanelModel(kind, wifi){
 }
 
 /* 현재 옵션에 맞춰 인피니트 목표 모델(중/대)을 결정 */
+function d03PanelOption(value){
+  const raw = String(value ?? '').trim();
+  if (!raw || raw === '기본판넬') return '기본';
+  if (raw === '블랙판넬') return '블랙';
+  if (raw === '승강판넬') return '승강';
+  if (raw === '공청판넬') return '공청';
+  return raw;
+}
+function d03RemoteOption(value){
+  const raw = String(value ?? '').trim();
+  if (raw === '컬러유선리모컨') return '컬러';
+  if (raw === '유선리모컨') return '유선';
+  return raw;
+}
+function d03ConfiguredVariants_(rows, kind){
+  const values = (Array.isArray(rows) ? rows : []).filter(row => {
+    const role = String(row?.componentKind || row?.kind || '').toUpperCase();
+    const text = `${row?.name || ''} ${row?.feat || ''}`;
+    return role === kind || (kind === 'REMOTE' && /리모컨|remote/i.test(text))
+      || (kind === 'PANEL' && /판넬|패널|panel/i.test(text));
+  }).map(row => {
+    const role = String(row?.componentKind || row?.kind || '').toUpperCase();
+    const explicit = row?.componentVariant ?? row?.variant
+      ?? (role === kind ? row?.feat : undefined)
+      ?? row?.panel_type ?? row?.remoteOption;
+    if (explicit) return explicit;
+    const text = `${row?.name || ''} ${row?.spec || ''} ${row?.disp || ''}`;
+    if (kind === 'REMOTE') {
+      if (/컬러/.test(text)) return '컬러';
+      if (/유선/.test(text)) return '유선';
+      if (/무선/.test(text)) return '무선';
+    }
+    if (kind === 'PANEL') {
+      if (/公청|공청/.test(text)) return '공청';
+      if (/블랙/.test(text)) return '블랙';
+      if (/승강/.test(text)) return '승강';
+      return '기본';
+    }
+    return '';
+  })
+    .map(value => String(value ?? '').trim()).filter(Boolean);
+  return [...new Set(values)];
+}
+
 function pickInfinitePanelModel(size, opt){
+  opt = d03PanelOption(opt);
   if(size==='mid'){
-    if(opt==='공청판넬') return INF_BASE.mid.air;
+    if(opt==='공청') return INF_BASE.mid.air;
     if(opt==='인피니트 공청+동작감지 AI') return INF_BASE.mid.ai;
     // 기본 / 인피니트 25년형 모두 mid는 PC1YNWK1NW 사용
     return INF_BASE.mid.base;
   }else{
-    if(opt==='공청판넬') return INF_BASE.big.air;
+    if(opt==='공청') return INF_BASE.big.air;
     if(opt==='인피니트 공청+동작감지 AI') return INF_BASE.big.ai;
     if(opt==='인피니트 25년형') return INF_BASE.big.base25;
     return INF_BASE.big.base;
@@ -5453,7 +5507,7 @@ function recomputeHomePanels(){
 
 /* 홈멀티 리모컨 계산 */
 function recomputeHomeRemotes(){
-  const opt = el('#home_remote')?.value || '기본';
+  const opt = d03RemoteOption(el('#home_remote')?.value || '기본');
   const setR=(m,q,fallback)=>{
     if(m || (fallback && q > 0)) setHomeDerivedQty_(m, fallback || m, q, '리모컨 파생');
   };
@@ -5864,7 +5918,7 @@ function recomputeCommDerived(){
   });
 
   /* 판넬제외유지 */
-  const panelOpt = (document.getElementById('comm_panel')?.value)||'기본판넬';
+  const panelOpt = d03PanelOption(document.getElementById('comm_panel')?.value)||'기본';
   if(panelOpt==='판넬제외'){
     COMMULTI.forEach(r=>{
       if(isCommPanelRow(r)){
@@ -5915,7 +5969,7 @@ function recomputeCommDerived(){
 function has_(s, re){ return re.test(String(s||'')); }
 function computeCommPanelModelForIndoor_(row){
   const nm = rawNameOf(row);                 // 원본 기준
-  const panelOpt = (document.getElementById('comm_panel')?.value)||'기본판넬';
+  const panelOpt = d03PanelOption(document.getElementById('comm_panel')?.value)||'기본';
   const shape360 = (document.getElementById('comm_p360')?.value)||'원형';
 
   const is1w   = /(1\s*-?\s*way|1way)/i.test(nm);
@@ -5936,9 +5990,9 @@ function computeCommPanelModelForIndoor_(row){
   if(panelOpt==='판넬제외') return null;      // 완전 제외
 
   const swap = (base)=>{
-    if(panelOpt==='블랙판넬')   return base.replace(/NUF(K1N|K1NW|DK1N|DK1NW)/i, m=>m.replace('NUF','NBF'));
-    if(panelOpt==='승강판넬')   return base.replace(/NUF(K1N|K1NW|DK1N|DK1NW)/i, m=>m.replace('NUF','NUX'));
-    if(panelOpt==='공청판넬')   return base.replace(/N[BU]?F(K1N|K1NW|DK1N|DK1NW)|WSK3(NW|N)/i, m=>{
+    if(panelOpt==='블랙')   return base.replace(/NUF(K1N|K1NW|DK1N|DK1NW)/i, m=>m.replace('NUF','NBF'));
+    if(panelOpt==='승강')   return base.replace(/NUF(K1N|K1NW|DK1N|DK1NW)/i, m=>m.replace('NUF','NUX'));
+    if(panelOpt==='공청')   return base.replace(/N[BU]?F(K1N|K1NW|DK1N|DK1NW)|WSK3(NW|N)/i, m=>{
       if(/WSK3/i.test(m)) return m.replace('WSK3','WCK3');
       return m.replace(/NBF|NUF/,'NUC');
     });
@@ -5952,14 +6006,14 @@ function computeCommPanelModelForIndoor_(row){
   if(is2w) return 'PC2NWSK1N'; // 2Way는 독립
 
   if(is1w && hasWifi){
-    if(isSmall) return panelOpt==='공청판넬' ? 'PC1MWCK3NW' : 'PC1MWSK3NW';
-    if(isMid)   return panelOpt==='공청판넬' ? 'PC1NWCK3NW' : 'PC1NWSK3NW';
-    if(isBig)   return panelOpt==='공청판넬' ? 'PC1BWCK3NW' : 'PC1BWSK3NW';
+    if(isSmall) return panelOpt==='공청' ? 'PC1MWCK3NW' : 'PC1MWSK3NW';
+    if(isMid)   return panelOpt==='공청' ? 'PC1NWCK3NW' : 'PC1NWSK3NW';
+    if(isBig)   return panelOpt==='공청' ? 'PC1BWCK3NW' : 'PC1BWSK3NW';
   }
   if(is1w && noWifi){
-    if(isSmall) return panelOpt==='공청판넬' ? 'PC1MWCK3N' : 'PC1MWSK3N';
-    if(isMid)   return panelOpt==='공청판넬' ? 'PC1NWCK3N' : 'PC1NWSK3N';
-    if(isBig)   return panelOpt==='공청판넬' ? 'PC1BWCK3N' : 'PC1BWSK3N';
+    if(isSmall) return panelOpt==='공청' ? 'PC1MWCK3N' : 'PC1MWSK3N';
+    if(isMid)   return panelOpt==='공청' ? 'PC1NWCK3N' : 'PC1NWSK3N';
+    if(isBig)   return panelOpt==='공청' ? 'PC1BWCK3N' : 'PC1BWSK3N';
   }
   if(is1w && infinite){
     if(isMid)   return panelOpt==='동작감지' ? 'PC1YNRK1NW' : 'PC1YNWK1NW';
