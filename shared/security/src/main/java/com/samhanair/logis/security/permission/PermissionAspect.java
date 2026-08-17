@@ -179,7 +179,7 @@ public class PermissionAspect {
         // P1-b: X-Is-Partner=true 분기에서 메트릭/로그의 roleCode 를 "PARTNER" 고정.
         //       C5-4 이후 Samhan JWT 에 role 클레임이 없어 roleCode=UNKNOWN 으로 기록되던 문제 해소.
         String isPartnerHeader = extractHeader(joinPoint, signature, IS_PARTNER_HEADER);
-        if ("true".equalsIgnoreCase(isPartnerHeader)) {
+        if ("true".equalsIgnoreCase(isPartnerHeader) && isPartnerIdentity(rawRoleHeader)) {
             if (annotation.partnerSelfService()) {
                 return joinPoint.proceed();
             }
@@ -210,6 +210,18 @@ public class PermissionAspect {
             deny(page, roleCode, actionName, "account permission missing");
         }
         return joinPoint.proceed();
+    }
+
+    /**
+     * PARTNER 헤더가 실제 PARTNER 신원을 나타내는지 판정한다.
+     *
+     * <p>게이트웨이는 JWT를 검증한 뒤 {@code X-User-Role}을 직원 요청에 전달하지 않는다.
+     * 다만 레거시/격리 HTTP 배선에서 직원 역할이 함께 존재하면 그 역할을 우선해 클라이언트가
+     * 덧붙인 {@code X-Is-Partner:true}가 직원 권한을 바꾸지 못하게 한다.
+     */
+    private boolean isPartnerIdentity(String rawRoleHeader) {
+        return rawRoleHeader == null || rawRoleHeader.isBlank()
+                || "PARTNER".equalsIgnoreCase(rawRoleHeader.trim());
     }
 
     // -----------------------------------------------------------------------

@@ -19,6 +19,18 @@ import org.springframework.stereotype.Repository;
 public interface PartnerOrderRepository extends JpaRepository<PartnerOrder, UUID>,
         JpaSpecificationExecutor<PartnerOrder> {
 
+    interface ConfirmedEventDate {
+        UUID getOrderId();
+        LocalDateTime getOccurredAt();
+    }
+
+    /** legacy event-only 주문의 발송시각을 응답에 복원한다. */
+    @Query(value = "SELECT h.partner_order_id AS orderId, MAX(h.occurred_at) AS occurredAt "
+            + "FROM partner_order_history h WHERE h.partner_order_id IN (:orderIds) "
+            + "AND h.event_type = 'CONFIRMED' AND h.is_deleted = FALSE "
+            + "GROUP BY h.partner_order_id", nativeQuery = true)
+    List<ConfirmedEventDate> findLatestConfirmedEventDates(@Param("orderIds") List<UUID> orderIds);
+
     /** 장기미발주 판정용 마지막 주문 확정 시각 — auth 사업자번호로 biz_code를 조회한다. */
     @Query("select max(o.confirmedAt) from PartnerOrder o "
             + "where function('replace', o.bizCode, '-', '') = :businessNumber "
@@ -58,8 +70,140 @@ public interface PartnerOrderRepository extends JpaRepository<PartnerOrder, UUID
     Page<PartnerOrder> findAllByPartnerCodeAndBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(
             String partnerCode, String bizCode, LocalDateTime from, LocalDateTime to, Pageable pageable);
 
-    /** PARTNER 가 다른 거래처 사업자번호로 history 조회를 시도했는지 식별한다. */
-    boolean existsByBizCodeAndPartnerCodeNot(String bizCode, String partnerCode);
+    /**
+     * 발송내역 전용 조회 — soft-deleted 원본도 발송 기록 행으로 남긴다.
+     *
+     * <p>native query 로 {@code PartnerOrder.@SQLRestriction}을 우회한다. 이 메서드는 history
+     * 경로에서만 사용하며, 일반 주문 목록·집계에는 사용하지 않는다.
+     */
+    @Query(value = "SELECT o.* FROM partner_orders o "
+            + "LEFT JOIN (SELECT partner_order_id, MAX(occurred_at) AS effective_confirmed_at "
+            + "FROM partner_order_history WHERE event_type = 'CONFIRMED' AND is_deleted = FALSE "
+            + "GROUP BY partner_order_id) ce ON ce.partner_order_id = o.id "
+            + "WHERE o.biz_code = :bizCode AND (o.confirmed_at BETWEEN :from AND :to OR EXISTS ("
+            + "SELECT 1 FROM partner_order_history h WHERE h.partner_order_id = o.id "
+            + "AND h.event_type = 'CONFIRMED' AND h.is_deleted = FALSE "
+            + "AND h.occurred_at BETWEEN :from AND :to)) "
+            + "ORDER BY COALESCE(o.confirmed_at, ce.effective_confirmed_at) DESC NULLS LAST, "
+            + "CASE WHEN regexp_replace(o.order_no, '^.*-', '') ~ '^[0-9]+$' "
+            + "THEN CAST(regexp_replace(o.order_no, '^.*-', '') AS NUMERIC) END DESC NULLS LAST, "
+            + "o.order_no DESC, o.id ASC",
+            countQuery = "SELECT COUNT(*) FROM partner_orders "
+                    + "WHERE biz_code = :bizCode AND (confirmed_at BETWEEN :from AND :to OR EXISTS ("
+                    + "SELECT 1 FROM partner_order_history h WHERE h.partner_order_id = partner_orders.id "
+                    + "AND h.event_type = 'CONFIRMED' AND h.is_deleted = FALSE "
+                    + "AND h.occurred_at BETWEEN :from AND :to))",
+            nativeQuery = true)
+    Page<PartnerOrder> findAllHistoryIncludingDeletedByBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(
+            @Param("bizCode") String bizCode, @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to, Pageable pageable);
+
+    /** PARTNER 발송내역 전용 조회 — 거래처 범위와 삭제행 보존을 함께 적용한다. */
+    @Query(value = "SELECT o.* FROM partner_orders o "
+            + "LEFT JOIN (SELECT partner_order_id, MAX(occurred_at) AS effective_confirmed_at "
+            + "FROM partner_order_history WHERE event_type = 'CONFIRMED' AND is_deleted = FALSE "
+            + "GROUP BY partner_order_id) ce ON ce.partner_order_id = o.id "
+            + "WHERE o.partner_code = :partnerCode AND o.biz_code = :bizCode "
+            + "AND (o.confirmed_at BETWEEN :from AND :to OR EXISTS ("
+            + "SELECT 1 FROM partner_order_history h WHERE h.partner_order_id = o.id "
+            + "AND h.event_type = 'CONFIRMED' AND h.is_deleted = FALSE "
+            + "AND h.occurred_at BETWEEN :from AND :to)) ORDER BY COALESCE(o.confirmed_at, ce.effective_confirmed_at) "
+            + "DESC NULLS LAST, CASE WHEN regexp_replace(o.order_no, '^.*-', '') ~ '^[0-9]+$' "
+            + "THEN CAST(regexp_replace(o.order_no, '^.*-', '') AS NUMERIC) END DESC NULLS LAST, "
+            + "o.order_no DESC, o.id ASC",
+            countQuery = "SELECT COUNT(*) FROM partner_orders "
+                    + "WHERE partner_code = :partnerCode AND biz_code = :bizCode "
+                    + "AND (confirmed_at BETWEEN :from AND :to OR EXISTS ("
+                    + "SELECT 1 FROM partner_order_history h WHERE h.partner_order_id = partner_orders.id "
+                    + "AND h.event_type = 'CONFIRMED' AND h.is_deleted = FALSE "
+                    + "AND h.occurred_at BETWEEN :from AND :to))",
+            nativeQuery = true)
+    Page<PartnerOrder> findAllHistoryIncludingDeletedByPartnerCodeAndBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(
+            @Param("partnerCode") String partnerCode, @Param("bizCode") String bizCode,
+            @Param("from") LocalDateTime from, @Param("to") LocalDateTime to, Pageable pageable);
+
+    /** 사업자번호 하이픈 표기 차이를 흡수하는 PARTNER history 조회. */
+    @Query(value = "SELECT o.* FROM partner_orders o "
+            + "LEFT JOIN (SELECT partner_order_id, MAX(occurred_at) AS effective_confirmed_at "
+            + "FROM partner_order_history WHERE event_type = 'CONFIRMED' AND is_deleted = FALSE "
+            + "GROUP BY partner_order_id) ce ON ce.partner_order_id = o.id "
+            + "WHERE regexp_replace(o.biz_code, '[^0-9]', '', 'g') = :bizCode "
+            + "AND (o.confirmed_at BETWEEN :from AND :to OR EXISTS ("
+            + "SELECT 1 FROM partner_order_history h WHERE h.partner_order_id = o.id "
+            + "AND h.event_type = 'CONFIRMED' AND h.is_deleted = FALSE "
+            + "AND h.occurred_at BETWEEN :from AND :to)) ORDER BY COALESCE(o.confirmed_at, ce.effective_confirmed_at) "
+            + "DESC NULLS LAST, CASE WHEN regexp_replace(o.order_no, '^.*-', '') ~ '^[0-9]+$' "
+            + "THEN CAST(regexp_replace(o.order_no, '^.*-', '') AS NUMERIC) END DESC NULLS LAST, "
+            + "o.order_no DESC, o.id ASC",
+            countQuery = "SELECT COUNT(*) FROM partner_orders "
+                    + "WHERE regexp_replace(biz_code, '[^0-9]', '', 'g') = :bizCode "
+                    + "AND (confirmed_at BETWEEN :from AND :to OR EXISTS ("
+                    + "SELECT 1 FROM partner_order_history h WHERE h.partner_order_id = partner_orders.id "
+                    + "AND h.event_type = 'CONFIRMED' AND h.is_deleted = FALSE "
+                    + "AND h.occurred_at BETWEEN :from AND :to))",
+            nativeQuery = true)
+    Page<PartnerOrder> findAllHistoryIncludingDeletedByNormalizedBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(
+            @Param("bizCode") String bizCode, @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to, Pageable pageable);
+
+    /** confirmed_at 결측 레거시 주문도 CONFIRMED 이벤트로 발송내역에 포함한다. */
+    @Query(value = "SELECT o.* FROM partner_orders o "
+            + "LEFT JOIN (SELECT partner_order_id, MAX(occurred_at) AS effective_confirmed_at "
+            + "FROM partner_order_history WHERE event_type = 'CONFIRMED' AND is_deleted = FALSE "
+            + "GROUP BY partner_order_id) ce ON ce.partner_order_id = o.id "
+            + "WHERE regexp_replace(o.biz_code, '[^0-9]', '', 'g') = :bizCode "
+            + "AND (o.confirmed_at BETWEEN :from AND :to OR EXISTS ("
+            + "SELECT 1 FROM partner_order_history h WHERE h.partner_order_id = o.id "
+            + "AND h.event_type = 'CONFIRMED' AND h.is_deleted = FALSE "
+            + "AND h.occurred_at BETWEEN :from AND :to)) "
+            + "ORDER BY COALESCE(o.confirmed_at, ce.effective_confirmed_at) DESC NULLS LAST, "
+            + "CASE WHEN regexp_replace(o.order_no, '^.*-', '') ~ '^[0-9]+$' "
+            + "THEN CAST(regexp_replace(o.order_no, '^.*-', '') AS NUMERIC) END DESC NULLS LAST, "
+            + "o.order_no DESC, o.id ASC",
+            countQuery = "SELECT COUNT(*) FROM partner_orders o "
+                    + "WHERE regexp_replace(o.biz_code, '[^0-9]', '', 'g') = :bizCode "
+                    + "AND (o.confirmed_at BETWEEN :from AND :to OR EXISTS ("
+                    + "SELECT 1 FROM partner_order_history h WHERE h.partner_order_id = o.id "
+                    + "AND h.event_type = 'CONFIRMED' AND h.is_deleted = FALSE "
+                    + "AND h.occurred_at BETWEEN :from AND :to))",
+            nativeQuery = true)
+    Page<PartnerOrder> findAllHistoryIncludingDeletedByNormalizedBizCodeAndConfirmedEventOrderByEffectiveDateDesc(
+            @Param("bizCode") String bizCode, @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to, Pageable pageable);
+
+    /** 거래처코드/사업자번호의 저장 표기 차이를 함께 흡수하는 PARTNER history 조회. */
+    @Query(value = "SELECT o.* FROM partner_orders o "
+            + "LEFT JOIN (SELECT partner_order_id, MAX(occurred_at) AS effective_confirmed_at "
+            + "FROM partner_order_history WHERE event_type = 'CONFIRMED' AND is_deleted = FALSE "
+            + "GROUP BY partner_order_id) ce ON ce.partner_order_id = o.id "
+            + "WHERE regexp_replace(lower(o.partner_code), '[^a-z0-9]', '', 'g') = :partnerCode "
+            + "AND regexp_replace(o.biz_code, '[^0-9]', '', 'g') = :bizCode "
+            + "AND (o.confirmed_at BETWEEN :from AND :to OR EXISTS ("
+            + "SELECT 1 FROM partner_order_history h WHERE h.partner_order_id = o.id "
+            + "AND h.event_type = 'CONFIRMED' AND h.is_deleted = FALSE "
+            + "AND h.occurred_at BETWEEN :from AND :to)) ORDER BY COALESCE(o.confirmed_at, ce.effective_confirmed_at) "
+            + "DESC NULLS LAST, CASE WHEN regexp_replace(o.order_no, '^.*-', '') ~ '^[0-9]+$' "
+            + "THEN CAST(regexp_replace(o.order_no, '^.*-', '') AS NUMERIC) END DESC NULLS LAST, "
+            + "o.order_no DESC, o.id ASC",
+            countQuery = "SELECT COUNT(*) FROM partner_orders "
+                    + "WHERE regexp_replace(lower(partner_code), '[^a-z0-9]', '', 'g') = :partnerCode "
+                    + "AND regexp_replace(biz_code, '[^0-9]', '', 'g') = :bizCode "
+                    + "AND (confirmed_at BETWEEN :from AND :to OR EXISTS ("
+                    + "SELECT 1 FROM partner_order_history h WHERE h.partner_order_id = partner_orders.id "
+                    + "AND h.event_type = 'CONFIRMED' AND h.is_deleted = FALSE "
+                    + "AND h.occurred_at BETWEEN :from AND :to))",
+            nativeQuery = true)
+    Page<PartnerOrder> findAllHistoryIncludingDeletedByNormalizedPartnerCodeAndNormalizedBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(
+            @Param("partnerCode") String partnerCode, @Param("bizCode") String bizCode,
+            @Param("from") LocalDateTime from, @Param("to") LocalDateTime to, Pageable pageable);
+
+    /** 정규화된 거래처 코드와 사업자번호의 실제 소유 조합 존재 여부를 확인한다. */
+    @Query(value = "SELECT EXISTS (SELECT 1 FROM partner_orders "
+            + "WHERE regexp_replace(lower(partner_code), '[^a-z0-9]', '', 'g') = :partnerCode "
+            + "AND regexp_replace(biz_code, '[^0-9]', '', 'g') = :bizCode)",
+            nativeQuery = true)
+    boolean existsByNormalizedPartnerCodeAndNormalizedBizCode(
+            @Param("partnerCode") String partnerCode, @Param("bizCode") String bizCode);
 
     /** Idempotency-Key 로 기존 주문 조회 (재호출 시 중복 차단). */
     Optional<PartnerOrder> findByIdempotencyKey(String idempotencyKey);

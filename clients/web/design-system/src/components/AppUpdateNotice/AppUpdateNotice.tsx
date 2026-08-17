@@ -23,6 +23,10 @@ export interface AppUpdateNoticeProps {
   testId?: string
 }
 
+export interface AppUpdateNoticeStackProps {
+  children: ReactNode
+}
+
 const badgeVariant = {
   network: 'brand',
   integrity: 'danger',
@@ -57,6 +61,8 @@ export function AppUpdateNotice({
       role="status"
       aria-live="polite"
       data-severity={severity}
+      data-layout="overlay"
+      data-print-exclude="app-update-notice"
       data-testid={testId ?? 'app-update-notice'}
       className={`${styles.notice} ${styles[`severity-${severity}`]} no-print`}
       padding={4}
@@ -71,6 +77,11 @@ export function AppUpdateNotice({
       {renderedActions ? <div className={styles.actions}>{renderedActions}</div> : null}
     </Card>
   )
+}
+
+/** 여러 업데이트 알림을 한 묶음으로 고정해도 알림 사이 간격과 본문 좌표를 보존한다. */
+export function AppUpdateNoticeStack({ children }: AppUpdateNoticeStackProps): JSX.Element {
+  return <div className={styles.stack} data-app-update-notice-stack data-print-exclude="app-update-notice-stack">{children}</div>
 }
 
 export default AppUpdateNotice

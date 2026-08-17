@@ -1,6 +1,7 @@
 package com.samhanair.logis.dcconfig.it;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -12,6 +13,7 @@ import com.samhanair.logis.dcconfig.domain.PartnerGroup;
 import com.samhanair.logis.dcconfig.domain.UnitRoundMode;
 import com.samhanair.logis.dcconfig.repository.DcConfigRepository;
 import com.samhanair.logis.dcconfig.repository.PartnerRepository;
+import com.samhanair.logis.dcconfig.seed.QaPartnerDcConfigSeeder;
 import java.math.BigDecimal;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,6 +22,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.http.MediaType;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -109,5 +112,36 @@ class InternalDcConfigControllerIT extends AbstractPostgresIT {
         mockMvc.perform(get("/internal/partner-dc-configs/UNKNOWN-PARTNER")
                         .header("X-Internal-Token", "test-internal-token"))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void priceCalculation_QA_partner_실제_HTTP_도달() throws Exception {
+        new QaPartnerDcConfigSeeder(partnerRepository, dcConfigRepository).seed();
+
+        mockMvc.perform(post("/internal/price-calculations")
+                        .header("X-Internal-Token", "test-internal-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "partnerCode": "QA-ORDER-PORTAL",
+                                  "callerService": "partner-order-service",
+                                  "lines": [{
+                                    "lineId": "qa-line-1",
+                                    "modelCode": "QA-MODEL",
+                                    "listPrice": 100000,
+                                    "category": "HOMEMULTI",
+                                    "quantity": 1,
+                                    "is360": false,
+                                    "is4Way": false,
+                                    "is1Way": false,
+                                    "isStand": false,
+                                    "isDeluxe": false,
+                                    "isFirstGrade": false
+                                  }]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.partnerCode").value("QA-ORDER-PORTAL"))
+                .andExpect(jsonPath("$.data.lines[0].lineId").value("qa-line-1"));
     }
 }

@@ -25,7 +25,10 @@ jest.mock('axios', () => {
   const get = jest.fn().mockImplementation((url) => {
     if (/\/internal\/users\/by-email/.test(url)) {
       // #31 — user-service by-email (ApiResponse 봉투)
-      return ok({ success: true, data: { fullName: '테스트담당자', loginId: 'TST-001' } });
+      return ok({ success: true, data: {
+        fullName: '테스트담당자', loginId: 'TST-001',
+        bizNo: '211-87-12345', partnerCode: '2118712345',
+      } });
     }
     if (/\/internal\/users\/employees/.test(url)) {
       return ok({
@@ -528,6 +531,12 @@ describe('부트스트랩 (axios mock — 실 endpoint 응답 stub)', () => {
     expect(auth.authorized).toBe(true);
     expect(auth.managerName).toBe('테스트담당자');
     expect(auth.managerCode).toBe('TST-001');
+  });
+
+  test('checkUserAuth — 로그인 거래처의 사업자번호와 거래처코드를 화면 식별자로 전달한다', async () => {
+    const auth = await code.checkUserAuth('test@samhan-air.com');
+    expect(auth.bizNo).toBe('211-87-12345');
+    expect(auth.partnerCode).toBe('2118712345');
   });
 
   test('checkUserAuth — 이메일 미전달 시 세션 이메일 fallback (#31)', async () => {

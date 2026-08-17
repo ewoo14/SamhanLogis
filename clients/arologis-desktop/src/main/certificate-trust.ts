@@ -38,13 +38,13 @@ function rootCertificateExists(): boolean {
 
 function installCertificate(): void {
   const path = certificatePath()
-  if (!existsSync(path)) throw new Error('신뢰 루트 인증서 파일을 찾을 수 없습니다.')
+  if (!existsSync(path)) throw new Error('보안인증서 파일을 찾을 수 없습니다.')
   if (process.platform !== 'win32') return
   execFileSync('powershell.exe', [
     '-NoProfile', '-NonInteractive', '-Command',
     `$certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new('${path.replace(/'/g, "''")}'); $store = [System.Security.Cryptography.X509Certificates.X509Store]::new('Root', 'CurrentUser'); try { $store.Open('ReadWrite'); $store.Add($certificate) } finally { $store.Close() }`,
   ], { stdio: 'pipe' })
-  if (!rootCertificateExists()) throw new Error('신뢰 루트 인증서 설치 결과를 확인할 수 없습니다.')
+  if (!rootCertificateExists()) throw new Error('보안인증서 설치 결과를 확인할 수 없습니다.')
 }
 
 function currentState(): TrustRootState {
@@ -86,7 +86,7 @@ export async function promptForTrustRoot(window: BrowserWindow | null): Promise<
   const options = {
     type: 'info' as const,
     title: '아로로지스 자동 업데이트 안내',
-    message: '삼한 사내 앱의 자동 업데이트를 위해 신뢰 루트를 설치하려고 합니다.',
+    message: '삼한 사내 앱의 자동 업데이트를 위해 보안인증서를 설치하려고 합니다.',
     detail: '승인하면 이 인증서로 서명된 삼한 사내 앱의 업데이트 파일을 신뢰합니다. 설치는 현재 Windows 사용자 계정에만 적용되며 관리자 권한은 필요하지 않습니다. 승인하지 않아도 앱은 계속 사용할 수 있지만 자동 업데이트는 꺼져 있으며 다음 실행 때 다시 안내합니다.',
     buttons: ['승인하고 자동 업데이트 켜기', '이번에는 설치하지 않기'],
     defaultId: 0,

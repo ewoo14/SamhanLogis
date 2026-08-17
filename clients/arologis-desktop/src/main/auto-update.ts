@@ -111,7 +111,7 @@ export function registerAutoUpdateIpcHandlers(): void {
       return
     }
     if (!autoUpdateEnabled) {
-      broadcast({ kind: 'error', message: '자동 업데이트가 꺼져 있습니다. 신뢰 루트 설치를 승인하면 다시 사용할 수 있습니다.' })
+      broadcast({ kind: 'error', message: '자동 업데이트가 꺼져 있습니다. 보안인증서 설치를 승인하면 다시 사용할 수 있습니다.' })
       return
     }
     await checkForUpdates()

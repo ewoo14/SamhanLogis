@@ -186,5 +186,19 @@ function Initialize-SamhanLocalEnv {
     }
 
     Set-LocalEnvProcessValues -Values $values
+
+    # QA 거래처 계정 비밀번호는 일반 .env 생성 대상이 아니다.
+    # 개발책임자가 infrastructure/.env.local 에 둔 값만 현재 프로세스에 주입하고,
+    # 출력하거나 infrastructure/.env 로 복사하지 않는다.
+    $qaLocalFile = Join-Path $infraDir '.env.local'
+    if (Test-Path -LiteralPath $qaLocalFile) {
+        $qaLocalValues = Get-LocalEnvMap -Path $qaLocalFile
+        foreach ($qaKey in @('QA_PARTNER_ORDER_PASSWORD', 'SAMHAN_QA_PARTNER_SEED')) {
+            if ($qaLocalValues.ContainsKey($qaKey)) {
+                Set-Item -Path "env:$qaKey" -Value ([string]$qaLocalValues[$qaKey])
+            }
+        }
+    }
+
     return $envFile
 }
