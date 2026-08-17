@@ -20,7 +20,8 @@ const amountLabel = (value: string | null): string => {
   if (value === null || value === undefined) return '—'
   const text = String(value).trim()
   if (!/^-?\d+(?:\.\d+)?$/.test(text)) return text
-  const [rawInteger = '0', fraction] = text.split('.')
+  const [rawInteger = '0', rawFraction] = text.split('.')
+  const fraction = rawFraction?.replace(/0+$/, '') || undefined
   const sign = rawInteger.startsWith('-') ? '-' : ''
   const integer = rawInteger.replace(/^-/, '').replace(/\B(?=(\d{3})+(?!\d))/g, ',')
   return `₩${sign}${integer}${fraction === undefined ? '' : `.${fraction}`}`
@@ -35,6 +36,13 @@ const normalizeMoney = (value: string): { value: string; error: string | null } 
     return { value, error: '금액 형식은 숫자만 입력할 수 있으며 정수부는 18자리까지입니다.' }
   }
   return { value, error: null }
+}
+
+const displayMoneyValue = (value: string | null | undefined): string => {
+  if (value === null || value === undefined || value.trim() === '') return '0'
+  const [integer = '0', rawFraction] = value.trim().split('.')
+  const fraction = rawFraction?.replace(/0+$/, '')
+  return fraction ? `${integer}.${fraction}` : integer
 }
 
 const normalizeExpenseRate = (value: string): { value: string; error: string | null } => {
@@ -77,17 +85,25 @@ export function SalesCommissionSettlementDetailPage() {
   const [inputError, setInputError] = useState<string | null>(null)
   const [settlementState, setSettlement] = useState<SalesCommissionSettlement | null>(null)
   const calculationRequestSequence = useRef(0)
+  const editingFields = useRef(new Set<keyof CalculateSalesCommissionSettlementRequest>())
+  const queryKey = ['accounting', 'sales-commission-settlement', id] as const
   useEffect(() => {
     if (!loadedSettlement) return
     setSettlement(loadedSettlement)
-    setForm({
-      total: loadedSettlement.totalAmount ?? '0', equipment: loadedSettlement.equipmentAmount ?? '0',
-      prepaid: loadedSettlement.prepaidAmount ?? '0', install: loadedSettlement.installInputAmount ?? '0',
-      safety: loadedSettlement.safetyInputAmount ?? '0', paymentMethod: loadedSettlement.paymentMethod === 'CASH' ? 'CASH' : 'CARD',
-      withholdingApplied: loadedSettlement.withholdingApplied ?? true,
-      manualExpenseRate: loadedSettlement.manualExpenseRate ?? null, rateContractVersion: loadedSettlement.rateContractVersion ?? 1,
+    setForm((current) => {
+      const next = { ...current }
+      if (!editingFields.current.has('total')) next.total = displayMoneyValue(loadedSettlement.totalAmount)
+      if (!editingFields.current.has('equipment')) next.equipment = displayMoneyValue(loadedSettlement.equipmentAmount)
+      if (!editingFields.current.has('prepaid')) next.prepaid = displayMoneyValue(loadedSettlement.prepaidAmount)
+      if (!editingFields.current.has('install')) next.install = displayMoneyValue(loadedSettlement.installInputAmount)
+      if (!editingFields.current.has('safety')) next.safety = displayMoneyValue(loadedSettlement.safetyInputAmount)
+      if (!editingFields.current.has('paymentMethod')) next.paymentMethod = loadedSettlement.paymentMethod === 'CASH' ? 'CASH' : 'CARD'
+      if (!editingFields.current.has('withholdingApplied')) next.withholdingApplied = loadedSettlement.withholdingApplied ?? true
+      if (!editingFields.current.has('manualExpenseRate')) next.manualExpenseRate = loadedSettlement.manualExpenseRate ?? null
+      if (!editingFields.current.has('rateContractVersion')) next.rateContractVersion = loadedSettlement.rateContractVersion ?? 1
+      return next
     })
-    setExpenseMode(loadedSettlement.manualExpenseRate == null ? 'default' : 'manual')
+    if (!editingFields.current.has('manualExpenseRate')) setExpenseMode(loadedSettlement.manualExpenseRate == null ? 'default' : 'manual')
   }, [loadedSettlement])
   type CalculationMutationVariables = {
     next: CalculateSalesCommissionSettlementRequest
@@ -98,7 +114,18 @@ export function SalesCommissionSettlementDetailPage() {
     onSuccess: async (saved, variables) => {
       if (variables.sequence !== calculationRequestSequence.current) return
       setSettlement(saved)
-      await queryClient.invalidateQueries({ queryKey: ['accounting', 'sales-commission-settlement', id] })
+      const responseValues: Partial<Record<keyof CalculateSalesCommissionSettlementRequest, string | boolean | number | null>> = {
+        total: displayMoneyValue(saved.totalAmount), equipment: displayMoneyValue(saved.equipmentAmount),
+        prepaid: displayMoneyValue(saved.prepaidAmount), install: displayMoneyValue(saved.installInputAmount),
+        safety: displayMoneyValue(saved.safetyInputAmount), paymentMethod: saved.paymentMethod === 'CASH' ? 'CASH' : 'CARD',
+        withholdingApplied: saved.withholdingApplied ?? true, manualExpenseRate: saved.manualExpenseRate ?? null,
+        rateContractVersion: saved.rateContractVersion ?? 1,
+      }
+      for (const key of Object.keys(responseValues) as Array<keyof CalculateSalesCommissionSettlementRequest>) {
+        if (editingFields.current.has(key) && responseValues[key] === variables.next[key]) editingFields.current.delete(key)
+      }
+      queryClient.setQueryData(queryKey, saved)
+      await queryClient.invalidateQueries({ queryKey, refetchType: 'none' })
     },
   })
   const submitCalculation = (next: CalculateSalesCommissionSettlementRequest) => {
@@ -121,10 +148,12 @@ export function SalesCommissionSettlementDetailPage() {
       next.manualExpenseRate = normalized.value
     }
     setForm(next)
+    editingFields.current.add(key)
     if (!normalizedError && isDraft && id) submitCalculation(next)
   }
 
   const setExpenseModeAndCalculate = (mode: 'default' | 'manual') => {
+    editingFields.current.add('manualExpenseRate')
     setExpenseMode(mode)
     const next = { ...form, manualExpenseRate: mode === 'default' ? null : (form.manualExpenseRate ?? '') }
     setForm(next)

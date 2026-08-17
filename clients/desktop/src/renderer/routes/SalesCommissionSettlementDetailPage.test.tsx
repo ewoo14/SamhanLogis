@@ -38,7 +38,7 @@ const calculated = {
 
 afterEach(() => {
   cleanup()
-  vi.clearAllMocks()
+  vi.resetAllMocks()
 })
 
 describe('SalesCommissionSettlementDetailPage 복귀 계약', () => {
@@ -141,9 +141,47 @@ describe('SalesCommissionSettlementDetailPage 복귀 계약', () => {
     await waitFor(() => expect(mocks.calculate).toHaveBeenCalledTimes(2))
     resolveSecond({ ...calculated, totalAmount: '12', payoutAmount: '12' })
     await waitFor(() => expect(screen.getAllByText('₩12').length).toBeGreaterThanOrEqual(1))
+    queryClient.setQueryData(['accounting', 'sales-commission-settlement', 'id'], { ...calculated, totalAmount: '1', payoutAmount: '1' })
     resolveFirst({ ...calculated, totalAmount: '1', payoutAmount: '1' })
-    await new Promise((resolve) => setTimeout(resolve, 0))
-    expect(screen.getByLabelText('총 결제금액')).toHaveValue('12')
+    await waitFor(() => expect(screen.getByLabelText('총 결제금액')).toHaveValue('12'))
     expect(screen.getAllByText('₩12').length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('입력 중 도착한 stale 재조회는 사용자가 입력한 필드를 덮어쓰지 않는다', async () => {
+    mocks.get
+      .mockResolvedValueOnce(calculated)
+      .mockResolvedValueOnce({ ...calculated, totalAmount: '1000000', equipmentAmount: '0' })
+    mocks.calculate.mockResolvedValue({ ...calculated, totalAmount: '2000000', equipmentAmount: '0', payoutAmount: '1840000' })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(<QueryClientProvider client={queryClient}><MemoryRouter initialEntries={['/accounting/sales-commission-settlements/id']}><Routes><Route path="/accounting/sales-commission-settlements/:id" element={<SalesCommissionSettlementDetailPage />} /></Routes></MemoryRouter></QueryClientProvider>)
+
+    const input = await screen.findByLabelText('총 결제금액')
+    fireEvent.change(input, { target: { value: '2000000' } })
+    queryClient.setQueryData(['accounting', 'sales-commission-settlement', 'id'], { ...calculated, totalAmount: '1000000', equipmentAmount: '0' })
+    expect(input).toHaveValue('2000000')
+  })
+
+  it('입력을 멈춘 뒤 최신 서버 응답은 입력값과 계산 결과를 반영한다', async () => {
+    mocks.get
+      .mockResolvedValueOnce(calculated)
+      .mockResolvedValueOnce({ ...calculated, totalAmount: '2000000', payoutAmount: '1840000' })
+    mocks.calculate.mockResolvedValue({ ...calculated, totalAmount: '2000000', payoutAmount: '1840000' })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(<QueryClientProvider client={queryClient}><MemoryRouter initialEntries={['/accounting/sales-commission-settlements/id']}><Routes><Route path="/accounting/sales-commission-settlements/:id" element={<SalesCommissionSettlementDetailPage />} /></Routes></MemoryRouter></QueryClientProvider>)
+
+    const input = await screen.findByLabelText('총 결제금액')
+    fireEvent.change(input, { target: { value: '2000000' } })
+    await waitFor(() => expect(screen.getAllByText('₩1,840,000').length).toBeGreaterThanOrEqual(1))
+    await waitFor(() => expect(screen.getByLabelText('총 결제금액')).toHaveValue('2000000'))
+    expect(screen.getAllByText('₩1,840,000').length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('정수 금액의 저장 왕복은 화면에 불필요한 .000000을 붙이지 않는다', async () => {
+    mocks.get.mockResolvedValue({ ...calculated, totalAmount: '1234567.000000', payoutAmount: '1135802.000000', supplyAmount: '1032547.000000', vatAmount: '103255.000000' })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(<QueryClientProvider client={queryClient}><MemoryRouter initialEntries={['/accounting/sales-commission-settlements/id']}><Routes><Route path="/accounting/sales-commission-settlements/:id" element={<SalesCommissionSettlementDetailPage />} /></Routes></MemoryRouter></QueryClientProvider>)
+
+    expect(await screen.findByText('₩1,234,567')).toBeInTheDocument()
+    expect(screen.queryByText('₩1,234,567.000000')).not.toBeInTheDocument()
   })
 })
