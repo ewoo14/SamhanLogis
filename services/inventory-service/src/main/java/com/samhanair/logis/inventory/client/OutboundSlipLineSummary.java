@@ -1,5 +1,6 @@
 package com.samhanair.logis.inventory.client;
 import java.time.LocalDate;
+import java.math.BigDecimal;
 
 /**
  * slip-service {@code GET /internal/slips/outbound-lines} 응답의 라인 단위 요약.
@@ -29,5 +30,13 @@ public record OutboundSlipLineSummary(
         String partnerName,
         String productCode,
         String productName,
-        int quantity) {
+        int quantity,
+        BigDecimal totalAmount) {
+
+    public OutboundSlipLineSummary(String slipNo, LocalDate slipDate, String partnerCode,
+                                   String partnerName, String productCode, String productName,
+                                   int quantity) {
+        this(slipNo, slipDate, partnerCode, partnerName, productCode, productName, quantity,
+                BigDecimal.ZERO);
+    }
 }

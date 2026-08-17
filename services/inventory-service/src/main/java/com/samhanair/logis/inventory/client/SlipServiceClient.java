@@ -70,6 +70,16 @@ public class SlipServiceClient {
      */
     @SuppressWarnings("unchecked")
     public List<OutboundSlipLineSummary> getOutboundSlips(LocalDate from, LocalDate to) {
+        return getSlips("outbound-lines", from, to);
+    }
+
+    /** 기간 내 INBOUND 입고전표 라인 조회 — DPS 비교의 정본 source. */
+    public List<OutboundSlipLineSummary> getInboundSlips(LocalDate from, LocalDate to) {
+        return getSlips("inbound-lines", from, to);
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<OutboundSlipLineSummary> getSlips(String path, LocalDate from, LocalDate to) {
         if (from == null || to == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "조회 기간 (from / to) 은 필수입니다");
@@ -79,7 +89,7 @@ public class SlipServiceClient {
                     "from 은 to 보다 이전이어야 합니다 (from=" + from + ", to=" + to + ")");
         }
 
-        String uri = UriComponentsBuilder.fromPath("/internal/slips/outbound-lines")
+        String uri = UriComponentsBuilder.fromPath("/internal/slips/" + path)
                 .queryParam("from", from.toString())
                 .queryParam("to", to.toString())
                 .build()
@@ -103,7 +113,7 @@ public class SlipServiceClient {
         } catch (BusinessException ex) {
             throw ex;
         } catch (RuntimeException ex) {
-            log.error("SlipServiceClient getOutboundSlips 실패: {}", ex.getMessage());
+            log.error("SlipServiceClient {} 실패: {}", path, ex.getMessage());
             throw new BusinessException(ErrorCode.INTERNAL_ERROR,
                     "slip-service 호출 실패", ex);
         }

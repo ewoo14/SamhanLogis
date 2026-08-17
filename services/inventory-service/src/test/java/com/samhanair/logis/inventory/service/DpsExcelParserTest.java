@@ -8,6 +8,7 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.List;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -40,6 +41,21 @@ class DpsExcelParserTest {
         assertThat(rows.get(0).partnerName()).isEqualTo("삼한");
         assertThat(rows.get(1).productCode()).isEqualTo("P-002");
         assertThat(rows.get(1).quantity()).isEqualTo(5);
+    }
+
+    @Test
+    void parse_실제_DPS_헤더는_표지_행을_건너뛰고_금액까지_읽는다() throws IOException {
+        byte[] xlsx = buildXlsxWithPreamble(
+                new String[]{"납품일자", "납품번호", "모델", "수량", "매입단가", "공급가", "인도처명", "부가세", "합계"},
+                new Object[][]{{"2026-08-17", "IN-001", "ABC  123", 2, 100, 200, "삼한", 20, 220}});
+
+        List<DpsExcelRow> rows = parser.parse(new ByteArrayInputStream(xlsx));
+
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).deliveryNo()).isEqualTo("IN-001");
+        assertThat(rows.get(0).productCode()).isEqualTo("ABC  123");
+        assertThat(rows.get(0).quantity()).isEqualTo(2);
+        assertThat(rows.get(0).totalAmount()).isEqualByComparingTo(new BigDecimal("220"));
     }
 
     @Test
@@ -82,6 +98,25 @@ class DpsExcelParserTest {
                     } else {
                         row.createCell(c).setCellValue(String.valueOf(v));
                     }
+                }
+            }
+            wb.write(out);
+            return out.toByteArray();
+        }
+    }
+
+    private byte[] buildXlsxWithPreamble(String[] headers, Object[][] dataRows) throws IOException {
+        try (Workbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            Sheet sheet = wb.createSheet("DPS");
+            for (int r = 0; r < 3; r++) sheet.createRow(r).createCell(0).setCellValue("DPS 표지 " + (r + 1));
+            Row header = sheet.createRow(3);
+            for (int i = 0; i < headers.length; i++) header.createCell(i).setCellValue(headers[i]);
+            for (int r = 0; r < dataRows.length; r++) {
+                Row row = sheet.createRow(r + 4);
+                for (int c = 0; c < dataRows[r].length; c++) {
+                    Object value = dataRows[r][c];
+                    if (value instanceof Number n) row.createCell(c).setCellValue(n.doubleValue());
+                    else row.createCell(c).setCellValue(String.valueOf(value));
                 }
             }
             wb.write(out);

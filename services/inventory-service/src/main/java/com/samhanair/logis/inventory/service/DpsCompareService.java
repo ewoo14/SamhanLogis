@@ -9,6 +9,7 @@ import com.samhanair.logis.inventory.web.dto.RowMismatch;
 import com.samhanair.logis.inventory.web.dto.RowMismatch.MismatchType;
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -83,7 +84,7 @@ public class DpsCompareService {
         }
         // from/to null/range 검증은 slipServiceClient 가 위임 (단일 진실 source)
 
-        List<OutboundSlipLineSummary> outbound = slipServiceClient.getOutboundSlips(from, to);
+        List<OutboundSlipLineSummary> outbound = slipServiceClient.getInboundSlips(from, to);
         List<DpsExcelRow> dpsRows;
         try (InputStream in = file.getInputStream()) {
             dpsRows = dpsExcelParser.parse(in);
@@ -92,9 +93,12 @@ public class DpsCompareService {
                     "DPS 엑셀 stream 읽기 실패: " + ex.getMessage(), ex);
         }
 
-        List<RowMismatch> mismatches = (groupBy == DpsCompareGroupBy.SLIP)
-                ? matchBySlip(outbound, dpsRows)
-                : matchByItem(outbound, dpsRows);
+        boolean actualDpsFormat = dpsRows.stream().anyMatch(row -> row.deliveryNo() != null);
+        List<RowMismatch> mismatches = actualDpsFormat
+                ? matchByInbound(outbound, dpsRows)
+                : (groupBy == DpsCompareGroupBy.SLIP
+                    ? matchBySlip(outbound, dpsRows)
+                    : matchByItem(outbound, dpsRows));
 
         // matched = 출고전표 라인 중 mismatch 가 아닌 건수 (출고 기준 정상 매칭 카운트).
         // QUANTITY/PARTNER/DPS_NOT_FOUND 는 출고 기준 mismatch, SLIP_NOT_FOUND 는 출고에 없는 케이스.
@@ -294,6 +298,60 @@ public class DpsCompareService {
         }
 
         return mismatches;
+    }
+
+    /** 레거시 키(납품번호 적요 + 정규화 모델명)로 입고 라인을 행별 1:1 소비한다. */
+    List<RowMismatch> matchByInbound(List<OutboundSlipLineSummary> inbound,
+                                     List<DpsExcelRow> dpsRows) {
+        List<RowMismatch> result = new ArrayList<>();
+        boolean[] consumed = new boolean[dpsRows.size()];
+        for (OutboundSlipLineSummary line : inbound) {
+            int found = -1;
+            String key = inboundKey(line.slipNo(), line.productCode());
+            for (int i = 0; i < dpsRows.size(); i++) {
+                if (!consumed[i] && key.equals(inboundKey(dpsRows.get(i).deliveryNo(),
+                        dpsRows.get(i).productCode()))) {
+                    found = i;
+                    break;
+                }
+            }
+            if (found < 0) {
+                result.add(new RowMismatch(MismatchType.DPS_NOT_FOUND, line.slipNo(),
+                        line.productCode(), line.partnerCode(), line.quantity(), 0,
+                        line.totalAmount(), BigDecimal.ZERO, "DPS 엑셀에서 매칭 row 미발견"));
+                continue;
+            }
+            consumed[found] = true;
+            DpsExcelRow row = dpsRows.get(found);
+            boolean qtyMismatch = line.quantity() != row.quantity();
+            boolean amountMismatch = line.totalAmount().compareTo(row.totalAmount()) != 0;
+            if (qtyMismatch) {
+                result.add(new RowMismatch(MismatchType.QUANTITY_MISMATCH, line.slipNo(),
+                        line.productCode(), line.partnerCode(), line.quantity(), row.quantity(),
+                        line.totalAmount(), row.totalAmount(), "수량 불일치"));
+            } else if (amountMismatch) {
+                result.add(new RowMismatch(MismatchType.AMOUNT_MISMATCH, line.slipNo(),
+                        line.productCode(), line.partnerCode(), line.quantity(), row.quantity(),
+                        line.totalAmount(), row.totalAmount(), "합계금액 불일치"));
+            }
+        }
+        for (int i = 0; i < dpsRows.size(); i++) {
+            if (!consumed[i]) {
+                DpsExcelRow row = dpsRows.get(i);
+                result.add(new RowMismatch(MismatchType.SLIP_NOT_FOUND, row.deliveryNo(),
+                        row.productCode(), row.partnerCode(), 0, row.quantity(), BigDecimal.ZERO,
+                        row.totalAmount(), "입고전표에서 매칭 라인 미발견"));
+            }
+        }
+        return result;
+    }
+
+    private String inboundKey(String deliveryNo, String productCode) {
+        return safe(deliveryNo) + "|" + normalizeModel(productCode);
+    }
+
+    private String normalizeModel(String model) {
+        return safe(model).replaceAll("\\s+", "").toUpperCase(java.util.Locale.ROOT);
     }
 
     private static String safe(String v) {

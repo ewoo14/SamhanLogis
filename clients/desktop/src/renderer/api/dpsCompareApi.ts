@@ -34,6 +34,7 @@ export type DpsCompareGroupBy = 'SLIP' | 'ITEM'
 /** BE {@code RowMismatch.MismatchType} enum 과 1:1 — mismatch 카테고리. */
 export type DpsMismatchType =
   | 'QUANTITY_MISMATCH'
+  | 'AMOUNT_MISMATCH'
   | 'PARTNER_MISMATCH'
   | 'DPS_NOT_FOUND'
   | 'SLIP_NOT_FOUND'
@@ -52,6 +53,8 @@ export interface DpsRowMismatch {
   expectedQty: number
   /** DPS 엑셀 합계/단건 수량. */
   actualQty: number
+  expectedAmount: number
+  actualAmount: number
   /** 사용자 노출용 한국어 사유. */
   reason: string
 }
@@ -138,6 +141,7 @@ export async function downloadDpsTemplate(): Promise<Blob> {
 /** mismatch 카테고리 → 한국어 라벨. */
 export const DPS_MISMATCH_LABEL: Record<DpsMismatchType, string> = {
   QUANTITY_MISMATCH: '수량 불일치',
+  AMOUNT_MISMATCH: '합계금액 불일치',
   PARTNER_MISMATCH: '거래처 불일치',
   DPS_NOT_FOUND: 'DPS 미발견',
   SLIP_NOT_FOUND: '출고 미발견',
@@ -154,6 +158,11 @@ export const DPS_MISMATCH_COLOR: Record<
   QUANTITY_MISMATCH: {
     background: '#FFF7ED',
     border: '#FB923C',
+    text: '#9A3412',
+  },
+  AMOUNT_MISMATCH: {
+    background: '#FFF7ED',
+    border: '#F97316',
     text: '#9A3412',
   },
   PARTNER_MISMATCH: {

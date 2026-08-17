@@ -17,7 +17,7 @@
  *
  * <h2>UX</h2>
  * <ol>
- *   <li>날짜 범위 from/to 입력 (출고전표 자동 조회 기간)</li>
+ *   <li>날짜 범위 from/to 입력 (입고전표 자동 조회 기간)</li>
  *   <li>매칭 단위 토글 (SLIP / ITEM)</li>
  *   <li>DPS 엑셀 .xlsx 업로드 — 사용자 명시 "자동 조회 X"</li>
  *   <li>"양식 다운로드" link — 헤더만 있는 .xlsx 받기</li>
@@ -92,8 +92,10 @@ function mismatchesToCsv(mismatches: DpsRowMismatch[]): string {
     '전표번호',
     '품번',
     '거래처코드',
-    '출고수량',
+    '입고수량',
     'DPS수량',
+    '입고합계',
+    'DPS합계',
     '사유',
   ]
   const escape = (v: string): string => {
@@ -111,6 +113,8 @@ function mismatchesToCsv(mismatches: DpsRowMismatch[]): string {
       m.partnerCode ?? '',
       String(m.expectedQty),
       String(m.actualQty),
+      String(m.expectedAmount),
+      String(m.actualAmount),
       m.reason,
     ]
     lines.push(cells.map(escape).join(','))
@@ -294,7 +298,7 @@ export function InventoryDpsComparePage() {
       <div style={headerRowStyle}>
         <h3 style={{ margin: 0 }}>DPS 입고 비교</h3>
         <span style={subtitleStyle}>
-          출고전표 자동 조회 + DPS 엑셀 업로드 → SLIP/ITEM 단위 매칭
+          입고전표 자동 조회 + DPS 엑셀 업로드 → SLIP/ITEM 단위 매칭
         </span>
         {/* PR-H4c FE-B: read-only 비교 화면 안내 */}
         <span
@@ -507,8 +511,10 @@ export function InventoryDpsComparePage() {
                       <th style={thStyle}>전표번호</th>
                       <th style={thStyle}>품번</th>
                       <th style={thStyle}>거래처코드</th>
-                      <th style={{ ...thStyle, textAlign: 'right' }}>출고수량</th>
+                      <th style={{ ...thStyle, textAlign: 'right' }}>입고수량</th>
                       <th style={{ ...thStyle, textAlign: 'right' }}>DPS수량</th>
+                      <th style={{ ...thStyle, textAlign: 'right' }}>입고합계</th>
+                      <th style={{ ...thStyle, textAlign: 'right' }}>DPS합계</th>
                       <th style={thStyle}>사유</th>
                     </tr>
                   </thead>
@@ -533,6 +539,12 @@ export function InventoryDpsComparePage() {
                           </td>
                           <td style={{ ...tdStyle, textAlign: 'right' }}>
                             {m.actualQty.toLocaleString()}
+                          </td>
+                          <td style={{ ...tdStyle, textAlign: 'right' }}>
+                            {m.expectedAmount.toLocaleString()}
+                          </td>
+                          <td style={{ ...tdStyle, textAlign: 'right' }}>
+                            {m.actualAmount.toLocaleString()}
                           </td>
                           <td style={{ ...tdStyle, color: colors.text }}>
                             {m.reason}
@@ -625,8 +637,10 @@ function DpsMismatchCard({
       </div>
       <MobileField label="품번" value={mismatch.productCode ?? '—'} />
       <MobileField label="거래처코드" value={mismatch.partnerCode ?? '—'} />
-      <MobileField label="출고수량" value={mismatch.expectedQty.toLocaleString()} numeric />
+      <MobileField label="입고수량" value={mismatch.expectedQty.toLocaleString()} numeric />
       <MobileField label="DPS수량" value={mismatch.actualQty.toLocaleString()} numeric />
+      <MobileField label="입고합계" value={mismatch.expectedAmount.toLocaleString()} numeric />
+      <MobileField label="DPS합계" value={mismatch.actualAmount.toLocaleString()} numeric />
       <MobileField label="사유" value={mismatch.reason} />
     </article>
   )
