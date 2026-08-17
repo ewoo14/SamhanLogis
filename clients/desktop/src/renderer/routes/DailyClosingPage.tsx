@@ -757,6 +757,20 @@ function EditableLegacyDailyClosingTable({
       return next
     })
   }
+  const viewColumnValue = (row: DailyClosingSourceRow, header: DailyClosingHeader): string => {
+    const edited = drafts[rowKey(row)] ?? committedValues[rowKey(row)]
+    if (!edited) return dailyClosingColumnValue(row, header)
+    const editedValues: Partial<Record<DailyClosingHeader, number>> = {
+      '단가(VAT포함)': edited.unit,
+      '공급가액': edited.supply,
+      '부가세': edited.vat,
+      '합계': edited.total,
+      '출고가': edited.price,
+      '할인율': edited.rate,
+      '총계': edited.total,
+    }
+    return editedValues[header] === undefined ? dailyClosingColumnValue(row, header) : formatLegacyNumber(editedValues[header])
+  }
   const baseVisible = useMemo(
     () => rows.filter((row) => tab === 'RESULT'
       ? Boolean(row.accountingPostedAt)
@@ -769,7 +783,7 @@ function EditableLegacyDailyClosingTable({
       const globalText = state.globalSearch.trim().toLowerCase()
       const filtered = baseVisible.filter((row) => {
         for (const [column, filter] of Object.entries(state.filters) as [DailyClosingHeader, DailyClosingFilter][]) {
-          const value = dailyClosingColumnValue(row, column)
+          const value = viewColumnValue(row, column)
           const text = filter.text.trim()
           if (filter.type === 'exact' && value !== text) return false
           if (filter.type === 'empty' && value.trim() !== '') return false
@@ -778,14 +792,14 @@ function EditableLegacyDailyClosingTable({
           if (filter.type === 'exclude' && value.includes(text)) return false
         }
         return !globalText || DAILY_CLOSING_HEADERS.some((header) =>
-          dailyClosingColumnValue(row, header).toLowerCase().includes(globalText))
+          viewColumnValue(row, header).toLowerCase().includes(globalText))
       })
       if (!state.sort) return filtered
       const originalIndex = new Map(baseVisible.map((row, index) => [row, index]))
       return [...filtered].sort((left, right) => {
         const column = state.sort!.col
-        const leftText = dailyClosingColumnValue(left, column)
-        const rightText = dailyClosingColumnValue(right, column)
+        const leftText = viewColumnValue(left, column)
+        const rightText = viewColumnValue(right, column)
         let comparison = 0
         if (column === '번호') {
           comparison = dailyClosingSortNumber(leftText) - dailyClosingSortNumber(rightText)
@@ -799,7 +813,7 @@ function EditableLegacyDailyClosingTable({
         return state.sort!.dir === 'asc' ? comparison : -comparison
       })
     },
-    [baseVisible, currentViewState],
+    [baseVisible, currentViewState, drafts, committedValues],
   )
   const cellSelectionKey = (rowIndex: number, columnIndex: number) => {
     const row = visible[rowIndex]

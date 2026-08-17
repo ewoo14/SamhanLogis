@@ -528,4 +528,24 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
     fireEvent.copy(table, { clipboardData: { setData } })
     expect(setData).toHaveBeenCalledWith('text/plain', '9,091\n9,091')
   })
+
+  it('금액 편집 뒤 정렬과 열 필터는 화면의 최신 draft 값을 사용한다', async () => {
+    getDailyClosingRowsMock.mockResolvedValue(editableRows.slice(0, 2))
+    renderPage()
+
+    fireEvent.click(screen.getByRole('tab', { name: /^선발행/ }))
+    const table = await screen.findByTestId('daily-closing-table')
+    const priceInput = within(table).getByDisplayValue('10,000')
+    fireEvent.change(priceInput, { target: { value: '20,000' } })
+
+    fireEvent.click(screen.getByTestId('daily-closing-sort-asc-출고가'))
+    let dataRows = Array.from(table.querySelectorAll('[data-testid^="daily-closing-data-row-"]'))
+    expect(dataRows[0]?.textContent).toContain('편집 품목')
+
+    fireEvent.click(screen.getByTestId('daily-closing-filter-button-출고가'))
+    fireEvent.change(screen.getByLabelText('출고가 필터 검색'), { target: { value: '20,000' } })
+    dataRows = Array.from(table.querySelectorAll('[data-testid^="daily-closing-data-row-"]'))
+    expect(dataRows).toHaveLength(1)
+    expect(dataRows[0]?.textContent).toContain('편집 품목')
+  })
 })
