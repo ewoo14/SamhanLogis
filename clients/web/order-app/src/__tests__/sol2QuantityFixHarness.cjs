@@ -102,6 +102,7 @@ function runCommercialScenario(kind) {
   const raw = source();
   const fixture = fixtureFor('C-06');
   const functions = bundle(raw, [
+    'd03PanelOption',
     'rawNameOf',
     'isCommIndoorRow',
     'isCommOutdoorRow',

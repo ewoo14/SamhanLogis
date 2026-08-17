@@ -4,7 +4,7 @@ import orderHtml from '../../index.html?raw'
 describe('주문서웹 서버 가격 수렴 회귀', () => {
   it('최종확인 클릭은 IIFE 지역 변수가 아니라 전역 서버 가격 상태를 읽는다', () => {
     const handler = orderHtml.match(
-      /el\('#btnSendOrder'\)\.addEventListener\('click',\(\)=>\{([\s\S]*?)\n  \}\);/,
+      /el\('#btnSendOrder'\)\.addEventListener\('click',\(\)=>\{([\s\S]*?)\n {2}\}\);/,
     )?.[1] ?? ''
 
     expect(handler).toContain('window.__SAMHAN_LATEST_SERVER_PRICE_PAYLOAD__')
@@ -20,7 +20,7 @@ describe('주문서웹 서버 가격 수렴 회귀', () => {
 
   it('실제 503 실패 화면은 품목표와 미리보기 합계를 함께 금액 없음으로 만든다', () => {
     const errorHandler = orderHtml.match(
-      /function renderPreviewError\(error\) \{([\s\S]*?)\n  \}/,
+      /function renderPreviewError\(error\) \{([\s\S]*?)\n {2}\}/,
     )?.[1] ?? ''
 
     expect(errorHandler).toContain('clearServerPricesFromCatalogTables()')

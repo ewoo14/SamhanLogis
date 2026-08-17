@@ -2264,7 +2264,7 @@ function d03PanelOption(value){
   if (raw === '승강판넬') return '승강';
   if (raw === '공청판넬') return '공청';
   if (raw === '인피니트 기본') return '기본';
-  if (raw === '인피니트 공청') return '공청판넬';
+  if (raw === '인피니트 공청') return '공청';
   if (raw === '인피니트 공청+동작감지') return '인피니트 공청+동작감지 AI';
   return raw;
 }
@@ -3255,9 +3255,11 @@ function clearAllRemotes(){
 function d03PanelOption(value){
   const raw = String(value ?? '').trim();
   if (!raw || raw === '기본판넬') return '기본';
+  if (raw === '블랙판넬') return '블랙';
+  if (raw === '승강판넬') return '승강';
   if (raw === '공청판넬') return '공청';
   if (raw === '인피니트 기본') return '기본';
-  if (raw === '인피니트 공청') return '공청판넬';
+  if (raw === '인피니트 공청') return '공청';
   if (raw === '인피니트 공청+동작감지') return '인피니트 공청+동작감지 AI';
   return raw;
 }
@@ -8988,7 +8990,7 @@ function recomputeCommDerived() {
 function has_(s, re){ return re.test(String(s||'')); }
 function computeCommPanelModelForIndoor_(row){
   const nm = rawNameOf(row);                 // 원본 기준
-  const panelOpt = document.getElementById('comm_panel')?.value||'기본';
+  const panelOpt = d03PanelOption(document.getElementById('comm_panel')?.value)||'기본';
   const shape360 = (document.getElementById('comm_p360')?.value)||'원형';
 
   const is1w   = /(1\s*-?\s*way|1way)/i.test(nm);

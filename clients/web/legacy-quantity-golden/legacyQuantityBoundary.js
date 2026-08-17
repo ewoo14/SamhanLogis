@@ -217,6 +217,7 @@ function runHome(source, input) {
   const quantities = input.sourceQuantities || {};
   const locks = input.manualLocks?.home || {};
   const functions = sourceFunctionBundleForApp(source, input.app || 'estimate', [
+    'd03PanelOption',
     'lockScope_',
     'targetScope_',
     'registerDerivedQty',
@@ -347,6 +348,7 @@ function runCommercial(source, input) {
   const quantities = input.sourceQuantities || {};
   const locks = input.manualLocks?.commercial || {};
   const functions = sourceFunctionBundleForApp(source, input.app || 'estimate', [
+    'd03PanelOption',
     'lockScope_',
     'targetScope_',
     'registerDerivedQty',

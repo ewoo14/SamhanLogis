@@ -27,6 +27,7 @@ const {
 const { fixtures } = require('../../../legacy-quantity-golden/fixtures');
 
 const COMM_FUNCTIONS = [
+  'd03PanelOption',
   'lockScope_',
   'targetScope_',
   'registerDerivedQty',

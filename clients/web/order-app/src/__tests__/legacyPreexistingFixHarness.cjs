@@ -19,7 +19,14 @@ function bundle(source, names) {
 
 function runCommOptionsRerenderScenario() {
   const source = fs.readFileSync(SOURCE_PATH.order, 'utf8');
-  const functions = bundle(source, ['sel', 'chk', 'renderCommOptions']);
+  const functions = bundle(source, [
+    'd03PanelOption',
+    'd03ConfiguredVariants_',
+    'd03ConfiguredShapes_',
+    'sel',
+    'chk',
+    'renderCommOptions',
+  ]);
   const script = `
     const nodes = new Map();
     const makeNode = (tag) => {
@@ -66,6 +73,8 @@ function runCommOptionsRerenderScenario() {
       querySelector: (selector) => selector === '#commOpts' ? box : nodes.get(String(selector).replace(/^#/, '')) || null,
     };
     const el = (selector) => document.querySelector(selector);
+    const COMM_PARTS = [];
+    const COMMULTI = [];
     ${functions}
 
     renderCommOptions();

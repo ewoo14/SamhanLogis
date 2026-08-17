@@ -140,6 +140,7 @@ function runRecompute(
     const setDerivedQty = (scope, map, model, quantity) => map.set(model, quantity);
     const RENEW_FILTER_MAP = {};
     ${[
+      'd03PanelOption',
       'rawNameOf',
       'isCommIndoorRow',
       'isCommOutdoorRow',
@@ -274,7 +275,7 @@ function runSingleRecompute(
     const isManualQtyLocked = () => false;
     const setManualQtyLock = () => {};
     const syncSingleUIFromState = () => {};
-    const is1WaySet_ = (row) => /1\s*way|1way/i.test(String(row?.name || ''));
+    const is1WaySet_ = (row) => /1[ \t]*way|1way/i.test(String(row?.name || ''));
     const allowRemoteChange_ = () => true;
     ${optionalFunction('noteSingleCatalogMissing_')}
     ${optionalFunction('setSingleDerivedQty_')}
