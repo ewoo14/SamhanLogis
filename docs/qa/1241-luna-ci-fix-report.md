@@ -124,8 +124,8 @@ SQL도 `codex-luna-1241` 감사 작성자 표기와 제품/금액 데이터만 �
 `.env` 계열 diff의 원문은 기존 Google Sheets 설정 6줄 삭제뿐이다.
 
 ```diff
--GOOGLE_SHEETS_SHEET_ID=1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ
--GOOGLE_SERVICE_ACCOUNT_KEY=/etc/samhan/sa-key.json
+-GOOGLE_SHEETS_SHEET_ID=<마스킹>
+-GOOGLE_SERVICE_ACCOUNT_KEY=<마스킹>
 -GOOGLE_SHEETS_CACHE_TTL_MIN=5
 -PRODUCT_SYNC_SCHEDULING_ENABLED=true
 -PRODUCT_SYNC_CRON=0 0 * * * *
