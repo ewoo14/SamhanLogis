@@ -25,7 +25,7 @@ import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
  * 단계별 캡처(docs/qa/17-s4b-price-variant/):
  *  01 dev_master 상단(옵션 기본값)+하단(카테고리별 단가변동 4행) 동시노출
  *  02 dev_master 홈멀티 토글 저장 전(대조)
- *  03 dev_master 홈멀티 "인상 전 단가 기본값" ON + 날짜변경 PUT 왕복 저장 후 반영
+ *  03 dev_master 홈멀티 "변동단가 기본값" ON + 날짜변경 PUT 왕복 저장 후 반영
  *  04 dev_accountant 사이드바 "견적 가격 설정" 링크 노출(Option A 에도 진입 가능해야 함)
  *  05 dev_accountant H1 옵션A — estimate-config 폼 미표시, 단가변동 섹션만
  *  06 dev_sales 사이드바 링크 부재(네거티브)
@@ -154,7 +154,7 @@ test.describe.serial('#17 S4b 단가변동 — /sales/estimate-config 실 GUI', 
     await expect(toggleBefore).not.toBeChecked()
     await capture(page, 'master-homemulti-before-toggle')
 
-    // "인상 전 단가 기본값" 토글 ON + 적용일 변경 → 저장(PUT 왕복).
+    // "변동단가 기본값" 토글 ON + 적용일 변경 → 저장(PUT 왕복).
     await toggleBefore.check()
     const dateInput = page.getByLabel('홈멀티 적용일')
     await dateInput.fill('2026-08-01')

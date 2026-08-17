@@ -144,7 +144,7 @@ export function ProductPriceSchedulePage() {
         >
           <h1 className={styles['title']} style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
             카테고리별 단가변동
-            <span className={styles['badge']}>견적 인상 전/후 단가</span>
+            <span className={styles['badge']}>견적 변동단가 기준</span>
           </h1>
 
           {!canEditPriceSchedule ? (

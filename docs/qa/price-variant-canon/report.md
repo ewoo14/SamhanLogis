@@ -27,7 +27,7 @@
 
 ## ② RED 원문
 
-기존 resolver를 임시 복원한 뒤 새 양방향 검증을 실행했다. 테스트 러너는 의존성 부재로 실행되지 않아 동일 assertion을 Node 직접 실행으로 검증했다.
+기존 resolver를 임시 복원한 뒤 새 양방향 검증을 실행했다. 당시 RED 원문은 다음과 같다.
 
 ```text
 FAIL legacy resolver expected unchecked=baseline and checked=current, got {"unchecked":{"releasePrice":200000,"deliveryPrice":150000},"checked":{"releasePrice":200000,"deliveryPrice":150000}}
@@ -68,31 +68,44 @@ FAIL legacy resolver expected unchecked=baseline and checked=current, got {"unch
 
 ## ⑧ GREEN
 
-직접 실행한 양방향 resolver 검증:
+의존성 설치 후 실행한 GREEN:
 
 ```text
 PASS legacy resolver bidirectional
+PASS 20개 suite / 356개 테스트
 ```
 
-추가 정적 검증:
+실행 결과:
 
+- estimate-app Jest: 20개 suite, 356개 테스트 통과
+- desktop `npm run typecheck`: 통과
+- desktop `npm run lint`: 오류 0개, 경고 196개
+- desktop `npm run build`: 통과
+- product-service `./gradlew :services:product-service:bootJar`: 통과
+- V46을 임시 복제 DB에 적용한 product-service 격리 기동: 통과
 - `index.ejs`: `변동단가` 라벨 4개, `인상 전 단가` 라벨 0개
-- 가격 선택 조건: unchecked baseline 분기 확인
-- JS `node --check`: 변경한 JS 3개 통과
 - `git diff --check`: 통과
 
-저장소 의존성 부재로 다음 명령은 실행되지 않았다.
-
-- estimate-app Jest: `jest is not recognized`
-- desktop typecheck: `npm ci` 및 design-system build 필요
-- desktop lint: `eslint is not recognized`
-- desktop build: `electron-vite is not recognized`
+desktop lint의 196개 경고는 기존 경고이며 오류는 없었다. build의 source/font/dynamic import 경고도 exit code 0으로 완료되었다.
 
 ## ⑨ 라이브 캡처
 
-캡처 스크립트는 `resolveQaShotsDir()`를 거쳐 `docs/qa/price-variant-canon/estimate-app-real-qa/`를 사용하도록 갱신했다. 라벨·초기 해제 상태 검증도 `변동단가` 및 4개 기본값 false로 갱신했다.
+공유 스택은 로그인 HTTP 200 및 healthy 컨테이너 24개 상태를 유지했다. product-service만 임시 복제 DB에 연결해 18084 포트로 격리 기동했고, auth-service는 공유 인스턴스를 사용했다.
 
-그러나 이번 세션에서는 라이브 캡처를 생성하지 못했다. 공유 게이트웨이와 product-service는 정상 응답했지만 estimate-app/desktop 렌더러 포트(5195)가 열려 있지 않았고, 두 클라이언트의 Playwright/Vite 의존성이 설치되어 있지 않았다. 따라서 켬/끔 금액 캡처는 PM 실행 환경에서 후속 수행이 필요하다.
+최종 증거는 모두 `resolveQaShotsDir()`가 반환한 실 QA 디렉터리 아래에 저장했다. `_local` 임시 캡처 3장은 삭제했다.
+
+| 범주 | 행 수 | 끔 | 켬 | 변화 행 | 캡처 |
+|---|---:|---|---|---:|---|
+| 홈멀티 | 107 | 해제 | 체크 | 0 | `home-real-qa/home-off-real-qa.png`, `home-on-real-qa.png` |
+| 상업멀티 | 310 | 해제 | 체크 | 0 | `commercial-real-qa/commercial-off-real-qa.png`, `commercial-on-real-qa.png` |
+| 싱글중대형 | 851 | 해제 | 체크 | 6 | `single-real-qa/single-off-real-qa.png`, `single-on-real-qa.png` |
+| 구형 | 39 | 해제 | 체크 | 0 | `old-real-qa/old-off-real-qa.png`, `old-on-real-qa.png` |
+
+모든 캡처에서 체크박스 라벨은 `변동단가`였다. 싱글의 대표 변화는 `AP145BAPPHH2S` 납품가 1,980,000원 → 1,890,000원, `AR06D1150HZS` 납품가 370,000원 → 360,000원이다. 싱글 6행은 원 품목 2건과 세트 구성 렌더 행 4건을 포함한다. 홈멀티·상업멀티는 영향 규모 0건이므로 켬/끔 금액이 동일한 것이 정상이며, 구형도 현재 데이터 차이 0건으로 금액이 동일하다.
+
+견적품목 화면 진입점은 다음에 캡처했다.
+
+- `estimate-items-real-qa/estimate-items-price-schedule-entry.png`: `변동단가 기본값 설정` 버튼 노출
 
 ## ⑩ order-app 불변 확인
 
@@ -100,4 +113,14 @@ PASS legacy resolver bidirectional
 
 ## ⑪ 프로세스 회수
 
-이번 세션에서 새 프로세스·격리 컨테이너를 기동하지 않았다. 공유 스택은 조회 당시 24개 컨테이너가 모두 `healthy`였고, 공유 DB에 쓰기 쿼리를 실행하지 않았다. 테스트 빌드가 생성한 `clients/desktop/legacy-assets/estimate/index.fallback.html`은 명시적으로 회수했다. 잔여 기동 프로세스/격리 컨테이너: 0개.
+product-service, estimate-app, desktop Vite를 검증 중 기동했으며 모두 종료했다. product-service 격리용 임시 복제 DB도 삭제했고 공유 `product_db`에는 쓰지 않았다. 생성한 JAR·desktop build 산출물·로그·`_local` 증거를 회수했다. 공유 스택은 중단하거나 변경하지 않았다. 잔여 기동 프로세스/격리 컨테이너: 0개.
+
+## ⑫ 추가 검증 결과 및 캡처 목록
+
+- ① 영향 규모: 전체 1,019건 중 변동 전/현재 금액 차이 9건. HOME_MULTI 0, COMMERCIAL_MULTI 0, OLD 0, SINGLE_PART 7, SINGLE_SET 2.
+- ② RED: 기존 구제품 resolver가 체크 인자를 무시해 끔/켬 모두 현재가를 반환했다.
+- ③ 명칭: 네 화면 라벨 4개 모두 `변동단가`.
+- 라이브 상태: 네 화면 초기 체크 모두 해제, 켬 상태는 모두 체크. 홈멀티·상업멀티·구형 변화 0행, 싱글 변화 6렌더 행.
+- 라이브 금액: `AP145BAPPHH2S` 1,980,000원 → 1,890,000원, `AR06D1150HZS` 370,000원 → 360,000원.
+- 캡처 디렉터리: `home-real-qa`, `commercial-real-qa`, `single-real-qa`, `old-real-qa`, `estimate-items-real-qa`.
+- 견적품목 진입점: `estimate-items-price-schedule-entry.png`에서 `변동단가 기본값 설정` 버튼을 확인했다.
