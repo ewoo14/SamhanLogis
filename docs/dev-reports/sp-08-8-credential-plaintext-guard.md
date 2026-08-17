@@ -134,17 +134,17 @@ credential-plaintext-guard:
 | `NOTION_TOKEN=<실값>` | 0건 | CLEAN |
 | 사업자등록번호 `\d{3}-\d{2}-\d{5}` | accounting seed SQL + desktop mock.ts | 화이트리스트 처리 |
 | 한국 전화번호 `0xx-xxxx-xxxx` | desktop mock.ts + placeholder `010-0000-0000` | 화이트리스트 처리 |
-| Google Sheet ID `1RJqO3jT-...` | docs/*.md mention + application.yml default | 판정 참고 |
+| Google Sheet ID `[비공개]` | docs/*.md mention + application.yml default | 판정 참고 |
 
 ### Google Sheet ID 판정 근거
 
 `<SHEET_ID>` (종합견적서)는 다음 위치에 존재한다.
 
-- `services/partner-order-service/src/main/resources/application.yml`: `${BOOTSTRAP_SHEET_ID:1RJqO3...}` 형태 — ENV 오버라이드 가능. 허용.
+- `services/partner-order-service/src/main/resources/application.yml`: `${BOOTSTRAP_SHEET_ID:[비공개]}` 형태 — ENV 오버라이드 가능. 허용.
 - `docs/operational-validation/*.md`, `docs/dev-reports/migration-*.md`: 문서 mention. 허용.
 - `clients/desktop/playwright/`: 화이트리스트.
 
-`GOOGLE_SHEETS_SHEET_ID=1RJqO3...` 형태의 직접 대입은 **현재 0건**이며, 이 형태만 가드가 탐지한다.
+`GOOGLE_SHEETS_SHEET_ID=[비공개]` 형태의 직접 대입은 **현재 0건**이며, 이 형태만 가드가 탐지한다.
 
 ### tools/operational-validation/ 판정
 
