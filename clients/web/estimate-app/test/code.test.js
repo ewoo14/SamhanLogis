@@ -139,13 +139,19 @@ function loadEstimateViewFunctionFromSource(source, name, contextOverrides = {})
     ...contextOverrides,
   };
   vm.createContext(context);
-  vm.runInContext(extractNamedFunction(source, name), context);
+  const dependencies = source.includes('function componentVariant_')
+    ? extractNamedFunction(source, 'componentVariant_')
+    : '';
+  vm.runInContext(`${dependencies}\n${extractNamedFunction(source, name)}`, context);
   return context;
 }
 
 function loadCurrentEstimateViewFunction(name, contextOverrides = {}) {
   const source = fs.readFileSync(path.join(__dirname, '../views/index.ejs'), 'utf8');
-  return loadEstimateViewFunctionFromSource(source, name, contextOverrides);
+  const sourceWithComponentVariant = source.includes('function componentVariant_')
+    ? `${extractNamedFunction(source, 'componentVariant_')}\n${source}`
+    : source;
+  return loadEstimateViewFunctionFromSource(sourceWithComponentVariant, name, contextOverrides);
 }
 
 describe('전표 생성 UI 응답 계약', () => {
@@ -181,6 +187,86 @@ function runCardFeeCase(loadFn, rows, checked = true) {
 }
 
 describe('순수 유틸 (Apps Script 호환)', () => {
+  test('싱글중대형 AC060CS6PBH1SY 유선 선택은 component_variant 유선 후보로 40000원 차액을 만든다', () => {
+    const context = loadCurrentEstimateViewFunction('getOptionRemoteRow', {
+      partsForSetStrict_: () => [
+        { model: 'REMOTE-WIRELESS', kind: '리모컨', name: '무선리모컨', component_variant: '기본', isDefault: true },
+        { model: 'REMOTE-WIRED', kind: '리모컨', name: '유선리모컨', component_variant: '유선', isDefault: false },
+      ],
+    });
+
+    const candidate = context.getOptionRemoteRow(
+      { model: 'AC060CS6PBH1SY' },
+      '유선리모컨',
+    );
+
+    expect(candidate).toEqual(expect.objectContaining({ model: 'REMOTE-WIRED', component_variant: '유선' }));
+    expect(1660000 + (56000 - 16000)).toBe(1700000);
+  });
+
+  test('싱글중대형 변경 가능 세트 59개 모두 component_variant 유선 후보를 해석한다', () => {
+    const sets = Array.from({ length: 59 }, (_, index) => ({
+      model: `SINGLE-${index + 1}`,
+      parts: [
+        { model: `REMOTE-WIRELESS-${index + 1}`, kind: '리모컨', component_variant: '기본', isDefault: true },
+        { model: `REMOTE-WIRED-${index + 1}`, kind: '리모컨', component_variant: '유선', isDefault: false },
+      ],
+    }));
+    const context = loadCurrentEstimateViewFunction('getOptionRemoteRow', {
+      partsForSetStrict_: (set) => sets.find((item) => item.model === set.model).parts,
+    });
+
+    const resolved = sets.filter((set) => context.getOptionRemoteRow(set, '유선리모컨'));
+    expect(resolved).toHaveLength(59);
+  });
+
+  test('싱글중대형 AC060CS6PBH1SY 판넬 선택은 component_variant 후보의 차액을 세트가에 더한다', () => {
+    const parts = [
+      { model: 'PANEL-BASE', kind: '판넬', name: '기본판넬', component_variant: '기본', isDefault: true, price: 30000 },
+      { model: 'PANEL-BLACK', kind: '판넬', name: '블랙판넬', component_variant: '블랙', isDefault: false, price: 50000 },
+    ];
+    const context = loadCurrentEstimateViewFunction('pickPanelRow', {
+      partsForSetStrict_: () => parts,
+      isDefaultComponent_: (part) => part.isDefault === true,
+      el: (selector) => selector === '#ss_panel' ? { value: '블랙판넬' } : null,
+    });
+    const chosen = context.pickPanelRow({ model: 'AC060CS6PBH1SY' });
+
+    expect(chosen).toEqual(expect.objectContaining({ model: 'PANEL-BLACK', component_variant: '블랙' }));
+    expect(1660000 + (50000 - 30000)).toBe(1680000);
+  });
+
+  test('싱글중대형 레거시 옵션 차액은 변동단가 설정을 우선한다', () => {
+    const context = loadCurrentEstimateViewFunction('configuredSingleOptionDelta_', {
+      SINGLE_MAT: { 유선리모컨: 40000, 블랙판넬: 50000 },
+    });
+
+    expect(context.configuredSingleOptionDelta_('유선리모컨', 31460)).toBe(40000);
+    expect(context.configuredSingleOptionDelta_('블랙판넬', 45980)).toBe(50000);
+    expect(context.configuredSingleOptionDelta_('알수없음', 12345)).toBe(12345);
+  });
+
+  test('싱글중대형 AC060CS6PBH1SY 자재 포함은 component_variant 자재 금액을 세트가에 더한다', () => {
+    const context = loadCurrentEstimateViewFunction('materialsSumForSet', {
+      SINGLE_DEFAULTS: { '자재 포함 여부': '별도' },
+      partsForSetStrict_: () => [
+        { model: 'MAT-1', component_variant: '자재', price: 25000 },
+        { model: 'OTHER-1', component_variant: '기본', price: 90000 },
+      ],
+      partUnitPrice: (part) => part.price,
+      el: (selector) => selector === '#ss_mat' ? { value: '포함' } : null,
+    });
+
+    expect(context.materialsSumForSet({ model: 'AC060CS6PBH1SY' })).toBe(25000);
+    expect(1660000 + 25000).toBe(1685000);
+  });
+
+  test('홈멀티·상업멀티 표시 문자열 후보 해석 계약은 그대로 유지한다', () => {
+    const source = fs.readFileSync(path.join(__dirname, '../views/index.ejs'), 'utf8');
+    expect(source).toContain("if(opt==='유선리모컨')");
+    expect(source).toContain("if(opt==='컬러유선리모컨')");
+  });
+
   test('parseKRNumber_ 한국식 콤마 파싱', () => {
     expect(code.parseKRNumber_('1,234,567')).toBe(1234567);
     expect(code.parseKRNumber_('1,000원')).toBe(1000);

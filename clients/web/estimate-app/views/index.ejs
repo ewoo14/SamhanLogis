@@ -5117,18 +5117,30 @@ function setPreviewFoot(sum){
 function materialsSumForSet(s){
   const includeMat=(el('#ss_mat')?.value||SINGLE_DEFAULTS['자재 포함 여부'])==='포함';
   if(!includeMat) return 0;
-  return partsForSetStrict_(s).reduce((t,p)=>t+(/자재/.test(p?.feat||'')?partUnitPrice(p):0),0);
+  return partsForSetStrict_(s).reduce((t,p)=>t+(/자재/.test(String(p?.component_variant ?? p?.componentVariant ?? p?.feat ?? '').trim())?partUnitPrice(p):0),0);
+}
+function componentVariant_(p){
+  return String(p?.component_variant ?? p?.componentVariant ?? p?.feat ?? '').trim();
+}
+function configuredSingleOptionDelta_(option, fallback){
+  const configured = typeof SINGLE_MAT !== 'undefined' ? Number(SINGLE_MAT?.[option]) : 0;
+  return configured > 0 ? configured : fallback;
 }
 function isDefaultComponent_(p){
   if (typeof p?.isDefault === 'boolean') return p.isDefault === true;
-  return /기본/i.test(p?.feat||'');
+  return /기본/i.test(String(p?.component_variant ?? p?.componentVariant ?? p?.feat ?? '').trim());
 }
 function getDefaultRemoteRows(s){return partsForSetStrict_(s).filter(p=>(/리모컨/.test(p?.kind||'')||/리모컨/.test(p?.name||''))&&isDefaultComponent_(p));}
 function getOptionRemoteRow(s,opt){
   if(!opt) return null;const linked=partsForSetStrict_(s).filter(p=>/리모컨/.test((p?.kind||'')+(p?.name||'')));
   const pick=ok=>linked.find(ok)||null;
-  if(opt==='유선리모컨') return pick(p=>/유선리모컨/i.test(p?.feat||'')&&!/컬러/i.test(p?.feat||''));
-  if(opt==='컬러유선리모컨') return pick(p=>/컬러유선리모컨|유선컬러/i.test((p?.feat||'')+' '+(p?.name||'')));
+  const variantOf=p=>String(p?.component_variant ?? p?.componentVariant ?? p?.feat ?? '').trim();
+  // component_variant(feat)가 리모컨 축의 정본이다. 표시명(유선리모컨)은
+  // variant와 다르므로 정본을 먼저 보고, 레거시 표시 문자열은 호환 fallback으로만 본다.
+  if(opt==='유선리모컨') return pick(p=>variantOf(p)==='유선')
+    || pick(p=>/유선리모컨/i.test(variantOf(p))&&!/컬러/i.test(variantOf(p)));
+  if(opt==='컬러유선리모컨') return pick(p=>variantOf(p)==='컬러유선')
+    || pick(p=>/컬러유선리모컨|유선컬러/i.test(variantOf(p)+' '+(p?.name||'')));
   return null;
 }
 function allowRemoteChange_(s){
@@ -5147,9 +5159,9 @@ function pickPanelRow(s){
   const panelOpt=el('#ss_panel')?.value||'',shapeOpt=el('#ss_p360')?.value||'원형';
   const base=panels.find(isDefaultComponent_)||null;
   if(panelOpt==='판넬제외') return null;
-  const T=p=>`${p?.name||''} ${p?.feat||''} ${p?.spec||''} ${p?.model||''}`;
+  const T=p=>`${p?.name||''} ${String(p?.component_variant ?? p?.componentVariant ?? p?.feat ?? '').trim()} ${p?.spec||''} ${p?.model||''}`;
   const is360=panels.some(p=>/360\s*-?\s*CST|CST\s*-?\s*360|360CST/i.test(T(p)));
-  if(panelOpt===''&&is360){const want=(shapeOpt==='사각')?'사각':'원형';const exact=panels.find(p=>String(p?.feat||'').trim()===want);if(exact) return exact;}
+  if(panelOpt===''&&is360){const want=(shapeOpt==='사각')?'사각':'원형';const exact=panels.find(p=>String(p?.component_variant ?? p?.componentVariant ?? p?.feat ?? '').trim()===want);if(exact) return exact;}
   const matchShape=p=>{if(!is360) return true;const t=T(p);return (shapeOpt==='사각')?/(사각|square)/i.test(t):/(원형|round)/i.test(t);};
   if(panelOpt==='블랙판넬') return panels.find(p=>/블랙/i.test(T(p))&&matchShape(p))||panels.find(matchShape)||base;
   if(panelOpt==='승강판넬') return panels.find(p=>/(자동승강|승강)/i.test(T(p))&&matchShape(p))||panels.find(matchShape)||base;
@@ -5170,6 +5182,10 @@ function setBasePriceRightFirst(s){
 
 function calcSetUnitPrice(s){
   if(!s) return 0;
+  const configuredDelta=(option,fallback)=>{
+    const configured = typeof SINGLE_MAT !== 'undefined' ? Number(SINGLE_MAT?.[option]) : 0;
+    return configured > 0 ? configured : fallback;
+  };
   const raw = String(s?.nameRaw || s?.name || '');
   const norm = raw.replace(/\s+/g,'');
 
@@ -5190,7 +5206,8 @@ function calcSetUnitPrice(s){
     const baseP=partUnitPrice(basePanel);
     if(panelExcluded) panelDelta-=baseP;
     else if(chosenPanel && chosenPanel.model!==basePanel.model){
-      panelDelta += (partUnitPrice(chosenPanel)-baseP);
+      const fallback = partUnitPrice(chosenPanel)-baseP;
+      panelDelta += configuredDelta(el('#ss_panel')?.value||'', fallback);
     }
   }
 
@@ -5205,9 +5222,9 @@ function calcSetUnitPrice(s){
   } else if(remoteOpt && allowRemoteChange_(s)){
     const cand = getOptionRemoteRow(s,remoteOpt);
     if(cand){
-      const replace = baseRemoteRows.find(p=>/유선/i.test((p?.feat||'')+' '+(p?.name||''))) || baseRemoteRows[0];
-      if(replace) remoteDelta += (partUnitPrice(cand)-partUnitPrice(replace));
-      else remoteDelta += partUnitPrice(cand);
+      const replace = baseRemoteRows.find(p=>String(p?.component_variant ?? p?.componentVariant ?? p?.feat ?? '').trim()==='기본') || baseRemoteRows[0];
+      const fallback = replace ? partUnitPrice(cand)-partUnitPrice(replace) : partUnitPrice(cand);
+      remoteDelta += configuredDelta(remoteOpt, fallback);
     }
   }
 
