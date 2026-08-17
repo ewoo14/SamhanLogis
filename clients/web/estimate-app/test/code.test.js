@@ -438,11 +438,10 @@ describe('순수 유틸 (Apps Script 호환)', () => {
     });
   });
 
-  test('single option controls(view) — 360판넬 목록은 구성품 shape를 사용한다', () => {
+  test('single option controls(view) — 360판넬 목록은 원형·사각 하드코딩을 유지한다', () => {
     const source = fs.readFileSync(path.join(__dirname, '../views/index.ejs'), 'utf8');
-    expect(source).toContain("const singleShapes = d03ConfiguredShapes_(SINGLE_PARTS);");
+    expect(source).toContain("const singleShapes = ['원형', '사각'];");
     expect(source).toContain("sel('360판넬',singleShapes");
-    expect(source).not.toContain("sel('360판넬',['원형','사각']");
     expect(source).toContain(
       "if (el('#ss_p360')) el('#ss_p360').value = SINGLE_DEFAULTS['360판넬']||'원형';",
     );
