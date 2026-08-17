@@ -1,0 +1,965 @@
+{
+  "auth": {
+    "authorized": true,
+    "rows": 851
+  },
+  "panel": {
+    "base": {
+      "model": "AC060CS6PBH1SY",
+      "id": "R5-TEMP-RESTORE-AC060CS6PBH1SY|15|0",
+      "header": 1660000,
+      "detailSum": 1660000,
+      "equal": true,
+      "visibleRowCount": 13,
+      "activeRowCount": 4,
+      "rows": [
+        {
+          "name": "└ [구성] 360 CST UV 실내기",
+          "model": "AC060CN6PBH1",
+          "price": 606000,
+          "qty": 1,
+          "subtotal": 606000
+        },
+        {
+          "name": "└ [구성] 360 CST UV 실외기",
+          "model": "AC060CXAPBH1",
+          "price": 910000,
+          "qty": 1,
+          "subtotal": 910000
+        },
+        {
+          "name": "└ [구성] 무선리모컨(냉난방전용)",
+          "model": "AR-EH05",
+          "price": 16000,
+          "qty": 1,
+          "subtotal": 16000
+        },
+        {
+          "name": "└ [구성] 유선리모컨(통합)",
+          "model": "AWR-WE13N",
+          "price": 56000,
+          "qty": 0,
+          "subtotal": 0
+        },
+        {
+          "name": "└ [구성] 유선리모컨(컬러)",
+          "model": "AWR-WG00N",
+          "price": 91000,
+          "qty": 0,
+          "subtotal": 0
+        },
+        {
+          "name": "└ [구성] 판넬 (360CST 원형 공기청정)",
+          "model": "PC6EUCK1NW",
+          "price": 678000,
+          "qty": 0,
+          "subtotal": 0
+        },
+        {
+          "name": "└ [구성] 판넬 (360CST 원형 승강)",
+          "model": "PC6EUXK1NW",
+          "price": 188000,
+          "qty": 0,
+          "subtotal": 0
+        },
+        {
+          "name": "└ [구성] 판넬 (360CST 사각 블랙 WIFI)",
+          "model": "PC6NBDK1NW",
+          "price": 188000,
+          "qty": 0,
+          "subtotal": 0
+        },
+        {
+          "name": "└ [구성] 판넬 (360CST 원형 블랙 WIFI)",
+          "model": "PC6NBNK1NW",
+          "price": 188000,
+          "qty": 0,
+          "subtotal": 0
+        },
+        {
+          "name": "└ [구성] 판넬 360CST 사각 공기청정 WIFI",
+          "model": "PC6NUCK1NW",
+          "price": 678000,
+          "qty": 0,
+          "subtotal": 0
+        },
+        {
+          "name": "└ [구성] 판넬 360CST 사각 WIFI",
+          "model": "PC6NUDK1NW",
+          "price": 128000,
+          "qty": 0,
+          "subtotal": 0
+        },
+        {
+          "name": "└ [구성] 판넬 (360CST 원형 WIFI)",
+          "model": "PC6NUNK1NW",
+          "price": 128000,
+          "qty": 1,
+          "subtotal": 128000
+        },
+        {
+          "name": "└ [구성] 판넬 (360CST 사각 승강)",
+          "model": "PC6NUXK1NW",
+          "price": 188000,
+          "qty": 0,
+          "subtotal": 0
+        }
+      ],
+      "screenshot": "C:\\dev\\Samhan-Public\\.claude\\worktrees\\wsrd\\docs\\qa\\1269-sol-reverdict-2-real-qa\\01-AC060-판넬-기본-세트상세.png"
+    },
+    "airClean": {
+      "model": "AC060CS6PBH1SY",
+      "id": "R5-TEMP-RESTORE-AC060CS6PBH1SY|15|0",
+      "header": 2210000,
+      "detailSum": 2210000,
+      "equal": true,
+      "visibleRowCount": 13,
+      "activeRowCount": 4,
+      "rows": [
+        {
+          "name": "└ [구성] 360 CST UV 실내기",
+          "model": "AC060CN6PBH1",
+          "price": 606000,
+          "qty": 1,
+          "subtotal": 606000
+        },
+        {
+          "name": "└ [구성] 360 CST UV 실외기",
+          "model": "AC060CXAPBH1",
+          "price": 910000,
+          "qty": 1,
+          "subtotal": 910000
+        },
+        {
+          "name": "└ [구성] 무선리모컨(냉난방전용)",
+          "model": "AR-EH05",
+          "price": 16000,
+          "qty": 1,
+          "subtotal": 16000
+        },
+        {
+          "name": "└ [구성] 유선리모컨(통합)",
+          "model": "AWR-WE13N",
+          "price": 56000,
+          "qty": 0,
+          "subtotal": 0
+        },
+        {
+          "name": "└ [구성] 유선리모컨(컬러)",
+          "model": "AWR-WG00N",
+          "price": 91000,
+          "qty": 0,
+          "subtotal": 0
+        },
+        {
+          "name": "└ [구성] 판넬 (360CST 원형 공기청정)",
+          "model": "PC6EUCK1NW",
+          "price": 678000,
+          "qty": 1,
+          "subtotal": 678000
+        },
+        {
+          "name": "└ [구성] 판넬 (360CST 원형 승강)",
+          "model": "PC6EUXK1NW",
+          "price": 188000,
+          "qty": 0,
+          "subtotal": 0
+        },
+        {
+          "name": "└ [구성] 판넬 (360CST 사각 블랙 WIFI)",
+          "model": "PC6NBDK1NW",
+          "price": 188000,
+          "qty": 0,
+          "subtotal": 0
+        },
+        {
+          "name": "└ [구성] 판넬 (360CST 원형 블랙 WIFI)",
+          "model": "PC6NBNK1NW",
+          "price": 188000,
+          "qty": 0,
+          "subtotal": 0
+        },
+        {
+          "name": "└ [구성] 판넬 360CST 사각 공기청정 WIFI",
+          "model": "PC6NUCK1NW",
+          "price": 678000,
+          "qty": 0,
+          "subtotal": 0
+        },
+        {
+          "name": "└ [구성] 판넬 360CST 사각 WIFI",
+          "model": "PC6NUDK1NW",
+          "price": 128000,
+          "qty": 0,
+          "subtotal": 0
+        },
+        {
+          "name": "└ [구성] 판넬 (360CST 원형 WIFI)",
+          "model": "PC6NUNK1NW",
+          "price": 128000,
+          "qty": 0,
+          "subtotal": 0
+        },
+        {
+          "name": "└ [구성] 판넬 (360CST 사각 승강)",
+          "model": "PC6NUXK1NW",
+          "price": 188000,
+          "qty": 0,
+          "subtotal": 0
+        }
+      ],
+      "screenshot": "C:\\dev\\Samhan-Public\\.claude\\worktrees\\wsrd\\docs\\qa\\1269-sol-reverdict-2-real-qa\\02-AC060-판넬-공청-세트상세.png"
+    },
+    "fourWayBase": {
+      "model": "AC060BS4PBH7SY",
+      "id": "무풍 4way 냉난방 프리미엄|15|20",
+      "header": 1300000,
+      "detailSum": 1300000,
+      "equal": true,
+      "visibleRowCount": 9,
+      "activeRowCount": 4,
+      "rows": [
+        {
+          "name": "└ [구성] 무풍 4way 냉난방 프리미엄 실내기",
+          "model": "AC060BN4PBH1",
+          "price": 471060,
+          "qty": 1,
+          "subtotal": 471060
+        },
+        {
+          "name": "└ [구성] 무풍 4way 냉난방 프리미엄 실외기",
+          "model": "AC060BXAPBH3",
+          "price": 708880,
+          "qty": 1,
+          "subtotal": 708880
+        },
+        {
+          "name": "└ [구성] 무선리모컨(냉난방전용)",
+          "model": "AR-EH05",
+          "price": 16000,
+          "qty": 1,
+          "subtotal": 16000
+        },
+        {
+          "name": "└ [구성] 유선리모컨(통합)",
+          "model": "AWR-WE13N",
+          "price": 56000,
+          "qty": 0,
+          "subtotal": 0
+        },
+        {
+          "name": "└ [구성] 유선리모컨(컬러)",
+          "model": "AWR-WG00N",
+          "price": 91000,
+          "qty": 0,
+          "subtotal": 0
+        },
+        {
+          "name": "└ [구성] 판넬 무풍4Way(블랙 WIFI)",
+          "model": "PC4NBFK1NW",
+          "price": 150040,
+          "qty": 0,
+          "subtotal": 0
+        },
+        {
+          "name": "└ [구성] 판넬 4way 무풍 공기청정 WIFI",
+          "model": "PC4NUCK4NW",
+          "price": 611050,
+          "qty": 0,
+          "subtotal": 0
+        },
+        {
+          "name": "└ [구성] 판넬 4way 무풍 WIFI 내장",
+          "model": "PC4NUFK1NW",
+          "price": 104060,
+          "qty": 1,
+          "subtotal": 104060
+        },
+        {
+          "name": "└ [구성] 판넬 무풍4Way(승강) WIFI내장",
+          "model": "PC4NUXK1NW",
+          "price": 153670,
+          "qty": 0,
+          "subtotal": 0
+        }
+      ],
+      "screenshot": "C:\\dev\\Samhan-Public\\.claude\\worktrees\\wsrd\\docs\\qa\\1269-sol-reverdict-2-real-qa\\05-AC060-4way-판넬-기본-세트상세.png"
+    },
+    "fourWayBlack": {
+      "model": "AC060BS4PBH7SY",
+      "id": "무풍 4way 냉난방 프리미엄|15|20",
+      "header": 1350000,
+      "detailSum": 1350000,
+      "equal": true,
+      "visibleRowCount": 9,
+      "activeRowCount": 4,
+      "rows": [
+        {
+          "name": "└ [구성] 무풍 4way 냉난방 프리미엄 실내기",
+          "model": "AC060BN4PBH1",
+          "price": 473040,
+          "qty": 1,
+          "subtotal": 473040
+        },
+        {
+          "name": "└ [구성] 무풍 4way 냉난방 프리미엄 실외기",
+          "model": "AC060BXAPBH3",
+          "price": 710920,
+          "qty": 1,
+          "subtotal": 710920
+        },
+        {
+          "name": "└ [구성] 무선리모컨(냉난방전용)",
+          "model": "AR-EH05",
+          "price": 16000,
+          "qty": 1,
+          "subtotal": 16000
+        },
+        {
+          "name": "└ [구성] 유선리모컨(통합)",
+          "model": "AWR-WE13N",
+          "price": 56000,
+          "qty": 0,
+          "subtotal": 0
+        },
+        {
+          "name": "└ [구성] 유선리모컨(컬러)",
+          "model": "AWR-WG00N",
+          "price": 91000,
+          "qty": 0,
+          "subtotal": 0
+        },
+        {
+          "name": "└ [구성] 판넬 무풍4Way(블랙 WIFI)",
+          "model": "PC4NBFK1NW",
+          "price": 150040,
+          "qty": 1,
+          "subtotal": 150040
+        },
+        {
+          "name": "└ [구성] 판넬 4way 무풍 공기청정 WIFI",
+          "model": "PC4NUCK4NW",
+          "price": 611050,
+          "qty": 0,
+          "subtotal": 0
+        },
+        {
+          "name": "└ [구성] 판넬 4way 무풍 WIFI 내장",
+          "model": "PC4NUFK1NW",
+          "price": 104060,
+          "qty": 0,
+          "subtotal": 0
+        },
+        {
+          "name": "└ [구성] 판넬 무풍4Way(승강) WIFI내장",
+          "model": "PC4NUXK1NW",
+          "price": 153670,
+          "qty": 0,
+          "subtotal": 0
+        }
+      ],
+      "screenshot": "C:\\dev\\Samhan-Public\\.claude\\worktrees\\wsrd\\docs\\qa\\1269-sol-reverdict-2-real-qa\\06-AC060-4way-판넬-블랙-세트상세.png"
+    }
+  },
+  "material": {
+    "separate": {
+      "model": "AP060BAPPBH2S",
+      "id": "냉난방 프리미엄 스탠드|15|84",
+      "header": 1200000,
+      "detailSum": 1200000,
+      "equal": true,
+      "visibleRowCount": 3,
+      "activeRowCount": 2,
+      "rows": [
+        {
+          "name": "└ [구성] 무풍 4way 냉난방 프리미엄 실외기",
+          "model": "AC060BXAPBH3",
+          "price": 720000,
+          "qty": 1,
+          "subtotal": 720000
+        },
+        {
+          "name": "└ [구성] 냉난방 프리미엄 스탠드 실내기",
+          "model": "AP060RNPPBH1",
+          "price": 480000,
+          "qty": 1,
+          "subtotal": 480000
+        },
+        {
+          "name": "└ [구성] 냉난방 스탠드 자재",
+          "model": "FPH-1412XS3",
+          "price": 130000,
+          "qty": 0,
+          "subtotal": 0
+        }
+      ],
+      "screenshot": "C:\\dev\\Samhan-Public\\.claude\\worktrees\\wsrd\\docs\\qa\\1269-sol-reverdict-2-real-qa\\03-AP060-자재-별도-세트상세.png"
+    },
+    "included": {
+      "model": "AP060BAPPBH2S",
+      "id": "냉난방 프리미엄 스탠드|15|84",
+      "header": 1330000,
+      "detailSum": 1330000,
+      "equal": true,
+      "visibleRowCount": 3,
+      "activeRowCount": 3,
+      "rows": [
+        {
+          "name": "└ [구성] 무풍 4way 냉난방 프리미엄 실외기",
+          "model": "AC060BXAPBH3",
+          "price": 720000,
+          "qty": 1,
+          "subtotal": 720000
+        },
+        {
+          "name": "└ [구성] 냉난방 프리미엄 스탠드 실내기",
+          "model": "AP060RNPPBH1",
+          "price": 480000,
+          "qty": 1,
+          "subtotal": 480000
+        },
+        {
+          "name": "└ [구성] 냉난방 스탠드 자재",
+          "model": "FPH-1412XS3",
+          "price": 130000,
+          "qty": 1,
+          "subtotal": 130000
+        }
+      ],
+      "screenshot": "C:\\dev\\Samhan-Public\\.claude\\worktrees\\wsrd\\docs\\qa\\1269-sol-reverdict-2-real-qa\\04-AP060-자재-포함-세트상세.png"
+    }
+  },
+  "sweep": {
+    "setCount": 224,
+    "componentSetCount": 207,
+    "scenarioCount": 11,
+    "mismatchCount": 0,
+    "defaultMismatchCount": 0,
+    "nonThousandScenarioCount": 539,
+    "defaultNonThousandSetCount": 49,
+    "mismatches": [],
+    "matches": [
+      {
+        "set": "AC060CS6PBH1SY",
+        "scenario": "기본",
+        "header": 1660000,
+        "detailSum": 1660000,
+        "delta": 0,
+        "partCount": 4
+      },
+      {
+        "set": "AC060CS6PBH1SY",
+        "scenario": "사각",
+        "header": 1660000,
+        "detailSum": 1660000,
+        "delta": 0,
+        "partCount": 4
+      },
+      {
+        "set": "AC060CS6PBH1SY",
+        "scenario": "블랙-원형",
+        "header": 1710000,
+        "detailSum": 1710000,
+        "delta": 0,
+        "partCount": 4
+      },
+      {
+        "set": "AC060CS6PBH1SY",
+        "scenario": "블랙-사각",
+        "header": 1710000,
+        "detailSum": 1710000,
+        "delta": 0,
+        "partCount": 4
+      },
+      {
+        "set": "AC060CS6PBH1SY",
+        "scenario": "승강-원형",
+        "header": 1720000,
+        "detailSum": 1720000,
+        "delta": 0,
+        "partCount": 4
+      },
+      {
+        "set": "AC060CS6PBH1SY",
+        "scenario": "승강-사각",
+        "header": 1720000,
+        "detailSum": 1720000,
+        "delta": 0,
+        "partCount": 4
+      },
+      {
+        "set": "AC060CS6PBH1SY",
+        "scenario": "공청-원형",
+        "header": 2210000,
+        "detailSum": 2210000,
+        "delta": 0,
+        "partCount": 4
+      },
+      {
+        "set": "AC060CS6PBH1SY",
+        "scenario": "공청-사각",
+        "header": 2210000,
+        "detailSum": 2210000,
+        "delta": 0,
+        "partCount": 4
+      },
+      {
+        "set": "AC060CS6PBH1SY",
+        "scenario": "유선",
+        "header": 1700000,
+        "detailSum": 1700000,
+        "delta": 0,
+        "partCount": 4
+      },
+      {
+        "set": "AC060CS6PBH1SY",
+        "scenario": "컬러유선",
+        "header": 1660000,
+        "detailSum": 1660000,
+        "delta": 0,
+        "partCount": 3
+      },
+      {
+        "set": "AC060CS6PBH1SY",
+        "scenario": "자재포함",
+        "header": 1660000,
+        "detailSum": 1660000,
+        "delta": 0,
+        "partCount": 4
+      },
+      {
+        "set": "AC072CS6PBH1SY",
+        "scenario": "기본",
+        "header": 1840000,
+        "detailSum": 1840000,
+        "delta": 0,
+        "partCount": 4
+      },
+      {
+        "set": "AC072CS6PBH1SY",
+        "scenario": "사각",
+        "header": 1840000,
+        "detailSum": 1840000,
+        "delta": 0,
+        "partCount": 4
+      },
+      {
+        "set": "AC072CS6PBH1SY",
+        "scenario": "블랙-원형",
+        "header": 1890000,
+        "detailSum": 1890000,
+        "delta": 0,
+        "partCount": 4
+      },
+      {
+        "set": "AC072CS6PBH1SY",
+        "scenario": "블랙-사각",
+        "header": 1890000,
+        "detailSum": 1890000,
+        "delta": 0,
+        "partCount": 4
+      },
+      {
+        "set": "AC072CS6PBH1SY",
+        "scenario": "승강-원형",
+        "header": 1900000,
+        "detailSum": 1900000,
+        "delta": 0,
+        "partCount": 4
+      },
+      {
+        "set": "AC072CS6PBH1SY",
+        "scenario": "승강-사각",
+        "header": 1900000,
+        "detailSum": 1900000,
+        "delta": 0,
+        "partCount": 4
+      },
+      {
+        "set": "AC072CS6PBH1SY",
+        "scenario": "공청-원형",
+        "header": 2390000,
+        "detailSum": 2390000,
+        "delta": 0,
+        "partCount": 4
+      },
+      {
+        "set": "AC072CS6PBH1SY",
+        "scenario": "공청-사각",
+        "header": 2390000,
+        "detailSum": 2390000,
+        "delta": 0,
+        "partCount": 4
+      },
+      {
+        "set": "AC072CS6PBH1SY",
+        "scenario": "유선",
+        "header": 1880000,
+        "detailSum": 1880000,
+        "delta": 0,
+        "partCount": 4
+      },
+      {
+        "set": "AC072CS6PBH1SY",
+        "scenario": "컬러유선",
+        "header": 1840000,
+        "detailSum": 1840000,
+        "delta": 0,
+        "partCount": 3
+      },
+      {
+        "set": "AC072CS6PBH1SY",
+        "scenario": "자재포함",
+        "header": 1840000,
+        "detailSum": 1840000,
+        "delta": 0,
+        "partCount": 4
+      },
+      {
+        "set": "AC090CS6PBH1SY",
+        "scenario": "기본",
+        "header": 2030000,
+        "detailSum": 2030000,
+        "delta": 0,
+        "partCount": 4
+      },
+      {
+        "set": "AC090CS6PBH1SY",
+        "scenario": "사각",
+        "header": 2030000,
+        "detailSum": 2030000,
+        "delta": 0,
+        "partCount": 4
+      },
+      {
+        "set": "AC090CS6PBH1SY",
+        "scenario": "블랙-원형",
+        "header": 2080000,
+        "detailSum": 2080000,
+        "delta": 0,
+        "partCount": 4
+      },
+      {
+        "set": "AC090CS6PBH1SY",
+        "scenario": "블랙-사각",
+        "header": 2080000,
+        "detailSum": 2080000,
+        "delta": 0,
+        "partCount": 4
+      },
+      {
+        "set": "AC090CS6PBH1SY",
+        "scenario": "승강-원형",
+        "header": 2090000,
+        "detailSum": 2090000,
+        "delta": 0,
+        "partCount": 4
+      },
+      {
+        "set": "AC090CS6PBH1SY",
+        "scenario": "승강-사각",
+        "header": 2090000,
+        "detailSum": 2090000,
+        "delta": 0,
+        "partCount": 4
+      },
+      {
+        "set": "AC090CS6PBH1SY",
+        "scenario": "공청-원형",
+        "header": 2580000,
+        "detailSum": 2580000,
+        "delta": 0,
+        "partCount": 4
+      },
+      {
+        "set": "AC090CS6PBH1SY",
+        "scenario": "공청-사각",
+        "header": 2580000,
+        "detailSum": 2580000,
+        "delta": 0,
+        "partCount": 4
+      }
+    ],
+    "counts": {
+      "INDOOR": {
+        "occurrences": 2277,
+        "defaultOccurrences": 207,
+        "uniqueRows": 352,
+        "nonThousandOccurrences": 539,
+        "defaultNonThousandOccurrences": 49,
+        "uniqueNonThousand": 184,
+        "residue45375": 0,
+        "samples": [
+          {
+            "set": "AC060CS4PBH2SY",
+            "scenario": "기본",
+            "model": "AC060CN4PBH1",
+            "price": 555060
+          },
+          {
+            "set": "AC060CS4PBH2SY",
+            "scenario": "사각",
+            "model": "AC060CN4PBH1",
+            "price": 555060
+          },
+          {
+            "set": "AC060CS4PBH2SY",
+            "scenario": "블랙-원형",
+            "model": "AC060CN4PBH1",
+            "price": 557040
+          },
+          {
+            "set": "AC060CS4PBH2SY",
+            "scenario": "블랙-사각",
+            "model": "AC060CN4PBH1",
+            "price": 557040
+          },
+          {
+            "set": "AC060CS4PBH2SY",
+            "scenario": "승강-원형",
+            "model": "AC060CN4PBH1",
+            "price": 559670
+          },
+          {
+            "set": "AC060CS4PBH2SY",
+            "scenario": "승강-사각",
+            "model": "AC060CN4PBH1",
+            "price": 559670
+          },
+          {
+            "set": "AC060CS4PBH2SY",
+            "scenario": "공청-원형",
+            "model": "AC060CN4PBH1",
+            "price": 572050
+          },
+          {
+            "set": "AC060CS4PBH2SY",
+            "scenario": "공청-사각",
+            "model": "AC060CN4PBH1",
+            "price": 572050
+          },
+          {
+            "set": "AC060CS4PBH2SY",
+            "scenario": "유선",
+            "model": "AC060CN4PBH1",
+            "price": 555060
+          },
+          {
+            "set": "AC060CS4PBH2SY",
+            "scenario": "컬러유선",
+            "model": "AC060CN4PBH1",
+            "price": 561060
+          },
+          {
+            "set": "AC060CS4PBH2SY",
+            "scenario": "자재포함",
+            "model": "AC060CN4PBH1",
+            "price": 555060
+          },
+          {
+            "set": "AC072CS4PBH2SY",
+            "scenario": "기본",
+            "model": "AC072CN4PBH1",
+            "price": 619060
+          }
+        ]
+      },
+      "OUTDOOR": {
+        "occurrences": 2277,
+        "defaultOccurrences": 207,
+        "uniqueRows": 354,
+        "nonThousandOccurrences": 528,
+        "defaultNonThousandOccurrences": 48,
+        "uniqueNonThousand": 218,
+        "residue45375": 0,
+        "samples": [
+          {
+            "set": "AC060CS4PBH2SY",
+            "scenario": "기본",
+            "model": "AC060CXAPBH1",
+            "price": 834880
+          },
+          {
+            "set": "AC060CS4PBH2SY",
+            "scenario": "사각",
+            "model": "AC060CXAPBH1",
+            "price": 834880
+          },
+          {
+            "set": "AC060CS4PBH2SY",
+            "scenario": "블랙-원형",
+            "model": "AC060CXAPBH1",
+            "price": 836920
+          },
+          {
+            "set": "AC060CS4PBH2SY",
+            "scenario": "블랙-사각",
+            "model": "AC060CXAPBH1",
+            "price": 836920
+          },
+          {
+            "set": "AC060CS4PBH2SY",
+            "scenario": "승강-원형",
+            "model": "AC060CXAPBH1",
+            "price": 840660
+          },
+          {
+            "set": "AC060CS4PBH2SY",
+            "scenario": "승강-사각",
+            "model": "AC060CXAPBH1",
+            "price": 840660
+          },
+          {
+            "set": "AC060CS4PBH2SY",
+            "scenario": "공청-원형",
+            "model": "AC060CXAPBH1",
+            "price": 860900
+          },
+          {
+            "set": "AC060CS4PBH2SY",
+            "scenario": "공청-사각",
+            "model": "AC060CXAPBH1",
+            "price": 860900
+          },
+          {
+            "set": "AC060CS4PBH2SY",
+            "scenario": "유선",
+            "model": "AC060CXAPBH1",
+            "price": 834880
+          },
+          {
+            "set": "AC060CS4PBH2SY",
+            "scenario": "컬러유선",
+            "model": "AC060CXAPBH1",
+            "price": 844880
+          },
+          {
+            "set": "AC060CS4PBH2SY",
+            "scenario": "자재포함",
+            "model": "AC060CXAPBH1",
+            "price": 834880
+          },
+          {
+            "set": "AC072CS4PBH2SY",
+            "scenario": "기본",
+            "model": "AC072CXAPBH1",
+            "price": 930880
+          }
+        ]
+      },
+      "PANEL": {
+        "occurrences": 638,
+        "defaultOccurrences": 58,
+        "uniqueRows": 16,
+        "nonThousandOccurrences": 528,
+        "defaultNonThousandOccurrences": 48,
+        "uniqueNonThousand": 8,
+        "residue45375": 0,
+        "samples": [
+          {
+            "set": "AC060CS4PBH2SY",
+            "scenario": "기본",
+            "model": "PC4NUFK1NW",
+            "price": 104060
+          },
+          {
+            "set": "AC060CS4PBH2SY",
+            "scenario": "사각",
+            "model": "PC4NUFK1NW",
+            "price": 104060
+          },
+          {
+            "set": "AC060CS4PBH2SY",
+            "scenario": "블랙-원형",
+            "model": "PC4NBFK1NW",
+            "price": 150040
+          },
+          {
+            "set": "AC060CS4PBH2SY",
+            "scenario": "블랙-사각",
+            "model": "PC4NBFK1NW",
+            "price": 150040
+          },
+          {
+            "set": "AC060CS4PBH2SY",
+            "scenario": "승강-원형",
+            "model": "PC4NUXK1NW",
+            "price": 153670
+          },
+          {
+            "set": "AC060CS4PBH2SY",
+            "scenario": "승강-사각",
+            "model": "PC4NUXK1NW",
+            "price": 153670
+          },
+          {
+            "set": "AC060CS4PBH2SY",
+            "scenario": "공청-원형",
+            "model": "PC4NUCK4NW",
+            "price": 611050
+          },
+          {
+            "set": "AC060CS4PBH2SY",
+            "scenario": "공청-사각",
+            "model": "PC4NUCK4NW",
+            "price": 611050
+          },
+          {
+            "set": "AC060CS4PBH2SY",
+            "scenario": "유선",
+            "model": "PC4NUFK1NW",
+            "price": 104060
+          },
+          {
+            "set": "AC060CS4PBH2SY",
+            "scenario": "컬러유선",
+            "model": "PC4NUFK1NW",
+            "price": 104060
+          },
+          {
+            "set": "AC060CS4PBH2SY",
+            "scenario": "자재포함",
+            "model": "PC4NUFK1NW",
+            "price": 104060
+          },
+          {
+            "set": "AC072CS4PBH2SY",
+            "scenario": "기본",
+            "model": "PC4NUFK1NW",
+            "price": 104060
+          }
+        ]
+      },
+      "REMOTE": {
+        "occurrences": 1668,
+        "defaultOccurrences": 157,
+        "uniqueRows": 10,
+        "nonThousandOccurrences": 0,
+        "defaultNonThousandOccurrences": 0,
+        "uniqueNonThousand": 0,
+        "residue45375": 0,
+        "samples": []
+      },
+      "MATERIAL": {
+        "occurrences": 190,
+        "defaultOccurrences": 0,
+        "uniqueRows": 15,
+        "nonThousandOccurrences": 0,
+        "defaultNonThousandOccurrences": 0,
+        "uniqueNonThousand": 0,
+        "residue45375": 0,
+        "samples": []
+      },
+      "ACCESSORY": {
+        "occurrences": 495,
+        "defaultOccurrences": 45,
+        "uniqueRows": 5,
+        "nonThousandOccurrences": 0,
+        "defaultNonThousandOccurrences": 0,
+        "uniqueNonThousand": 0,
+        "residue45375": 0,
+        "samples": []
+      }
+    }
+  }
+}

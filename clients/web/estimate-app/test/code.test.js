@@ -140,7 +140,7 @@ function loadEstimateViewFunctionFromSource(source, name, contextOverrides = {})
   };
   vm.createContext(context);
   const dependencies = source.includes('function componentVariant_')
-    ? `${source.includes('function componentDeliveryPrice_') ? extractNamedFunction(source, 'componentDeliveryPrice_') : ''}\n${extractNamedFunction(source, 'componentVariant_')}`
+    ? `${source.includes('const LEGACY_COMPONENT_DELIVERY =') ? source.match(/const LEGACY_COMPONENT_DELIVERY = Object\.freeze\(\{[\s\S]*?\n\}\);/)?.[0] || '' : ''}\n${source.includes('function componentDeliveryPrice_') ? extractNamedFunction(source, 'componentDeliveryPrice_') : ''}\n${extractNamedFunction(source, 'componentVariant_')}`
     : '';
   vm.runInContext(`${dependencies}\n${extractNamedFunction(source, name)}`, context);
   return context;
@@ -212,6 +212,16 @@ describe('순수 유틸 (Apps Script 호환)', () => {
 
     expect(context.componentDeliveryPrice_({ model: 'REMOTE-WIRED', price: 45375 })).toBe(56000);
     expect(context.componentDeliveryPrice_({ model: 'REMOTE-WIRELESS', price: 13915 })).toBe(16000);
+  });
+
+  test('싱글 판넬 변형은 4way 구성품 납품가를 배분 계산가보다 우선한다', () => {
+    const context = loadCurrentEstimateViewFunction('componentDeliveryPrice_', {
+      PRICE_INC: { single: {} },
+      priceFrom: (part) => part.price,
+    });
+
+    expect(context.componentDeliveryPrice_({ model: 'PC4NUFK1NW', price: 104060 })).toBe(128000);
+    expect(context.componentDeliveryPrice_({ model: 'PC4NBFK1NW', price: 150040 })).toBe(188000);
   });
 
   test('싱글 세트 실내기·실외기 배분은 고정 구성품 납품가를 뺀 뒤 천원 단위로 맞춘다', () => {
