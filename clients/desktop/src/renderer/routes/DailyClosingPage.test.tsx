@@ -118,6 +118,54 @@ afterEach(() => {
 })
 
 describe('DailyClosingPage 서버 정본 재진입 잠금', () => {
+  it('매출 생성은 같은 날짜·순번의 별도 매입 원천을 잠그지 않으며 같은 매출 원천 재생성은 차단한다', async () => {
+    const salesRow = {
+      ...editableRows[0],
+      seqNo: 6,
+      slipNo: 'OUT-20260814-6',
+      slipId: 'outbound-slip-6',
+      lineId: 'outbound-line-6',
+      sourceLineNo: 1,
+      taxType: 'TAXABLE' as const,
+      partnerId: 'partner-6',
+      productCode: 'SKU-OUT-6',
+      accountingPostedAt: null,
+    }
+    const purchaseRow = {
+      ...salesRow,
+      productName: '매입 별도 원천',
+      slipNo: 'IN-20260814-6',
+      slipId: 'inbound-slip-6',
+      lineId: 'inbound-line-6',
+    }
+    getDailyClosingRowsMock.mockImplementation(async (_date: string, slipType?: 'OUTBOUND' | 'INBOUND') =>
+      slipType === 'INBOUND' ? [purchaseRow] : [salesRow])
+    let salesCreated = false
+    listAccountingSlipLinkEligibilityMock.mockImplementation(async (sources: Array<{ sourceSlipNo?: string }>) =>
+      sources.map((source) => ({
+        sourceSlipNo: source.sourceSlipNo,
+        readModel: { linkedSlips: salesCreated && source.sourceSlipNo === salesRow.slipNo ? [{ slipNo: 'ACC-OUT-6' }] : [] },
+      })))
+    createSalesSlipDraftMock.mockImplementation(async () => {
+      salesCreated = true
+      return { slipNo: 'ACC-OUT-6' }
+    })
+
+    renderPage()
+    fireEvent.click(await screen.findByTestId('daily-closing-tab-pre_issued'))
+    const salesButton = await screen.findByTestId('daily-closing-accounting-create-6')
+    await waitFor(() => expect((salesButton as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(salesButton)
+    await waitFor(() => expect(createSalesSlipDraftMock).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect((salesButton as HTMLButtonElement).disabled).toBe(true))
+
+    fireEvent.click(within(screen.getByTestId('closing-kind-toggle')).getByRole('radio', { name: '매입', hidden: true }))
+    fireEvent.click(await screen.findByTestId('daily-closing-tab-pre_issued'))
+    const purchaseButton = await screen.findByTestId('daily-closing-accounting-create-6')
+    await waitFor(() => expect((purchaseButton as HTMLButtonElement).disabled).toBe(false))
+    expect(createPurchaseSlipDraftMock).not.toHaveBeenCalled()
+  })
+
   it('전표 생성 후 화면을 나갔다 다시 들어오면 생성 버튼과 금액 입력을 계속 잠근다', async () => {
     const sourceRow = {
       ...editableRows[0],

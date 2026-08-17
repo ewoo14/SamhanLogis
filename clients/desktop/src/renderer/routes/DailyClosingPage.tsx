@@ -1020,7 +1020,8 @@ function EditableLegacyDailyClosingTable({
     const sourceReady = source && summaryRows.every((row) => row.slipId && row.lineId && row.slipNo
       && row.partnerId && row.productCode && row.sourceLineNo
       && row.taxType && row.quantity > 0 && Number(row.unitPriceWithVat) > 0)
-    const accountingKey = source ? `${source.slipDate}-${source.seqNo}` : ''
+    const accountingSourceKind = closingKind === 'PURCHASE' ? 'PURCHASE' : 'SALES'
+    const accountingKey = source ? `${accountingSourceKind}-${source.slipDate}-${source.seqNo}` : ''
     const createAccounting = async () => {
       if (!source || !sourceReady || accountingPending) return
       setAccountingPending(accountingKey)
@@ -1182,7 +1183,7 @@ function EditableLegacyDailyClosingTable({
                     {selectableCell(formatLegacyNumber(row.quantity), index, 5, num)}
                     <LegacyAmountEditor
                       row={row}
-                      accountingCreated={accountingCreated.has(`${row.slipDate}-${row.seqNo}`)
+                      accountingCreated={accountingCreated.has(`${closingKind === 'PURCHASE' ? 'PURCHASE' : 'SALES'}-${row.slipDate}-${row.seqNo}`)
                         || serverAccountingCreated.has(row.slipNo ?? '')}
                       values={drafts[rowKey(row)]
                         ?? committedValues[rowKey(row)]
