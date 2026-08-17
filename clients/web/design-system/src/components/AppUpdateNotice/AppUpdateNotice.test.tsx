@@ -1,9 +1,27 @@
 // @vitest-environment jsdom
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { AppUpdateNotice } from './AppUpdateNotice'
+import { AppUpdateNotice, AppUpdateNoticeStack } from './AppUpdateNotice'
 
 describe('AppUpdateNotice', () => {
+  it('본문 흐름을 밀지 않는 고정 오버레이로 표시한다', () => {
+    render(
+      <>
+        <AppUpdateNotice
+          severity="network"
+          title="업데이트 서버에 연결하지 못했습니다"
+          description="잠시 후 다시 확인해 주세요."
+          testId="layout-notice"
+        />
+        <main data-testid="first-content">본문 첫 요소</main>
+      </>,
+    )
+
+    const notice = screen.getByTestId('layout-notice')
+    expect(notice.getAttribute('data-layout')).toBe('overlay')
+    expect(screen.getByTestId('first-content')).toBeTruthy()
+  })
+
   it('원인·상황·다음 행동을 심각도와 함께 보여준다', () => {
     render(
       <AppUpdateNotice
@@ -34,5 +52,17 @@ describe('AppUpdateNotice', () => {
 
     screen.getByRole('button', { name: '다시 확인' }).click()
     expect(onRetry).toHaveBeenCalledOnce()
+  })
+
+  it('스택은 네이티브 스크롤과 전역 이벤트 가로채기 없이 렌더링한다', () => {
+    render(
+      <AppUpdateNoticeStack>
+        <AppUpdateNotice severity="network" title="업데이트" description="확인해 주세요." />
+      </AppUpdateNoticeStack>,
+    )
+
+    const stack = screen.getByTestId('app-update-notice').parentElement as HTMLElement
+    expect(stack.getAttribute('role')).toBeNull()
+    expect(stack.dataset.scrollable).toBeUndefined()
   })
 })

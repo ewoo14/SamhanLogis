@@ -47,3 +47,11 @@ input, select, textarea {
   font-family: inherit;
   font-size: inherit;
 }
+
+/* Electron production renderer도 design-system의 no-print 계약을 직접 보장한다. */
+@media print {
+  .no-print,
+  [data-print-exclude] {
+    display: none !important;
+  }
+}
