@@ -31,3 +31,16 @@ test('홈멀티 변동DC 기준가는 desktop·dc-config와 같은 출고단가�
   }));
   expect(Math.round(rows[0].list * (1 - 0.48))).toBe(1355640);
 });
+
+test('인상 전 단가(단가변동) 옵션이 켜져도 baseline 변동DC 기준가는 outboundPrice를 유지한다', async () => {
+  const prices = await catalog.priceIncData();
+
+  for (const usePreChange of [false, true]) {
+    const base = prices.home.AJ060MXHNBC1;
+    expect({ usePreChange, base, total: Math.round(base * (1 - 0.48)) }).toEqual({
+      usePreChange,
+      base: 2607000,
+      total: 1355640,
+    });
+  }
+});

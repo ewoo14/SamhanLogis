@@ -200,7 +200,9 @@ async function priceIncData() {
   const rows = await get('/price-baseline');
   const out = { home: {}, comm: {}, single: {} };
   rows.forEach((r) => {
-    const list = num(r.releasePrice);
+    // 단가변동 옵션은 표면의 옵션 상태를 유지하되, 실제 변동DC 기준가는
+    // desktop·dc-config와 같은 현행 출고단가를 사용한다.
+    const list = num(r.outboundPrice || r.releasePrice);
     const price = num(r.deliveryPrice);
     switch (r.estimateCategory) {
       case 'HOME_MULTI':

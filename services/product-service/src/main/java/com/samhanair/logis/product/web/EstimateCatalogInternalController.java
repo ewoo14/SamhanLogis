@@ -231,7 +231,7 @@ public class EstimateCatalogInternalController {
 
     /** 인상 전 단가 baseline 행 — legacy getPriceIncData_ 동등. */
     public record PriceBaselineRow(String modelCode, String estimateCategory,
-            BigDecimal releasePrice, BigDecimal deliveryPrice) {
+            BigDecimal releasePrice, BigDecimal deliveryPrice, BigDecimal outboundPrice) {
     }
 
     /** legacy getSpecDetailMap_ 모델별 상세 사양 sub-object. null scope 는 JSON 에서 생략한다. */
@@ -429,7 +429,7 @@ public class EstimateCatalogInternalController {
                     PriceHistory ph = byProduct.get(e.getProductId());
                     return new PriceBaselineRow(p.getModelCode(),
                             e.getEstimateCategory().name(),
-                            ph.getReleasePrice(), ph.getDeliveryPrice());
+                            ph.getReleasePrice(), ph.getDeliveryPrice(), p.getOutboundPrice());
                 })
                 .toList());
         productById.forEach((productId, product) -> {
@@ -438,7 +438,7 @@ public class EstimateCatalogInternalController {
             }
             PriceHistory ph = byProduct.get(productId);
             rows.add(new PriceBaselineRow(product.getModelCode(), null,
-                    ph.getReleasePrice(), ph.getDeliveryPrice()));
+                    ph.getReleasePrice(), ph.getDeliveryPrice(), product.getOutboundPrice()));
         });
         return ApiResponse.ok(rows);
     }
