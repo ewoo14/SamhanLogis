@@ -140,7 +140,7 @@ function loadEstimateViewFunctionFromSource(source, name, contextOverrides = {})
   };
   vm.createContext(context);
   const dependencies = source.includes('function componentVariant_')
-    ? extractNamedFunction(source, 'componentVariant_')
+    ? `${source.includes('function componentDeliveryPrice_') ? extractNamedFunction(source, 'componentDeliveryPrice_') : ''}\n${extractNamedFunction(source, 'componentVariant_')}`
     : '';
   vm.runInContext(`${dependencies}\n${extractNamedFunction(source, name)}`, context);
   return context;
@@ -187,6 +187,36 @@ function runCardFeeCase(loadFn, rows, checked = true) {
 }
 
 describe('순수 유틸 (Apps Script 호환)', () => {
+  test('싱글 구성품 납품가는 옵션 계산가가 아니라 유선 56000원·무선 16000원 원천을 반환한다', () => {
+    const context = loadCurrentEstimateViewFunction('componentDeliveryPrice_', {
+      PRICE_INC: { single: {
+        'REMOTE-WIRED': { price: 56000 },
+        'REMOTE-WIRELESS': { price: 16000 },
+      } },
+      priceFrom: (part) => part.price,
+    });
+
+    expect(context.componentDeliveryPrice_({ model: 'REMOTE-WIRED', price: 45375 })).toBe(56000);
+    expect(context.componentDeliveryPrice_({ model: 'REMOTE-WIRELESS', price: 13915 })).toBe(16000);
+  });
+
+  test('싱글 세트 실내기·실외기 배분은 고정 구성품 납품가를 뺀 뒤 천원 단위로 맞춘다', () => {
+    const context = loadCurrentEstimateViewFunction('splitIndoorOutdoorToK', {
+      roundK: (value) => Math.round(value / 1000) * 1000,
+    });
+
+    expect(context.splitIndoorOutdoorToK(1660000, 144000, 4, 6)).toEqual({
+      indoor: 606000,
+      outdoor: 910000,
+      remain: 1516000,
+    });
+    expect(context.splitIndoorOutdoorToK(1700000, 184000, 4, 6)).toEqual({
+      indoor: 606000,
+      outdoor: 910000,
+      remain: 1516000,
+    });
+  });
+
   test('싱글중대형 AC060CS6PBH1SY 유선 선택은 component_variant 유선 후보로 40000원 차액을 만든다', () => {
     const context = loadCurrentEstimateViewFunction('getOptionRemoteRow', {
       partsForSetStrict_: () => [
@@ -249,10 +279,12 @@ describe('순수 유틸 (Apps Script 호환)', () => {
   test('싱글중대형 AC060CS6PBH1SY 자재 포함은 component_variant 자재 금액을 세트가에 더한다', () => {
     const context = loadCurrentEstimateViewFunction('materialsSumForSet', {
       SINGLE_DEFAULTS: { '자재 포함 여부': '별도' },
+      PRICE_INC: { single: {} },
       partsForSetStrict_: () => [
         { model: 'MAT-1', component_variant: '자재', price: 25000 },
         { model: 'OTHER-1', component_variant: '기본', price: 90000 },
       ],
+      priceFrom: (part) => part.price,
       partUnitPrice: (part) => part.price,
       el: (selector) => selector === '#ss_mat' ? { value: '포함' } : null,
     });

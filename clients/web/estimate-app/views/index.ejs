@@ -4419,6 +4419,30 @@ function homeUnitPrice(model){
 }
 
 // 싱글 부자재 단가
+// 세트 상세의 구성품 단가 원천. PRICE_INC.single은 세트 옵션 계산용
+// 보정가이지 구성품 납품가가 아니므로, 상세·배분에서는 항상 이 값을 우선한다.
+const LEGACY_COMPONENT_DELIVERY = Object.freeze({
+  'AR-EH05': 16000,
+  'AWR-WE13N': 56000,
+  'AWR-WG00N': 91000,
+  'PC6NUNK1NW': 128000,
+  'PC6NUDK1NW': 128000,
+  'PC6NBNK1NW': 188000,
+  'PC6NBDK1NW': 188000,
+  'PC6EUCK1NW': 678000,
+  'PC6NUCK1NW': 678000,
+  'PC6EUXK1NW': 188000,
+  'PC6NUXK1NW': 188000
+});
+function componentDeliveryPrice_(p){
+  const legacy = typeof LEGACY_COMPONENT_DELIVERY !== 'undefined'
+    ? Number(LEGACY_COMPONENT_DELIVERY[String(p?.model || '').trim()] || 0) : 0;
+  if (legacy > 0) return legacy;
+  const configured = typeof PRICE_INC !== 'undefined' && PRICE_INC.single
+    ? Number(PRICE_INC.single?.[p?.model]?.price || 0) : 0;
+  if (configured > 0) return configured;
+  return priceFrom(p,{ priceKeys:['price','unitPrice'], listKeys:['list','출고가','listPrice','msrp'] });
+}
 function partUnitPrice(p){
   const rawName = String(p?.nameRaw || p?.name || '');
   if (!window.SHOW_I_HOSE && /유연호스\s*I형/i.test(rawName)) {
@@ -5117,7 +5141,7 @@ function setPreviewFoot(sum){
 function materialsSumForSet(s){
   const includeMat=(el('#ss_mat')?.value||SINGLE_DEFAULTS['자재 포함 여부'])==='포함';
   if(!includeMat) return 0;
-  return partsForSetStrict_(s).reduce((t,p)=>t+(/자재/.test(String(p?.component_variant ?? p?.componentVariant ?? p?.feat ?? '').trim())?partUnitPrice(p):0),0);
+  return partsForSetStrict_(s).reduce((t,p)=>t+(/자재/.test(String(p?.component_variant ?? p?.componentVariant ?? p?.feat ?? '').trim())?componentDeliveryPrice_(p):0),0);
 }
 function componentVariant_(p){
   return String(p?.component_variant ?? p?.componentVariant ?? p?.feat ?? '').trim();
@@ -5203,10 +5227,10 @@ function calcSetUnitPrice(s){
 
   let panelDelta=0;
   if(basePanel){
-    const baseP=partUnitPrice(basePanel);
+    const baseP=componentDeliveryPrice_(basePanel);
     if(panelExcluded) panelDelta-=baseP;
     else if(chosenPanel && chosenPanel.model!==basePanel.model){
-      const fallback = partUnitPrice(chosenPanel)-baseP;
+      const fallback = componentDeliveryPrice_(chosenPanel)-baseP;
       panelDelta += configuredDelta(el('#ss_panel')?.value||'', fallback);
     }
   }
@@ -5215,7 +5239,7 @@ function calcSetUnitPrice(s){
   let remoteDelta=0;
   const remoteExcluded = !!el('#ss_remote_ex')?.checked;
   const remoteOpt = el('#ss_remote')?.value||'';
-  const baseRemoteSum = baseRemoteRows.reduce((t,p)=>t+partUnitPrice(p),0);
+  const baseRemoteSum = baseRemoteRows.reduce((t,p)=>t+componentDeliveryPrice_(p),0);
 
   if(remoteExcluded){
     remoteDelta -= baseRemoteSum;
@@ -5223,7 +5247,7 @@ function calcSetUnitPrice(s){
     const cand = getOptionRemoteRow(s,remoteOpt);
     if(cand){
       const replace = baseRemoteRows.find(p=>String(p?.component_variant ?? p?.componentVariant ?? p?.feat ?? '').trim()==='기본') || baseRemoteRows[0];
-      const fallback = replace ? partUnitPrice(cand)-partUnitPrice(replace) : partUnitPrice(cand);
+      const fallback = replace ? componentDeliveryPrice_(cand)-componentDeliveryPrice_(replace) : componentDeliveryPrice_(cand);
       remoteDelta += configuredDelta(remoteOpt, fallback);
     }
   }
@@ -5299,7 +5323,7 @@ function explodeSetParts(s, qty, setUnitOverride){
     model: p.model,
     unit: p.unit || 'EA',
     qty: qty,
-    price: partUnitPrice(p),
+    price: componentDeliveryPrice_(p),
     kind: p.kind || '',
     spec: p.spec || '',
     specs: Array.isArray(p.specs) ? p.specs : []
@@ -5334,7 +5358,7 @@ function explodeSetParts(s, qty, setUnitOverride){
     Math.round(Number(setBasePriceRightFirst(s)));
 
   // 고정합계계산
-  const fixedSum = fixedParts.reduce((t, x) => t + (Math.round(Number(x.price)||0)), 0);
+  const fixedSum = fixedParts.reduce((t, x) => t + componentDeliveryPrice_(x), 0);
 
   // 배분적용
   if (indoorParts.length && outdoorParts.length){
@@ -6188,7 +6212,7 @@ function renderSingleSetParts(s, setQty) {
   allParts.slice().reverse().forEach(p => {
     const pKey = (p.model || p.name || '').trim();
     const activeMatch = activeParts.find(ap => (ap.model || ap.name || '').trim() === pKey);
-    const unit = activeMatch ? activeMatch.price : (partUnitPrice(p) || p.price || 0);
+    const unit = activeMatch ? activeMatch.price : (componentDeliveryPrice_(p) || p.price || 0);
     const defQ = parseInt(p.defaultQty || p.qty || 1, 10);
     const effQ = activeMatch ? (parseInt(setQty, 10) || 0) * (parseInt(activeMatch.qty, 10) || defQ) : 0;
 
