@@ -1,0 +1,542 @@
+{
+  "runtime": {
+    "headless": true,
+    "app": "http://127.0.0.1:59647",
+    "isolatedGateway": "http://127.0.0.1:28637",
+    "sharedGateway": "http://127.0.0.1:8080",
+    "isolatedAccounting": "http://127.0.0.1:29647"
+  },
+  "gateway": {
+    "isolatedPrHead": {
+      "loginStatus": 200,
+      "catalogStatus": 200,
+      "catalogBytes": 18110
+    },
+    "sharedStack": {
+      "loginStatus": 200,
+      "catalogStatus": 401,
+      "catalogBytes": 88
+    }
+  },
+  "roles": [
+    {
+      "role": "MASTER",
+      "loginStatus": 200,
+      "listStatus": 200,
+      "calculateStatus": 200
+    },
+    {
+      "role": "MANAGER",
+      "loginStatus": 200,
+      "listStatus": 200,
+      "calculateStatus": 200
+    },
+    {
+      "role": "ACCOUNTANT",
+      "loginStatus": 200,
+      "listStatus": 200,
+      "calculateStatus": 200
+    },
+    {
+      "role": "SALES",
+      "loginStatus": 200,
+      "listStatus": 403,
+      "calculateStatus": 403
+    },
+    {
+      "role": "WAREHOUSE",
+      "loginStatus": 200,
+      "listStatus": 403,
+      "calculateStatus": 403
+    },
+    {
+      "role": "DISPATCH",
+      "loginStatus": 200,
+      "listStatus": 403,
+      "calculateStatus": 403
+    },
+    {
+      "role": "INVENTORY",
+      "loginStatus": 200,
+      "listStatus": 403,
+      "calculateStatus": 403
+    },
+    {
+      "role": "DEVELOPER",
+      "loginStatus": 200,
+      "listStatus": 403,
+      "calculateStatus": 403
+    },
+    {
+      "role": "STAFF",
+      "loginStatus": 200,
+      "listStatus": 403,
+      "calculateStatus": 403
+    },
+    {
+      "role": "DRIVER",
+      "loginStatus": 200,
+      "listStatus": 403,
+      "calculateStatus": 403
+    }
+  ],
+  "draftRegression": {
+    "createStatus": 201,
+    "listStatus": 200,
+    "detailStatus": 200,
+    "secondCreateStatus": 201,
+    "confirmStatus": 200
+  },
+  "boundaries": {
+    "blankStatus": 200,
+    "blank": {
+      "id": "5abdc560-d08a-4e0c-af8f-336600b7deb1",
+      "documentNo": null,
+      "settlementDate": "2026-08-17",
+      "status": "DRAFT",
+      "totalAmount": "0",
+      "payoutAmount": "0",
+      "supplyAmount": "0",
+      "vatAmount": "0",
+      "rateContractVersion": 1,
+      "equipmentAmount": "0",
+      "prepaidAmount": "0",
+      "installInputAmount": "0",
+      "safetyInputAmount": "0",
+      "paymentMethod": "CASH",
+      "withholdingApplied": false,
+      "manualExpenseRate": null,
+      "appliedExpenseRate": "0.08000000",
+      "cardAmount": "0",
+      "salesAmount": "0",
+      "expenseAmount": "0",
+      "withholdingAmount": "0",
+      "installAmount": "0",
+      "safetyAmount": "0",
+      "subtotalAmount": "0"
+    },
+    "malformedStatus": 400,
+    "malformedBody": "{\"success\":false,\"code\":\"INVALID_INPUT\",\"message\":\"total: must match \\\"^-?\\\\d{1,18}(\\\\.\\\\d{1,6})?$|^$\\\"\",\"data\":null,\"timestamp\":\"2026-08-16T17:37:15.073022828Z\"}"
+  },
+  "digits": [
+    {
+      "digits": 15,
+      "input": "999999999999999.000000",
+      "screen": "₩999,999,999,999,999.000000",
+      "payload": "999999999999999",
+      "savedResponse": "999999999999999",
+      "requery": "999999999999999.000000",
+      "status": 200,
+      "alert": null
+    },
+    {
+      "digits": 16,
+      "input": "9999999999999999",
+      "screen": "₩9,999,999,999,999,999",
+      "payload": "9999999999999999",
+      "savedResponse": "9999999999999999",
+      "requery": "9999999999999999.000000",
+      "status": 200,
+      "alert": null
+    },
+    {
+      "digits": 17,
+      "input": "99999999999999999",
+      "screen": "₩99,999,999,999,999,999.000000",
+      "payload": "99999999999999999",
+      "savedResponse": "99999999999999999",
+      "requery": "99999999999999999.000000",
+      "status": 200,
+      "alert": null
+    },
+    {
+      "digits": 18,
+      "input": "999999999999999999",
+      "screen": "₩999,999,999,999,999,999.000000",
+      "payload": "999999999999999999",
+      "savedResponse": "999999999999999999",
+      "requery": "999999999999999999.000000",
+      "status": 200,
+      "alert": null
+    },
+    {
+      "digits": 19,
+      "input": "9999999999999999999",
+      "screen": "₩999,999,999,999,999,999.000000",
+      "payload": null,
+      "savedResponse": null,
+      "requery": "999999999999999999.000000",
+      "status": "UI_BLOCKED",
+      "alert": "금액 형식은 숫자만 입력할 수 있으며 정수부는 18자리까지입니다.",
+      "calculateRequestDelta": 0,
+      "storedUnchanged": true
+    },
+    {
+      "digits": 20,
+      "input": "99999999999999999999",
+      "screen": "₩999,999,999,999,999,999.000000",
+      "payload": null,
+      "savedResponse": null,
+      "requery": "999999999999999999.000000",
+      "status": "UI_BLOCKED",
+      "alert": "금액 형식은 숫자만 입력할 수 있으며 정수부는 18자리까지입니다.",
+      "calculateRequestDelta": 0,
+      "storedUnchanged": true
+    }
+  ],
+  "responseOnlyRaces": [],
+  "wholeNetworkRace": {},
+  "captures": [
+    "C:\\dev\\Samhan-Public\\.claude\\worktrees\\w1237\\docs\\qa\\1248-merge-verdict-sol2-final\\screenshots\\01-before-immediate-recalculation-real-qa.png",
+    "C:\\dev\\Samhan-Public\\.claude\\worktrees\\w1237\\docs\\qa\\1248-merge-verdict-sol2-final\\screenshots\\02-after-immediate-recalculation-real-qa.png"
+  ],
+  "manualExpenseUi": {
+    "toggleVisible": true,
+    "inputVisible": true,
+    "inputValue": "12.5"
+  },
+  "calculation": {
+    "screenInputs": {
+      "total": "1234568.000000",
+      "equipment": "0.000000",
+      "prepaid": "0.000000",
+      "install": "0.000000",
+      "safety": "0.000000",
+      "paymentMethod": "CASH",
+      "withholdingApplied": "false"
+    },
+    "screenResults": {
+      "totalAmount": "₩1,234,567.000000",
+      "payoutAmount": "₩1,135,802.000000",
+      "supplyAmount": "₩1,032,547.000000",
+      "vatAmount": "₩103,255.000000",
+      "withholdingAmount": "₩0.000000"
+    },
+    "payload": {
+      "total": "1234567",
+      "equipment": "0.000000",
+      "prepaid": "0.000000",
+      "install": "0.000000",
+      "safety": "0.000000",
+      "paymentMethod": "CASH",
+      "withholdingApplied": false,
+      "manualExpenseRate": null,
+      "rateContractVersion": 1
+    },
+    "savedResponse": {
+      "id": "5abdc560-d08a-4e0c-af8f-336600b7deb1",
+      "documentNo": null,
+      "settlementDate": "2026-08-17",
+      "status": "DRAFT",
+      "totalAmount": "1234567",
+      "payoutAmount": "1135802.000000",
+      "supplyAmount": "1032547",
+      "vatAmount": "103255.000000",
+      "rateContractVersion": 1,
+      "equipmentAmount": "0.000000",
+      "prepaidAmount": "0.000000",
+      "installInputAmount": "0.000000",
+      "safetyInputAmount": "0.000000",
+      "paymentMethod": "CASH",
+      "withholdingApplied": false,
+      "manualExpenseRate": null,
+      "appliedExpenseRate": "0.08000000",
+      "cardAmount": "0",
+      "salesAmount": "1234567.000000",
+      "expenseAmount": "-98765",
+      "withholdingAmount": "0",
+      "installAmount": "0",
+      "safetyAmount": "0.000000",
+      "subtotalAmount": "1135802.000000"
+    },
+    "requery": {
+      "id": "5abdc560-d08a-4e0c-af8f-336600b7deb1",
+      "documentNo": null,
+      "settlementDate": "2026-08-17",
+      "status": "DRAFT",
+      "totalAmount": "1234567.000000",
+      "payoutAmount": "1135802.000000",
+      "supplyAmount": "1032547.000000",
+      "vatAmount": "103255.000000",
+      "rateContractVersion": 1,
+      "equipmentAmount": "0.000000",
+      "prepaidAmount": "0.000000",
+      "installInputAmount": "0.000000",
+      "safetyInputAmount": "0.000000",
+      "paymentMethod": "CASH",
+      "withholdingApplied": false,
+      "manualExpenseRate": null,
+      "appliedExpenseRate": "0.08000000",
+      "cardAmount": "0.000000",
+      "salesAmount": "1234567.000000",
+      "expenseAmount": "-98765.000000",
+      "withholdingAmount": "0.000000",
+      "installAmount": "0.000000",
+      "safetyAmount": "0.000000",
+      "subtotalAmount": "1135802.000000"
+    }
+  },
+  "errors": [
+    "page.waitForResponse: Timeout 30000ms exceeded while waiting for event \"response\"\n    at C:\\dev\\Samhan-Public\\.claude\\worktrees\\w1237\\clients\\desktop\\playwright\\1248-merge-verdict-sol2-real-qa\\1248-merge-verdict-sol2-real-qa.mjs:317:28"
+  ],
+  "compositeCalculation": {
+    "payload": {
+      "total": "1234567",
+      "equipment": "234567",
+      "prepaid": "100000",
+      "install": "123456",
+      "safety": "7890",
+      "paymentMethod": "CARD",
+      "withholdingApplied": true,
+      "manualExpenseRate": null,
+      "rateContractVersion": 1
+    },
+    "status": 200,
+    "savedResponse": {
+      "id": "5abdc560-d08a-4e0c-af8f-336600b7deb1",
+      "documentNo": null,
+      "settlementDate": "2026-08-17",
+      "status": "DRAFT",
+      "totalAmount": "1234567",
+      "payoutAmount": "736382",
+      "supplyAmount": "760347",
+      "vatAmount": "76035",
+      "rateContractVersion": 1,
+      "equipmentAmount": "234567",
+      "prepaidAmount": "100000",
+      "installInputAmount": "123456",
+      "safetyInputAmount": "7890",
+      "paymentMethod": "CARD",
+      "withholdingApplied": true,
+      "manualExpenseRate": null,
+      "appliedExpenseRate": "0.08000000",
+      "cardAmount": "-37037",
+      "salesAmount": "962963",
+      "expenseAmount": "-77037",
+      "withholdingAmount": "-31778",
+      "installAmount": "-9876",
+      "safetyAmount": "-7890",
+      "subtotalAmount": "836382"
+    },
+    "requery": {
+      "id": "5abdc560-d08a-4e0c-af8f-336600b7deb1",
+      "documentNo": null,
+      "settlementDate": "2026-08-17",
+      "status": "DRAFT",
+      "totalAmount": "1234567.000000",
+      "payoutAmount": "736382.000000",
+      "supplyAmount": "760347.000000",
+      "vatAmount": "76035.000000",
+      "rateContractVersion": 1,
+      "equipmentAmount": "234567.000000",
+      "prepaidAmount": "100000.000000",
+      "installInputAmount": "123456.000000",
+      "safetyInputAmount": "7890.000000",
+      "paymentMethod": "CARD",
+      "withholdingApplied": true,
+      "manualExpenseRate": null,
+      "appliedExpenseRate": "0.08000000",
+      "cardAmount": "-37037.000000",
+      "salesAmount": "962963.000000",
+      "expenseAmount": "-77037.000000",
+      "withholdingAmount": "-31778.000000",
+      "installAmount": "-9876.000000",
+      "safetyAmount": "-7890.000000",
+      "subtotalAmount": "836382.000000"
+    },
+    "handExpected": {
+      "cardAmount": "-37037",
+      "salesAmount": "962963",
+      "expenseAmount": "-77037",
+      "withholdingAmount": "-31778",
+      "installAmount": "-9876",
+      "safetyAmount": "-7890",
+      "subtotalAmount": "836382",
+      "payoutAmount": "736382",
+      "supplyAmount": "760347",
+      "vatAmount": "76035"
+    }
+  },
+  "requestEvents": [
+    {
+      "total": "999999999999999",
+      "body": {
+        "total": "999999999999999",
+        "equipment": "0.000000",
+        "prepaid": "0.000000",
+        "install": "0.000000",
+        "safety": "0.000000",
+        "paymentMethod": "CASH",
+        "withholdingApplied": false,
+        "manualExpenseRate": null,
+        "rateContractVersion": 1
+      },
+      "browserRequestAt": 1786901836492,
+      "upstreamStartedAt": 1786901836492,
+      "upstreamDoneAt": 1786901836513,
+      "deliveredAt": 1786901836513,
+      "upstreamStatus": 200,
+      "upstreamRaw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"5abdc560-d08a-4e0c-af8f-336600b7deb1\",\"documentNo\":null,\"settlementDate\":\"2026-08-17\",\"status\":\"DRAFT\",\"totalAmount\":\"999999999999999\",\"payoutAmount\":\"919999999999999.000000\",\"supplyAmount\":\"836363636363635\",\"vatAmount\":\"83636363636364.000000\",\"rateContractVersion\":1,\"equipmentAmount\":\"0.000000\",\"prepaidAmount\":\"0.000000\",\"installInputAmount\":\"0.000000\",\"safetyInputAmount\":\"0.000000\",\"paymentMethod\":\"CASH\",\"withholdingApplied\":false,\"manua"
+    },
+    {
+      "total": "9999999999999999",
+      "body": {
+        "total": "9999999999999999",
+        "equipment": "0.000000",
+        "prepaid": "0.000000",
+        "install": "0.000000",
+        "safety": "0.000000",
+        "paymentMethod": "CASH",
+        "withholdingApplied": false,
+        "manualExpenseRate": null,
+        "rateContractVersion": 1
+      },
+      "browserRequestAt": 1786901836554,
+      "upstreamStartedAt": 1786901836554,
+      "upstreamDoneAt": 1786901836573,
+      "deliveredAt": 1786901836573,
+      "upstreamStatus": 200,
+      "upstreamRaw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"5abdc560-d08a-4e0c-af8f-336600b7deb1\",\"documentNo\":null,\"settlementDate\":\"2026-08-17\",\"status\":\"DRAFT\",\"totalAmount\":\"9999999999999999\",\"payoutAmount\":\"9199999999999999.000000\",\"supplyAmount\":\"8363636363636363\",\"vatAmount\":\"836363636363636.000000\",\"rateContractVersion\":1,\"equipmentAmount\":\"0.000000\",\"prepaidAmount\":\"0.000000\",\"installInputAmount\":\"0.000000\",\"safetyInputAmount\":\"0.000000\",\"paymentMethod\":\"CASH\",\"withholdingApplied\":false,\"m"
+    },
+    {
+      "total": "99999999999999999",
+      "body": {
+        "total": "99999999999999999",
+        "equipment": "0.000000",
+        "prepaid": "0.000000",
+        "install": "0.000000",
+        "safety": "0.000000",
+        "paymentMethod": "CASH",
+        "withholdingApplied": false,
+        "manualExpenseRate": null,
+        "rateContractVersion": 1
+      },
+      "browserRequestAt": 1786901836598,
+      "upstreamStartedAt": 1786901836598,
+      "upstreamDoneAt": 1786901836617,
+      "deliveredAt": 1786901836617,
+      "upstreamStatus": 200,
+      "upstreamRaw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"5abdc560-d08a-4e0c-af8f-336600b7deb1\",\"documentNo\":null,\"settlementDate\":\"2026-08-17\",\"status\":\"DRAFT\",\"totalAmount\":\"99999999999999999\",\"payoutAmount\":\"91999999999999999.000000\",\"supplyAmount\":\"83636363636363635\",\"vatAmount\":\"8363636363636364.000000\",\"rateContractVersion\":1,\"equipmentAmount\":\"0.000000\",\"prepaidAmount\":\"0.000000\",\"installInputAmount\":\"0.000000\",\"safetyInputAmount\":\"0.000000\",\"paymentMethod\":\"CASH\",\"withholdingApplied\":fals"
+    },
+    {
+      "total": "999999999999999999",
+      "body": {
+        "total": "999999999999999999",
+        "equipment": "0.000000",
+        "prepaid": "0.000000",
+        "install": "0.000000",
+        "safety": "0.000000",
+        "paymentMethod": "CASH",
+        "withholdingApplied": false,
+        "manualExpenseRate": null,
+        "rateContractVersion": 1
+      },
+      "browserRequestAt": 1786901836644,
+      "upstreamStartedAt": 1786901836644,
+      "upstreamDoneAt": 1786901836661,
+      "deliveredAt": 1786901836661,
+      "upstreamStatus": 200,
+      "upstreamRaw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"5abdc560-d08a-4e0c-af8f-336600b7deb1\",\"documentNo\":null,\"settlementDate\":\"2026-08-17\",\"status\":\"DRAFT\",\"totalAmount\":\"999999999999999999\",\"payoutAmount\":\"919999999999999999.000000\",\"supplyAmount\":\"836363636363636363\",\"vatAmount\":\"83636363636363636.000000\",\"rateContractVersion\":1,\"equipmentAmount\":\"0.000000\",\"prepaidAmount\":\"0.000000\",\"installInputAmount\":\"0.000000\",\"safetyInputAmount\":\"0.000000\",\"paymentMethod\":\"CASH\",\"withholdingApplied\":"
+    },
+    {
+      "total": "1234568",
+      "body": {
+        "total": "1234568",
+        "equipment": "0.000000",
+        "prepaid": "0.000000",
+        "install": "0.000000",
+        "safety": "0.000000",
+        "paymentMethod": "CASH",
+        "withholdingApplied": false,
+        "manualExpenseRate": null,
+        "rateContractVersion": 1
+      },
+      "browserRequestAt": 1786901837696,
+      "upstreamStartedAt": 1786901837696,
+      "upstreamDoneAt": 1786901837716,
+      "deliveredAt": 1786901837716,
+      "upstreamStatus": 200,
+      "upstreamRaw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"5abdc560-d08a-4e0c-af8f-336600b7deb1\",\"documentNo\":null,\"settlementDate\":\"2026-08-17\",\"status\":\"DRAFT\",\"totalAmount\":\"1234568\",\"payoutAmount\":\"1135803.000000\",\"supplyAmount\":\"1032548\",\"vatAmount\":\"103255.000000\",\"rateContractVersion\":1,\"equipmentAmount\":\"0.000000\",\"prepaidAmount\":\"0.000000\",\"installInputAmount\":\"0.000000\",\"safetyInputAmount\":\"0.000000\",\"paymentMethod\":\"CASH\",\"withholdingApplied\":false,\"manualExpenseRate\":null,\"appliedExpen"
+    },
+    {
+      "total": "1234567",
+      "body": {
+        "total": "1234567",
+        "equipment": "0.000000",
+        "prepaid": "0.000000",
+        "install": "0.000000",
+        "safety": "0.000000",
+        "paymentMethod": "CASH",
+        "withholdingApplied": false,
+        "manualExpenseRate": null,
+        "rateContractVersion": 1
+      },
+      "browserRequestAt": 1786901837727,
+      "upstreamStartedAt": 1786901837727,
+      "upstreamDoneAt": 1786901837746,
+      "deliveredAt": 1786901837746,
+      "upstreamStatus": 200,
+      "upstreamRaw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"5abdc560-d08a-4e0c-af8f-336600b7deb1\",\"documentNo\":null,\"settlementDate\":\"2026-08-17\",\"status\":\"DRAFT\",\"totalAmount\":\"1234567\",\"payoutAmount\":\"1135802.000000\",\"supplyAmount\":\"1032547\",\"vatAmount\":\"103255.000000\",\"rateContractVersion\":1,\"equipmentAmount\":\"0.000000\",\"prepaidAmount\":\"0.000000\",\"installInputAmount\":\"0.000000\",\"safetyInputAmount\":\"0.000000\",\"paymentMethod\":\"CASH\",\"withholdingApplied\":false,\"manualExpenseRate\":null,\"appliedExpen"
+    },
+    {
+      "total": "1234567.000000",
+      "body": {
+        "total": "1234567.000000",
+        "equipment": "0.000000",
+        "prepaid": "0.000000",
+        "install": "0.000000",
+        "safety": "0.000000",
+        "paymentMethod": "CASH",
+        "withholdingApplied": false,
+        "manualExpenseRate": "",
+        "rateContractVersion": 1
+      },
+      "browserRequestAt": 1786901837914,
+      "upstreamStartedAt": 1786901837914,
+      "upstreamDoneAt": 1786901837933,
+      "deliveredAt": 1786901837933,
+      "upstreamStatus": 200,
+      "upstreamRaw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"5abdc560-d08a-4e0c-af8f-336600b7deb1\",\"documentNo\":null,\"settlementDate\":\"2026-08-17\",\"status\":\"DRAFT\",\"totalAmount\":\"1234567.000000\",\"payoutAmount\":\"1234567.000000\",\"supplyAmount\":\"1122334\",\"vatAmount\":\"112233.000000\",\"rateContractVersion\":1,\"equipmentAmount\":\"0.000000\",\"prepaidAmount\":\"0.000000\",\"installInputAmount\":\"0.000000\",\"safetyInputAmount\":\"0.000000\",\"paymentMethod\":\"CASH\",\"withholdingApplied\":false,\"manualExpenseRate\":\"0\",\"applie"
+    },
+    {
+      "total": "1234567.000000",
+      "body": {
+        "total": "1234567.000000",
+        "equipment": "0.000000",
+        "prepaid": "0.000000",
+        "install": "0.000000",
+        "safety": "0.000000",
+        "paymentMethod": "CASH",
+        "withholdingApplied": false,
+        "manualExpenseRate": "0.125",
+        "rateContractVersion": 1
+      },
+      "browserRequestAt": 1786901837925,
+      "upstreamStartedAt": 1786901837925,
+      "upstreamDoneAt": 1786901837943,
+      "deliveredAt": 1786901837943,
+      "upstreamStatus": 200,
+      "upstreamRaw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"5abdc560-d08a-4e0c-af8f-336600b7deb1\",\"documentNo\":null,\"settlementDate\":\"2026-08-17\",\"status\":\"DRAFT\",\"totalAmount\":\"1234567.000000\",\"payoutAmount\":\"1080246.000000\",\"supplyAmount\":\"982042\",\"vatAmount\":\"98204.000000\",\"rateContractVersion\":1,\"equipmentAmount\":\"0.000000\",\"prepaidAmount\":\"0.000000\",\"installInputAmount\":\"0.000000\",\"safetyInputAmount\":\"0.000000\",\"paymentMethod\":\"CASH\",\"withholdingApplied\":false,\"manualExpenseRate\":\"0.125\",\"appl"
+    },
+    {
+      "total": "101",
+      "body": {
+        "total": "101",
+        "equipment": "0.000000",
+        "prepaid": "0.000000",
+        "install": "0.000000",
+        "safety": "0.000000",
+        "paymentMethod": "CASH",
+        "withholdingApplied": false,
+        "manualExpenseRate": "0.125",
+        "rateContractVersion": 1
+      },
+      "browserRequestAt": 1786901837956,
+      "upstreamStartedAt": 1786901837956,
+      "upstreamDoneAt": 1786901837973,
+      "deliveredAt": 1786901838881,
+      "upstreamStatus": 200,
+      "upstreamRaw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"5abdc560-d08a-4e0c-af8f-336600b7deb1\",\"documentNo\":null,\"settlementDate\":\"2026-08-17\",\"status\":\"DRAFT\",\"totalAmount\":\"101\",\"payoutAmount\":\"88.000000\",\"supplyAmount\":\"80\",\"vatAmount\":\"8.000000\",\"rateContractVersion\":1,\"equipmentAmount\":\"0.000000\",\"prepaidAmount\":\"0.000000\",\"installInputAmount\":\"0.000000\",\"safetyInputAmount\":\"0.000000\",\"paymentMethod\":\"CASH\",\"withholdingApplied\":false,\"manualExpenseRate\":\"0.125\",\"appliedExpenseRate\":\"0.125\","
+    }
+  ]
+}
