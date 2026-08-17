@@ -169,7 +169,7 @@ test.describe('SP-04 full menu and legacy migration contract', () => {
   })
 
   test('integrated quote and order sheet source tabs are preserved', () => {
-    expect(quoteGas).toContain("const SRC_SHEET_ID      = '<SHEET_ID>'")
+    expect(quoteGas).toMatch(/const SRC_SHEET_ID\s*=\s*'[^<'][^']*'/)
     expect(quoteGas).toContain("const HOME_NAME         = '홈멀티_단가인상'")
     expect(quoteGas).toContain("const SINGLE_NAME       = '싱글 세트_단가인상'")
     expect(quoteGas).toContain("const COMM_PARTS_NAME   = '상업멀티 구성_단가인상'")
