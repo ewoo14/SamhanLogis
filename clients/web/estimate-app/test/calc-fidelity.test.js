@@ -64,7 +64,7 @@ const shim = require('../lib/apps-script-shim');
 const code = require('../lib/code');
 const directory = require('../lib/directory');
 
-const SHEET_ID = '<SHEET_ID>';
+const SHEET_ID = code._constants.SRC_SHEET_ID;
 const HOME_NAME = '홈멀티_단가인상';
 const SINGLE_NAME = '싱글 세트_단가인상';
 const COMM_NAME = '상업멀티_단가인상';
