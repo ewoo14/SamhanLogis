@@ -1,0 +1,289 @@
+{
+  "sourceRows": 77,
+  "lists": {
+    "autoBefore": 0,
+    "autoAfter": 1,
+    "manualBefore": 0,
+    "manualAfter": 1
+  },
+  "restores": {
+    "auto": {
+      "inbound": 77,
+      "dps": 77,
+      "matched": 77,
+      "mismatch": 0,
+      "details": 0
+    },
+    "manual": {
+      "inbound": 77,
+      "dps": 77,
+      "matched": 77,
+      "mismatch": 0,
+      "details": 0
+    }
+  },
+  "regressions": {
+    "a": {
+      "inbound": 77,
+      "dps": 77,
+      "matched": 77,
+      "mismatch": 0,
+      "details": 0
+    },
+    "c": {
+      "inbound": 77,
+      "dps": 77,
+      "matched": 76,
+      "mismatch": 1,
+      "details": 1
+    },
+    "d": {
+      "inbound": 77,
+      "dps": 77,
+      "matched": 76,
+      "mismatch": 1,
+      "details": 1
+    },
+    "b": {
+      "inbound": 77,
+      "dps": 77,
+      "matched": 77,
+      "mismatch": 0,
+      "details": 0
+    },
+    "e": {
+      "inbound": 77,
+      "dps": 77,
+      "matched": 77,
+      "mismatch": 0,
+      "details": 0
+    },
+    "f": {
+      "inbound": 77,
+      "dps": 78,
+      "matched": 77,
+      "mismatch": 1,
+      "details": 1
+    }
+  },
+  "refreshScope": {
+    "autoAfterSaveProxy": [
+      {
+        "at": 1787023404622,
+        "method": "POST",
+        "path": "/warehouse/audit/dps-history",
+        "status": 200,
+        "saveMode": "AUTO_LATEST"
+      },
+      {
+        "at": 1787023404646,
+        "method": "GET",
+        "path": "/warehouse/audit/dps-history?programType=DPS_COMPARE&mode=AUTO_LATEST&page=0&size=50&from=2026-08-01&to=2026-08-18",
+        "status": 200
+      },
+      {
+        "at": 1787023405686,
+        "method": "GET",
+        "path": "/warehouse/audit/dps-history/507466d9-29a3-4de0-9915-bc39303444f0",
+        "status": 200
+      },
+      {
+        "at": 1787023405922,
+        "method": "GET",
+        "path": "/warehouse/audit/dps-history?programType=DPS_COMPARE&mode=MANUAL_NAMED&page=0&size=50&from=2026-08-01&to=2026-08-18",
+        "status": 200
+      }
+    ],
+    "manualProxy": [
+      {
+        "at": 1787023407108,
+        "method": "POST",
+        "path": "/warehouse/audit/dps-history",
+        "status": 200,
+        "saveMode": "MANUAL_NAMED"
+      },
+      {
+        "at": 1787023407129,
+        "method": "GET",
+        "path": "/warehouse/audit/dps-history?programType=DPS_COMPARE&mode=MANUAL_NAMED&page=0&size=50&from=2026-08-01&to=2026-08-18",
+        "status": 200
+      }
+    ],
+    "unrelatedGetCountDuringManual": 0,
+    "unrelatedGetsDuringManual": [],
+    "navigationBefore": 1,
+    "navigationAfter": 1,
+    "headerMissingEvents": []
+  },
+  "proxyRecords": [
+    {
+      "at": 1787023394000,
+      "method": "GET",
+      "path": "/warehouse/audit/dps-history/latest?programType=DPS_COMPARE",
+      "status": 404
+    },
+    {
+      "at": 1787023394002,
+      "method": "GET",
+      "path": "/warehouse/audit/dps-history/latest?programType=DPS_COMPARE",
+      "status": 404
+    },
+    {
+      "at": 1787023394003,
+      "method": "GET",
+      "path": "/warehouse/audit/dps-history?programType=DPS_COMPARE&mode=MANUAL_NAMED&page=0&size=50&from=2026-08-01&to=2026-08-18",
+      "status": 200
+    },
+    {
+      "at": 1787023403615,
+      "method": "GET",
+      "path": "/warehouse/audit/dps-history?programType=DPS_COMPARE&mode=AUTO_LATEST&page=0&size=50&from=2026-08-01&to=2026-08-18",
+      "status": 200
+    },
+    {
+      "at": 1787023404592,
+      "method": "POST",
+      "path": "/warehouse/audit/dps-compare",
+      "status": 200
+    },
+    {
+      "at": 1787023404622,
+      "method": "POST",
+      "path": "/warehouse/audit/dps-history",
+      "status": 200,
+      "saveMode": "AUTO_LATEST"
+    },
+    {
+      "at": 1787023404646,
+      "method": "GET",
+      "path": "/warehouse/audit/dps-history?programType=DPS_COMPARE&mode=AUTO_LATEST&page=0&size=50&from=2026-08-01&to=2026-08-18",
+      "status": 200
+    },
+    {
+      "at": 1787023405686,
+      "method": "GET",
+      "path": "/warehouse/audit/dps-history/507466d9-29a3-4de0-9915-bc39303444f0",
+      "status": 200
+    },
+    {
+      "at": 1787023405922,
+      "method": "GET",
+      "path": "/warehouse/audit/dps-history?programType=DPS_COMPARE&mode=MANUAL_NAMED&page=0&size=50&from=2026-08-01&to=2026-08-18",
+      "status": 200
+    },
+    {
+      "at": 1787023407108,
+      "method": "POST",
+      "path": "/warehouse/audit/dps-history",
+      "status": 200,
+      "saveMode": "MANUAL_NAMED"
+    },
+    {
+      "at": 1787023407129,
+      "method": "GET",
+      "path": "/warehouse/audit/dps-history?programType=DPS_COMPARE&mode=MANUAL_NAMED&page=0&size=50&from=2026-08-01&to=2026-08-18",
+      "status": 200
+    },
+    {
+      "at": 1787023408302,
+      "method": "GET",
+      "path": "/warehouse/audit/dps-history/f878c10e-782b-468a-9fb9-e8e110772896",
+      "status": 200
+    },
+    {
+      "at": 1787023408626,
+      "method": "POST",
+      "path": "/warehouse/audit/dps-compare",
+      "status": 200
+    },
+    {
+      "at": 1787023408666,
+      "method": "POST",
+      "path": "/warehouse/audit/dps-history",
+      "status": 200,
+      "saveMode": "AUTO_LATEST"
+    },
+    {
+      "at": 1787023408690,
+      "method": "GET",
+      "path": "/warehouse/audit/dps-history?programType=DPS_COMPARE&mode=MANUAL_NAMED&page=0&size=50&from=2026-08-01&to=2026-08-18",
+      "status": 200
+    },
+    {
+      "at": 1787023408852,
+      "method": "POST",
+      "path": "/warehouse/audit/dps-compare",
+      "status": 200
+    },
+    {
+      "at": 1787023408884,
+      "method": "POST",
+      "path": "/warehouse/audit/dps-history",
+      "status": 200,
+      "saveMode": "AUTO_LATEST"
+    },
+    {
+      "at": 1787023408909,
+      "method": "GET",
+      "path": "/warehouse/audit/dps-history?programType=DPS_COMPARE&mode=MANUAL_NAMED&page=0&size=50&from=2026-08-01&to=2026-08-18",
+      "status": 200
+    },
+    {
+      "at": 1787023409098,
+      "method": "POST",
+      "path": "/warehouse/audit/dps-compare",
+      "status": 200
+    },
+    {
+      "at": 1787023409124,
+      "method": "POST",
+      "path": "/warehouse/audit/dps-history",
+      "status": 200,
+      "saveMode": "AUTO_LATEST"
+    },
+    {
+      "at": 1787023409144,
+      "method": "GET",
+      "path": "/warehouse/audit/dps-history?programType=DPS_COMPARE&mode=MANUAL_NAMED&page=0&size=50&from=2026-08-01&to=2026-08-18",
+      "status": 200
+    },
+    {
+      "at": 1787023409329,
+      "method": "POST",
+      "path": "/warehouse/audit/dps-compare",
+      "status": 200
+    },
+    {
+      "at": 1787023409355,
+      "method": "POST",
+      "path": "/warehouse/audit/dps-history",
+      "status": 200,
+      "saveMode": "AUTO_LATEST"
+    },
+    {
+      "at": 1787023409382,
+      "method": "GET",
+      "path": "/warehouse/audit/dps-history?programType=DPS_COMPARE&mode=MANUAL_NAMED&page=0&size=50&from=2026-08-01&to=2026-08-18",
+      "status": 200
+    },
+    {
+      "at": 1787023409562,
+      "method": "POST",
+      "path": "/warehouse/audit/dps-compare",
+      "status": 200
+    },
+    {
+      "at": 1787023409591,
+      "method": "POST",
+      "path": "/warehouse/audit/dps-history",
+      "status": 200,
+      "saveMode": "AUTO_LATEST"
+    },
+    {
+      "at": 1787023409611,
+      "method": "GET",
+      "path": "/warehouse/audit/dps-history?programType=DPS_COMPARE&mode=MANUAL_NAMED&page=0&size=50&from=2026-08-01&to=2026-08-18",
+      "status": 200
+    }
+  ]
+}
