@@ -63,8 +63,22 @@ async function login(page: Page): Promise<void> {
   const loginJson = await loginResponse.json() as { data?: { token?: string; userId?: string } }
   authToken = loginJson.data?.token ?? ''
   authUserId = loginJson.data?.userId ?? ''
+  console.log(`login status=${loginResponse.status()} set-cookie=${(loginResponse.headers()['set-cookie'] ?? '').length}`)
   expect(authToken).not.toBe('')
   await page.goto(`${BASE_URL}/#/warehouse/dps-compare`)
+  const loginId = resolveQaCredential('QA_DEV_MANAGER_LOGIN_ID')
+  const password = resolveQaCredential('QA_DEV_MANAGER_PASSWORD')
+  const loginIdInput = page.getByRole('textbox', { name: '사용자 ID (필수)' })
+  await loginIdInput.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => undefined)
+  if (await loginIdInput.isVisible().catch(() => false)) {
+    await page.locator('input').nth(0).fill(loginId)
+    await page.locator('input').nth(1).fill(password)
+    await page.waitForTimeout(500)
+    console.log(`ui login ready disabled=${await page.getByRole('button', { name: '로그인', exact: true }).isDisabled()}`)
+    await page.getByRole('button', { name: '로그인', exact: true }).click()
+    await page.waitForTimeout(1_000)
+    await page.goto(`${BASE_URL}/#/warehouse/dps-compare`)
+  }
   await page.waitForTimeout(3_000)
   await expect(page.getByText('DPS 입고 비교', { exact: true }).first()).toBeVisible({ timeout: 60_000 })
 }

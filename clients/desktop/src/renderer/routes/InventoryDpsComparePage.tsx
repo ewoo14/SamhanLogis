@@ -8,7 +8,7 @@
  * <ul>
  *   <li>본 화면은 read-only (사용자 비교 도구) — 단일 entity 미보유 → SSE/audit overlay 미적용.</li>
  *   <li>비교 결과 mismatch 표 자체에는 변경 이력이 없음. 만약 mismatch 가 발견되어 사용자가
- *       원본 출고전표를 수정하면 SlipDetailPage (PR-H1~H3) 의 audit overlay 가 자동 추적.</li>
+ *       원본 입고전표를 수정하면 SlipDetailPage (PR-H1~H3) 의 audit overlay 가 자동 추적.</li>
  *   <li>화면 우상단에 "감사 추적: 원 전표 화면에서 자동" 안내 배너 추가.</li>
  * </ul>
  *
@@ -84,7 +84,7 @@ function todayIso(): string {
 /**
  * mismatch[] → CSV 문자열 (BOM 포함, Excel 한글 호환).
  *
- * <p>컬럼: 카테고리 / 전표번호 / 품번 / 거래처코드 / 출고수량 / DPS수량 / 사유.
+ * <p>컬럼: 카테고리 / 전표번호 / 품번 / 거래처코드 / 입고수량 / DPS수량 / 사유.
  */
 function mismatchesToCsv(mismatches: DpsRowMismatch[]): string {
   const header = [
@@ -309,7 +309,7 @@ export function InventoryDpsComparePage() {
             marginLeft: 'auto',
           }}
         >
-          감사 추적 (수정 이력) 은 원 출고전표 화면에서 자동
+           감사 추적 (수정 이력) 은 원 입고전표 화면에서 자동
         </span>
       </div>
 
@@ -453,7 +453,7 @@ export function InventoryDpsComparePage() {
           <div style={statsRowStyle}>
             <StatCard label="조회 기간" value={`${result.from} ~ ${result.to}`} />
             <StatCard label="매칭 단위" value={result.groupBy} />
-            <StatCard label="출고전표 라인" value={result.outboundCount.toLocaleString()} />
+            <StatCard label="입고전표 라인" value={result.inboundCount.toLocaleString()} />
             <StatCard label="DPS 행" value={result.dpsRowCount.toLocaleString()} />
             <StatCard
               label="정상 일치"

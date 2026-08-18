@@ -27,7 +27,7 @@ import org.springframework.web.multipart.MultipartFile;
  * DPS 입고 비교 endpoint — PR-E1 BE-2 + P0-B GAS 보강.
  *
  * <p>Samhan Public 자동화: legacy GAS 1번 (DPS 입고기록 비교) + 16번 (품목별 DPS 입고내역 비교)
- * 의 자체 운영 endpoint. 출고전표 = 자체 자동 조회 (slip-service Feign), DPS = 사용자 엑셀 업로드
+ * 의 자체 운영 endpoint. 입고전표 = 자체 자동 조회 (slip-service Feign), DPS = 사용자 엑셀 업로드
  * 유지 (사용자 명시: "DPS 엑셀을 그대로 업로드할 수 있게 해야함 — 자동으로 가져올 수 없음").
  *
  * <p>권한 매트릭스 (memory ROLE 풀네임 의무): {@code @PreAuthorize} 제거 후
@@ -52,16 +52,16 @@ public class DpsCompareController {
     private final DpsByProductService dpsByProductService;
 
     /**
-     * DPS 입고 비교 — multipart 업로드 + 출고전표 자동 조회 + 매칭 결과 응답.
+     * DPS 입고 비교 — multipart 업로드 + 입고전표 자동 조회 + 매칭 결과 응답.
      *
      * @param file    DPS 엑셀 (.xlsx) multipart 파일 (필수)
-     * @param from    출고전표 자동 조회 기간 시작 (yyyy-MM-dd)
-     * @param to      출고전표 자동 조회 기간 종료 (yyyy-MM-dd)
+     * @param from    입고전표 자동 조회 기간 시작 (yyyy-MM-dd)
+     * @param to      입고전표 자동 조회 기간 종료 (yyyy-MM-dd)
      * @param groupBy 매칭 단위 (SLIP / ITEM, 기본 SLIP)
      * @return 매칭 + mismatch 결과 ({@link DpsCompareResponse})
      */
     @Operation(summary = "DPS 입고 비교",
-            description = "출고전표 자동 조회 + DPS 엑셀 업로드 → SLIP/ITEM 단위 매칭 + mismatch 분류")
+            description = "입고전표 자동 조회 + DPS 엑셀 업로드 → SLIP/ITEM 단위 매칭 + mismatch 분류")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "비교 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "엑셀 형식 오류 / 파일 비어있음 / 인자 누락"),
