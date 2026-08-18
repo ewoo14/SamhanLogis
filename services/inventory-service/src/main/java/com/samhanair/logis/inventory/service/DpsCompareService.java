@@ -308,7 +308,19 @@ public class DpsCompareService {
         for (OutboundSlipLineSummary line : inbound) {
             int found = -1;
             String key = inboundKey(line.slipNo(), line.productCode());
+            // 동일 키가 여러 행이면 수량·금액이 정확히 맞는 행을 먼저 소비한다.
             for (int i = 0; i < dpsRows.size(); i++) {
+                DpsExcelRow candidate = dpsRows.get(i);
+                if (!consumed[i]
+                        && key.equals(inboundKey(candidate.deliveryNo(), candidate.productCode()))
+                        && line.quantity() == candidate.quantity()
+                        && line.totalAmount().compareTo(candidate.totalAmount()) == 0) {
+                    found = i;
+                    break;
+                }
+            }
+            // 정확행이 없으면 기존처럼 동일 키의 첫 미소비 행을 비교 대상으로 삼는다.
+            for (int i = 0; found < 0 && i < dpsRows.size(); i++) {
                 if (!consumed[i] && key.equals(inboundKey(dpsRows.get(i).deliveryNo(),
                         dpsRows.get(i).productCode()))) {
                     found = i;
@@ -351,7 +363,15 @@ public class DpsCompareService {
     }
 
     private String normalizeModel(String model) {
-        return safe(model).replaceAll("\\s+", "").toUpperCase(java.util.Locale.ROOT);
+        String normalized = safe(model).trim();
+        int cut = normalized.length();
+        for (char delimiter : new char[]{'[', '(', '.'}) {
+            int index = normalized.indexOf(delimiter);
+            if (index >= 0) {
+                cut = Math.min(cut, index);
+            }
+        }
+        return normalized.substring(0, cut).replaceAll("\\s+", "");
     }
 
     private static String safe(String v) {

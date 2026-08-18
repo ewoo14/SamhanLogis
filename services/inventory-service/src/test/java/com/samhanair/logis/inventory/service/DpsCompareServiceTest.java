@@ -259,6 +259,43 @@ class DpsCompareServiceTest {
                 productCode, productCode + " 품목", qty);
     }
 
+    @Test
+    void inbound_legacy_model_normalization_matches_bracket_parenthesis_dot_and_spaces() {
+        List<OutboundSlipLineSummary> inbound = List.of(
+                inbound("IN-LEGACY-1", D, "MODEL 01", 1, "100"),
+                inbound("IN-LEGACY-2", D, "MODEL 02", 1, "100"),
+                inbound("IN-LEGACY-3", D, "MODEL 03", 1, "100"));
+        List<DpsExcelRow> dps = List.of(
+                new DpsExcelRow("IN-LEGACY-1", "MODEL 01[검증]", 1, new BigDecimal("100")),
+                new DpsExcelRow("IN-LEGACY-2", "MODEL 02(구형)", 1, new BigDecimal("100")),
+                new DpsExcelRow("IN-LEGACY-3", "MODEL 03.001", 1, new BigDecimal("100")));
+
+        assertThat(service.matchByInbound(inbound, dps)).isEmpty();
+    }
+
+    @Test
+    void inbound_legacy_model_normalization_does_not_match_different_model() {
+        List<RowMismatch> mismatches = service.matchByInbound(
+                List.of(inbound("IN-NEGATIVE", D, "MODEL 04", 1, "100")),
+                List.of(new DpsExcelRow("IN-NEGATIVE", "MODEL 040", 1, new BigDecimal("100"))));
+
+        assertThat(mismatches).extracting(RowMismatch::rowType)
+                .containsExactlyInAnyOrder(MismatchType.DPS_NOT_FOUND, MismatchType.SLIP_NOT_FOUND);
+    }
+
+    @Test
+    void inbound_duplicate_key_consumes_exact_quantity_and_amount_row_first() {
+        List<RowMismatch> mismatches = service.matchByInbound(
+                List.of(inbound("IN-DUP", D, "MODEL-DUP", 2, "200")),
+                List.of(
+                        new DpsExcelRow("IN-DUP", "MODEL-DUP", 1, new BigDecimal("100")),
+                        new DpsExcelRow("IN-DUP", "MODEL-DUP", 2, new BigDecimal("200"))));
+
+        assertThat(mismatches).hasSize(1);
+        assertThat(mismatches.get(0).rowType()).isEqualTo(MismatchType.SLIP_NOT_FOUND);
+        assertThat(mismatches.get(0).actualQty()).isEqualTo(1);
+    }
+
     private OutboundSlipLineSummary inbound(String deliveryNo, LocalDate date, String productCode,
                                              int qty, String totalAmount) {
         return new OutboundSlipLineSummary(deliveryNo, date, null, null, productCode,

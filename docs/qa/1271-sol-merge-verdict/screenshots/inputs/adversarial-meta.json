@@ -1,0 +1,24 @@
+{
+  "targetIndex": 4,
+  "base": {
+    "slipNo": "2026/08/14-16",
+    "slipDate": "2026-08-14",
+    "partnerCode": "4483500844",
+    "partnerName": "능동에어컨(박수천)",
+    "productCode": "0000098",
+    "productName": "한경희 선풍기",
+    "quantity": 1,
+    "totalAmount": 11000
+  },
+  "normalizationModel": "0000098[verify]",
+  "duplicateExtra": {
+    "slipNo": "2026/08/14-16",
+    "slipDate": "2026-08-14",
+    "partnerCode": "4483500844",
+    "partnerName": "능동에어컨(박수천)",
+    "productCode": "0000098",
+    "productName": "한경희 선풍기",
+    "quantity": 2,
+    "totalAmount": 12000.0
+  }
+}
