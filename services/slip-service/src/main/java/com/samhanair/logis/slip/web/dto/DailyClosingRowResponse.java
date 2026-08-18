@@ -38,6 +38,9 @@ public record DailyClosingRowResponse(
         LocalDateTime updatedAt,
         boolean amountEditable,
         String amountEditBlockReason,
+        String categoryKey,
+        BigDecimal deliveryPrice,
+        Integer expectedRate,
         UUID partnerId,
         String slipNo,
         String productCode,
@@ -59,7 +62,7 @@ public record DailyClosingRowResponse(
                 accountingPostedAt, dcAmount, sourceStatus, null, null,
                 null,
                 accountingPostedAt == null, accountingPostedAt == null ? null : "회계전표가 이미 반영되었습니다.",
-                null, null, null, 1, null);
+                null, null, null, null, null, null, 1, null);
     }
 
     public enum Confirmation { CONFIRMED, MISMATCH, UNDETERMINED }
@@ -69,7 +72,14 @@ public record DailyClosingRowResponse(
             BigDecimal productPrice,
             String dcCondition,
             LocalDateTime accountingPostedAt,
-            String sourceFailureReason) {
+            String sourceFailureReason,
+            String categoryKey,
+            BigDecimal deliveryPrice,
+            Integer expectedRate) {
+        public SourceValues(BigDecimal productPrice, String dcCondition,
+                            LocalDateTime accountingPostedAt, String sourceFailureReason) {
+            this(productPrice, dcCondition, accountingPostedAt, sourceFailureReason, null, null, null);
+        }
     }
 
     public static DailyClosingRowResponse from(Slip slip, SlipLine line) {
@@ -135,6 +145,7 @@ public record DailyClosingRowResponse(
                 slip.getModifiedAt() == null ? slip.getCreatedAt() : slip.getModifiedAt(),
                 source.accountingPostedAt() == null,
                 source.accountingPostedAt() == null ? null : "회계전표가 이미 반영되었습니다.",
+                source.categoryKey(), source.deliveryPrice(), source.expectedRate(),
                 slip.getPartnerId(), slip.getSlipNo(), product == null ? null : product.productCode(),
                 sourceLineNo, product == null ? null : product.taxType());
     }
@@ -146,8 +157,8 @@ public record DailyClosingRowResponse(
                 productPrice, discountRate, grandTotal, confirmation, confirmationReason,
                 accountingPostedAt, dcAmount, sourceStatus, slipId, lineId, updatedAt,
                 editable && amountEditable, editable && amountEditable ? null
-                        : (editable ? amountEditBlockReason : reason), partnerId, slipNo, productCode,
-                sourceLineNo, taxType);
+                        : (editable ? amountEditBlockReason : reason), categoryKey, deliveryPrice, expectedRate,
+                partnerId, slipNo, productCode, sourceLineNo, taxType);
     }
 
     private static BigDecimal zero(BigDecimal value) {

@@ -360,6 +360,8 @@ export function dailyClosingSourceTableLabels(slipType: 'OUTBOUND' | 'INBOUND'):
     : { heading: '출고전표 원본행', dateLabel: '출고일' }
 }
 const LEGACY_MERGE_COLS = new Set(['DC','일자','번호','창고명','거래처명','거래처코드','회계반영일자'])
+// 품목명/상세 링크와 확인 사유가 두 줄인 행을 수용하되, 모든 데이터행의 높이를 고정한다.
+const DAILY_CLOSING_DATA_ROW_HEIGHT = 57
 type DailyClosingHeader = typeof DAILY_CLOSING_HEADERS[number]
 type DailyClosingFilterType = 'exact' | 'empty' | 'not_empty' | 'include' | 'exclude'
 type DailyClosingSortDirection = 'asc' | 'desc'
@@ -392,7 +394,7 @@ const DAILY_CLOSING_HEADER_ICON_STYLE: CSSProperties = {
   backgroundSize: '16px 16px',
 }
 
-function dailyClosingRawCellValue(row: DailyClosingSourceRow, header: DailyClosingHeader): string {
+export function dailyClosingColumnValue(row: DailyClosingSourceRow, header: DailyClosingHeader): string {
   const values: Record<DailyClosingHeader, unknown> = {
     'DC': row.dcCondition,
     '일자': row.slipDate,
@@ -542,6 +544,8 @@ function LegacyAmountEditor({
   accountingCreated,
   values,
   error,
+  includeBaseColumns = true,
+  includeReferenceColumns = true,
   onChange,
   rowIndex,
   selectedCells,
@@ -553,6 +557,8 @@ function LegacyAmountEditor({
   accountingCreated: boolean
   values: CalculatedAmountValues | null
   error?: string
+  includeBaseColumns?: boolean
+  includeReferenceColumns?: boolean
   onChange: (values: CalculatedAmountValues) => void
   rowIndex: number
   selectedCells: Set<string>
@@ -625,20 +631,20 @@ function LegacyAmountEditor({
   >{content}</td>
 
   return <>
-    {amountCell(<>
+    {includeBaseColumns ? amountCell(<>
       {input('unit', current.unit, '단가(VAT포함)')}
       {!disabled && values ? <span role="status" style={{ marginLeft: 4, fontSize: 11 }}>수정됨</span> : null}
       {error ? <span role="alert" style={{ display: 'block', fontSize: 11 }}>{error}</span> : null}
-    </>, 6)}
-    {amountCell(values ? formatLegacyNumber(current.supply) : formatLegacyNumber(row.supplyAmount), 7)}
-    {amountCell(values ? formatLegacyNumber(current.vat) : formatLegacyNumber(row.vatAmount), 8)}
-    {amountCell(values ? formatLegacyNumber(current.total) : formatLegacyNumber(row.total), 9)}
-    {amountCell(input('price', current.price, '출고가'), 12)}
-    {amountCell(<div style={{ display: 'inline-flex', width: '100%', alignItems: 'center', justifyContent: 'center' }}>
+    </>, 6) : null}
+    {includeBaseColumns ? amountCell(values ? formatLegacyNumber(current.supply) : formatLegacyNumber(row.supplyAmount), 7) : null}
+    {includeBaseColumns ? amountCell(values ? formatLegacyNumber(current.vat) : formatLegacyNumber(row.vatAmount), 8) : null}
+    {includeBaseColumns ? amountCell(values ? formatLegacyNumber(current.total) : formatLegacyNumber(row.total), 9) : null}
+    {includeReferenceColumns ? amountCell(input('price', current.price, '출고가'), 12) : null}
+    {includeReferenceColumns ? amountCell(<div style={{ display: 'inline-flex', width: '100%', alignItems: 'center', justifyContent: 'center' }}>
         {input('rate', current.rate, '할인율')}
         <span style={{ marginLeft: 2 }}>%</span>
-      </div>, 13, { ...num, background: LEGACY_DISCOUNT_COLORS[legacyDiscountClass(Math.round(current.rate))] }, legacyDiscountClass(Math.round(current.rate)) || undefined)}
-    {amountCell(values ? formatLegacyNumber(current.total) : formatLegacyNumber(row.grandTotal), 14)}
+      </div>, 13, { ...num, background: LEGACY_DISCOUNT_COLORS[legacyDiscountClass(Math.round(current.rate))] }, legacyDiscountClass(Math.round(current.rate)) || undefined) : null}
+    {includeReferenceColumns ? amountCell(values ? formatLegacyNumber(current.total) : formatLegacyNumber(row.grandTotal), 14) : null}
   </>
 }
 
@@ -809,6 +815,20 @@ function EditableLegacyDailyClosingTable({
       return next
     })
   }
+  const viewColumnValue = (row: DailyClosingSourceRow, header: DailyClosingHeader): string => {
+    const edited = drafts[rowKey(row)] ?? committedValues[rowKey(row)]
+    if (!edited) return dailyClosingColumnValue(row, header)
+    const editedValues: Partial<Record<DailyClosingHeader, number>> = {
+      '단가(VAT포함)': edited.unit,
+      '공급가액': edited.supply,
+      '부가세': edited.vat,
+      '합계': edited.total,
+      '출고가': edited.price,
+      '할인율': edited.rate,
+      '총계': edited.total,
+    }
+    return editedValues[header] === undefined ? dailyClosingColumnValue(row, header) : formatLegacyNumber(editedValues[header])
+  }
   // 레거시 의미: 회계반영일자가 없는 행은 결과, 있는 행은 선발행이다.
   const baseVisible = useMemo(
     () => rows.filter((row) => tab === 'RESULT'
@@ -822,7 +842,7 @@ function EditableLegacyDailyClosingTable({
       const globalText = state.globalSearch.trim().toLowerCase()
       const filtered = baseVisible.filter((row) => {
         for (const [column, filter] of Object.entries(state.filters) as [DailyClosingHeader, DailyClosingFilter][]) {
-          const value = dailyClosingRawCellValue(row, column)
+          const value = viewColumnValue(row, column)
           const text = filter.text.trim()
           if (filter.type === 'exact' && value !== text) return false
           if (filter.type === 'empty' && value.trim() !== '') return false
@@ -831,14 +851,14 @@ function EditableLegacyDailyClosingTable({
           if (filter.type === 'exclude' && value.includes(text)) return false
         }
         return !globalText || DAILY_CLOSING_HEADERS.some((header) =>
-          dailyClosingRawCellValue(row, header).toLowerCase().includes(globalText))
+          viewColumnValue(row, header).toLowerCase().includes(globalText))
       })
       if (!state.sort) return filtered
       const originalIndex = new Map(baseVisible.map((row, index) => [row, index]))
       return [...filtered].sort((left, right) => {
         const column = state.sort!.col
-        const leftText = dailyClosingRawCellValue(left, column)
-        const rightText = dailyClosingRawCellValue(right, column)
+        const leftText = viewColumnValue(left, column)
+        const rightText = viewColumnValue(right, column)
         let comparison = 0
         if (column === '번호') {
           comparison = dailyClosingSortNumber(leftText) - dailyClosingSortNumber(rightText)
@@ -852,7 +872,7 @@ function EditableLegacyDailyClosingTable({
         return state.sort!.dir === 'asc' ? comparison : -comparison
       })
     },
-    [baseVisible, currentViewState],
+    [baseVisible, currentViewState, drafts, committedValues],
   )
   const cellSelectionKey = (rowIndex: number, columnIndex: number) => {
     const row = visible[rowIndex]
@@ -902,7 +922,7 @@ function EditableLegacyDailyClosingTable({
     if (field) return field.value
     const numericHeaders = new Set<DailyClosingHeader>(['번호', '수량', '공급가액', '부가세', '합계', '출고가', '총계'])
     if (numericHeaders.has(header) && cell?.textContent?.trim()) return cell.textContent.trim()
-    return dailyClosingRawCellValue(row, header)
+    return dailyClosingColumnValue(row, header)
   }
   const selectedSum = visible.reduce((sum, _row, rowIndex) => DAILY_CLOSING_HEADERS.reduce((rowSum, _header, columnIndex) => {
     if (!selectedCells.has(cellSelectionKey(rowIndex, columnIndex))) return rowSum
@@ -1165,7 +1185,7 @@ function EditableLegacyDailyClosingTable({
                   return start
                 })()
                 return <Fragment key={rowIdentity}>
-                  <tr data-testid={`daily-closing-data-row-${index}`}>
+                  <tr data-testid={`daily-closing-data-row-${index}`} style={{ height: DAILY_CLOSING_DATA_ROW_HEIGHT }}>
                     {mergedCell(row.dcCondition || '', 'DC', cell, merge, index, 0)}
                     {mergedCell(row.slipDate, '일자', cell, merge, index, 1)}
                     {mergedCell(formatLegacyNumber(row.seqNo), '번호', num, merge, index, 2)}
@@ -1196,9 +1216,24 @@ function EditableLegacyDailyClosingTable({
                       onCellMouseDown={handleCellMouseDown}
                       onCellMouseEnter={handleCellMouseEnter}
                       selectionKey={cellSelectionKey}
+                      includeReferenceColumns={false}
                     />
                     {mergedCell(row.partnerName || '', '거래처명', cell, merge, index, 10)}
                     {mergedCell(row.partnerCode || '', '거래처코드', cell, merge, index, 11)}
+                    <LegacyAmountEditor
+                      row={row}
+                      accountingCreated={accountingCreated.has(`${closingKind === 'PURCHASE' ? 'PURCHASE' : 'SALES'}-${row.slipDate}-${row.seqNo}`)
+                        || serverAccountingCreated.has(row.slipNo ?? '')}
+                      values={drafts[rowKey(row)] ?? committedValues[rowKey(row)] ?? null}
+                      error={undefined}
+                      onChange={(values) => changeDraft(row, values)}
+                      rowIndex={index}
+                      selectedCells={selectedCells}
+                      onCellMouseDown={handleCellMouseDown}
+                      onCellMouseEnter={handleCellMouseEnter}
+                      selectionKey={cellSelectionKey}
+                      includeBaseColumns={false}
+                    />
                     {selectableCell(legacyStatusBadge(row), index, 15, cell)}
                     {mergedCell(
                       row.accountingPostedAt ? row.accountingPostedAt.replace('T', ' ').slice(0, 16) : '',

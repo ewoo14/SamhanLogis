@@ -29,6 +29,7 @@
 - [🚨🚨 라운드 기본값은 SOL 이다 — OP…](feedback_sol_stage_starvation.md)
 - [🚨 하네스 설계 정본 — 결함 0 이 궁극…](feedback_harness_defect_zero_design.md)
 - [🚨 Codex 5-agent=mcp 직접(…](feedback_codex_rescue_unreliable_use_mcp.md)
+- [🚨 브리핑에 권한·자격 표현이 몰리면 codex 보안 필터에 걸린다](feedback_codex_briefing_security_filter.md)
 - [🚨 처리량 3레버+라운드 5레버 — 병렬화…](feedback_throughput_parallel_scope_freeze_batch.md)
 - [🚨🚨 조사·제안 전에 ①코드 ②이슈 ③기존…](feedback_verify_existing_before_proposing.md)
 - [🚨🚨 결정이 필요하면 항상 선택지를 제시…](feedback_always_present_options_for_decisions.md)

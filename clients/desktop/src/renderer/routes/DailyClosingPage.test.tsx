@@ -38,7 +38,7 @@ vi.mock('../api/accountingSlipLinkApi', async (importOriginal) => {
   return { ...actual, listAccountingSlipLinkEligibility: (...args: unknown[]) => listAccountingSlipLinkEligibilityMock(...args) }
 })
 
-import { DAILY_CLOSING_HEADERS, DailyClosingPage, recalculateLegacyAmounts } from './DailyClosingPage'
+import { DAILY_CLOSING_HEADERS, DailyClosingPage, dailyClosingColumnValue, recalculateLegacyAmounts } from './DailyClosingPage'
 
 const rows = [
   {
@@ -224,6 +224,16 @@ describe('DailyClosingPage 서버 정본 재진입 잠금', () => {
 })
 
 describe('DailyClosingPage S3 레거시 단일표', () => {
+  it.each([
+    ['거래처명', 'partnerName', '거래처'],
+    ['거래처코드', 'partnerCode', 'P-2026-0017'],
+    ['출고가', 'productPrice', '520300'],
+    ['할인율', 'discountRate', '0'],
+    ['총계', 'grandTotal', '520300'],
+  ] as const)('열 헤더 %s 의 값은 %s 원천값이다', (header, _source, expected) => {
+    expect(dailyClosingColumnValue(rows[1]!, header)).toBe(expected)
+  })
+
   it('출고일로 조회하고 레거시 17열을 지정 순서로 표시한다', async () => {
     getDailyClosingRowsMock.mockResolvedValue(rows)
     renderPage()
@@ -238,7 +248,26 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
     expect(screen.getByText('확보 품목')).toBeTruthy()
   })
 
-  it('레거시처럼 회계반영일자 유무로 결과와 선발행을 분리한다', async () => {
+  it('17열의 거래처·가격 축은 헤더 순서대로 DOM에 놓인다', async () => {
+    getDailyClosingRowsMock.mockResolvedValue([rows[1]!])
+    renderPage()
+    fireEvent.click(screen.getByRole('tab', { name: /^선발행/ }))
+
+    const table = await screen.findByTestId('daily-closing-table')
+    const dataRow = within(table).getByTestId('daily-closing-data-row-0')
+    const cells = Array.from(dataRow.children)
+    expect(cells.map((cell) => cell.getAttribute('data-testid'))).toEqual([
+      'daily-closing-cell-0-DC', 'daily-closing-cell-0-일자', 'daily-closing-cell-0-번호',
+      'daily-closing-cell-0-창고명', 'daily-closing-cell-0-품목명', 'daily-closing-cell-0-수량',
+      'daily-closing-cell-0-단가(VAT포함)', 'daily-closing-cell-0-공급가액',
+      'daily-closing-cell-0-부가세', 'daily-closing-cell-0-합계',
+      'daily-closing-cell-0-거래처명', 'daily-closing-cell-0-거래처코드',
+      'daily-closing-cell-0-출고가', 'daily-closing-cell-0-할인율', 'daily-closing-cell-0-총계',
+      'daily-closing-cell-0-확인', 'daily-closing-cell-0-회계반영일자',
+    ])
+  })
+
+  it('posted_at 유무로 결과와 선발행을 분리한다', async () => {
     getDailyClosingRowsMock.mockResolvedValue(rows)
     renderPage()
 
@@ -355,6 +384,26 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
     expect((screen.getByTestId('daily-closing-unit-82') as HTMLInputElement).disabled).toBe(true)
     expect((screen.getByTestId('daily-closing-rate-82') as HTMLInputElement).disabled).toBe(true)
     expect((screen.getByTestId('daily-closing-unit-82') as HTMLInputElement).title).toContain('회계전표')
+  })
+
+  it('잠긴 행과 편집 가능한 행의 금액 셀 렌더 구조와 행 높이 기준이 같다', async () => {
+    getDailyClosingRowsMock.mockResolvedValue([
+      { ...editableRows[0]!, accountingPostedAt: '2026-08-14T10:00:00' },
+      { ...editableRows[1]!, accountingPostedAt: '2026-08-14T11:00:00', amountEditable: true },
+    ])
+    renderPage()
+    fireEvent.click(screen.getByRole('tab', { name: /^선발행/ }))
+
+    const table = await screen.findByTestId('daily-closing-table')
+    const editableUnitCell = within(table).getByTestId('daily-closing-unit-81').closest('td')!
+    const lockedUnitCell = within(table).getByTestId('daily-closing-unit-82').closest('td')!
+
+    expect(lockedUnitCell.children.length).toBe(editableUnitCell.children.length)
+    expect(editableUnitCell.closest('tr')?.getAttribute('style')).toContain('height: 57px')
+    expect(lockedUnitCell.closest('tr')?.getAttribute('style')).toContain('height: 57px')
+    expect((within(lockedUnitCell).getByRole('textbox') as HTMLInputElement).title).toContain('회계전표')
+    expect(editableUnitCell.querySelector('span')).toBeNull()
+    expect(lockedUnitCell.querySelector('span')).toBeNull()
   })
 
   it('레거시처럼 네 개의 상단 탭과 표 위 액션 줄을 사용한다', async () => {
@@ -633,5 +682,25 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
     const setData = vi.fn()
     fireEvent.copy(table, { clipboardData: { setData } })
     expect(setData).toHaveBeenCalledWith('text/plain', '9,091\n9,091')
+  })
+
+  it('금액 편집 뒤 정렬과 열 필터는 화면의 최신 draft 값을 사용한다', async () => {
+    getDailyClosingRowsMock.mockResolvedValue(editableRows.slice(0, 2))
+    renderPage()
+
+    fireEvent.click(screen.getByRole('tab', { name: /^결과/ }))
+    const table = await screen.findByTestId('daily-closing-table')
+    const priceInput = within(table).getByDisplayValue('10,000')
+    fireEvent.change(priceInput, { target: { value: '20,000' } })
+
+    fireEvent.click(screen.getByTestId('daily-closing-sort-asc-출고가'))
+    let dataRows = Array.from(table.querySelectorAll('[data-testid^="daily-closing-data-row-"]'))
+    expect(dataRows[0]?.textContent).toContain('편집 품목')
+
+    fireEvent.click(screen.getByTestId('daily-closing-filter-button-출고가'))
+    fireEvent.change(screen.getByLabelText('출고가 필터 검색'), { target: { value: '20,000' } })
+    dataRows = Array.from(table.querySelectorAll('[data-testid^="daily-closing-data-row-"]'))
+    expect(dataRows).toHaveLength(1)
+    expect(dataRows[0]?.textContent).toContain('편집 품목')
   })
 })
