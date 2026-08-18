@@ -21,4 +21,17 @@ class VatInclusiveUnitAmountCalculatorTest {
         assertThat(result.supplyAmount().add(result.vatAmount()))
                 .isEqualByComparingTo(result.totalAmount());
     }
+
+    @Test
+    @DisplayName("실제 1원 경계값은 총액을 먼저 VAT 분리한다")
+    void splitsLegacyTotalBeforeVat() {
+        VatInclusiveUnitAmountCalculator.Breakdown result =
+                VatInclusiveUnitAmountCalculator.calculate(new BigDecimal("616975"), 3);
+
+        assertThat(result.totalAmount()).isEqualByComparingTo("1850925");
+        assertThat(result.supplyAmount()).isEqualByComparingTo("1682659");
+        assertThat(result.vatAmount()).isEqualByComparingTo("168266");
+        assertThat(result.supplyAmount().add(result.vatAmount()))
+                .isEqualByComparingTo(result.totalAmount());
+    }
 }
