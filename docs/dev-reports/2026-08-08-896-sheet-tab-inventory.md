@@ -2,7 +2,7 @@
 
 - 수집일: 2026-08-08 (Asia/Seoul)
 - 작업 성격: 읽기 전용 수집 라운드
-- 주 스프레드시트 ID: `1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ`
+- 주 스프레드시트 ID: `<SHEET_ID>`
 - 주 스프레드시트 제목: `종합 견적서`
 - 인증: 저장소 밖 서비스 계정 키 경로를 `GOOGLE_SERVICE_ACCOUNT_KEY`로만 주입했다. 키 내용은 출력·복사하지 않았다.
 - 금지사항 준수: Sheets 쓰기, DB 쓰기, 애플리케이션 코드 수정, Git 명령, Docker 작업을 하지 않았다.
@@ -64,8 +64,8 @@
 
 | 대상 | 여는 코드 | 실측/판정 |
 |---|---|---|
-| `1RJq...XuVNQ` / `종합 견적서` | 웹 견적 앱, product-service, partner-order-service, 여러 legacy GAS, 일마감 프로그램 | 이번 전수 인벤토리의 주 대상, 27탭 |
-| `1-js...SXvE` / `견적서 사용자리스트` | `tools/legacy-gas/거래처 업데이트 프로그램/Code.js:1,136,182,214,385` | 접근 성공. 38탭: `사용자리스트` 1개(17 × 8) + `_UPLOAD_TMP_*` 37개. 코드는 `사용자리스트`와 Script Properties가 가리키는 현재 임시 탭만 읽는다. 오래된 임시 탭 37개를 무차별 수집하지 않았다. |
+| `<SHEET_ID>` / `종합 견적서` | 웹 견적 앱, product-service, partner-order-service, 여러 legacy GAS, 일마감 프로그램 | 이번 전수 인벤토리의 주 대상, 27탭 |
+| `<SHEET_ID>` / `견적서 사용자리스트` | `tools/legacy-gas/거래처 업데이트 프로그램/Code.js:1,136,182,214,385` | 접근 성공. 38탭: `사용자리스트` 1개(17 × 8) + `_UPLOAD_TMP_*` 37개. 코드는 `사용자리스트`와 Script Properties가 가리키는 현재 임시 탭만 읽는다. 오래된 임시 탭 37개를 무차별 수집하지 않았다. |
 | `사용자리스트`가 지정한 동적 마스터 URL 1개 | `거래처 업데이트 프로그램/Code.js:384-417,426-433` | 접근 성공. 비공개 동적 ID는 보고서에 기록하지 않았다. `거래처` 탭은 주 대상의 `거래처`와 크기·SHA-256이 동일했다. 이 탭은 업데이트 코드의 read 원천이 아니라 write 대상이므로 중복 CSV는 남기지 않았다. |
 | 런타임 `id` | `tools/legacy-gas/미배차리스트/Code.js:91`, `tools/legacy-gas/전표정리리스트/Code.js:85` | ID가 Script Properties/호출 인자에서 결정되어 저장소만으로 열거 불가 |
 | 런타임 `ssId` | `tools/legacy-gas/알리고 자동 업로드/Code.js:231` | 호출 시 전달되어 저장소만으로 열거 불가 |

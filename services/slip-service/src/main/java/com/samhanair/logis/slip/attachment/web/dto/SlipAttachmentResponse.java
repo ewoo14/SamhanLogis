@@ -9,7 +9,6 @@ import java.util.UUID;
 /** 슬립 첨부 응답. downloadUrl 은 단건 GET (presigned 재발급) 또는 upload 직후만 채워진다. */
 public record SlipAttachmentResponse(
         UUID id,
-        UUID slipId,
         SlipAttachmentType attachmentType,
         String fileName,
         Long fileSize,
@@ -24,7 +23,6 @@ public record SlipAttachmentResponse(
     public static SlipAttachmentResponse from(SlipAttachment a) {
         return new SlipAttachmentResponse(
                 a.getId(),
-                a.getSlipId(),
                 a.getAttachmentType(),
                 a.getFileName(),
                 a.getFileSize(),
@@ -40,7 +38,6 @@ public record SlipAttachmentResponse(
     public static SlipAttachmentResponse from(SlipAttachment a, String freshUrl) {
         return new SlipAttachmentResponse(
                 a.getId(),
-                a.getSlipId(),
                 a.getAttachmentType(),
                 a.getFileName(),
                 a.getFileSize(),

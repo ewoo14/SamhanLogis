@@ -18,6 +18,7 @@ import com.samhanair.logis.product.domain.ProductStatus;
 import com.samhanair.logis.product.domain.UsageScope;
 import com.samhanair.logis.product.repository.BranchPipeLookupRepository;
 import com.samhanair.logis.product.repository.BundleComponentRepository;
+import com.samhanair.logis.product.repository.BundleComponentEstimateSettingRepository;
 import com.samhanair.logis.product.repository.MaterialPriceRepository;
 import com.samhanair.logis.product.repository.OduRecommendationLookupRepository;
 import com.samhanair.logis.product.repository.PriceHistoryRepository;
@@ -73,6 +74,7 @@ public class EstimateCatalogInternalController {
     private static final String SPEC_MAX_INDOOR = "최대연결실내기대수";
 
     private final QuantitySyncRuleService quantitySyncRuleService;
+    private final BundleComponentEstimateSettingRepository estimateSettingRepository;
 
     /*
      * legacy clients/web/estimate-app/lib/code.js getSpecDetailMap_()
@@ -228,6 +230,7 @@ public class EstimateCatalogInternalController {
             String componentShape,
             Boolean isDefault,
             BigDecimal defaultQty,
+            String qtyMode,
             String specText,
             List<ProductSpecResponse> specs) {
     }
@@ -327,6 +330,12 @@ public class EstimateCatalogInternalController {
 
         List<BundleComponent> components = bundleComponentRepository
                 .findByBundleProductIdIn(parentCodeById.keySet());
+        Map<UUID, com.samhanair.logis.product.domain.BundleComponentEstimateSetting> settingsByComponentId =
+                estimateSettingRepository.findByBundleComponentIdInAndEstimateCategoryAndIsDeletedFalse(
+                                components.stream().map(BundleComponent::getId).toList(), category)
+                        .stream().collect(Collectors.toMap(
+                                com.samhanair.logis.product.domain.BundleComponentEstimateSetting::getBundleComponentId,
+                                s -> s, (left, right) -> right));
 
         // 구성품 자체 단가/품명 join (legacy 구성품 탭의 납품가/출고가/품명 컬럼)
         Set<String> componentCodes = components.stream()
@@ -355,6 +364,7 @@ public class EstimateCatalogInternalController {
         List<ComponentRow> rows = components.stream()
                 .map(c -> {
                     Product cp = componentProducts.get(c.getComponentProductCode());
+                    var setting = settingsByComponentId.get(c.getId());
                     return new ComponentRow(
                             parentCodeById.get(c.getBundleProductId()),
                             c.getComponentProductCode(),
@@ -364,11 +374,13 @@ public class EstimateCatalogInternalController {
                                     cp == null ? null : cp.getDeliveryPrice()),
                             firstNonNull(c.getContextReleasePrice(),
                                     cp == null ? null : cp.getReleasePrice()),
-                            c.getComponentKind() == null ? null : c.getComponentKind().name(),
-                            c.getComponentVariant(),
-                            c.getComponentShape(),
-                            c.getIsDefault(),
+                            setting == null ? (c.getComponentKind() == null ? null : c.getComponentKind().name())
+                                    : setting.getComponentKind().name(),
+                            setting == null ? c.getComponentVariant() : setting.getComponentVariant(),
+                            setting == null ? c.getComponentShape() : setting.getComponentShape(),
+                            setting == null ? c.getIsDefault() : setting.isDefault(),
                             c.getDefaultQty(),
+                            setting == null ? c.getQtyMode().name() : setting.getQtyMode().name(),
                             c.getSpecText(),
                             specsByComponentCode.getOrDefault(c.getComponentProductCode(), List.of()));
                 })

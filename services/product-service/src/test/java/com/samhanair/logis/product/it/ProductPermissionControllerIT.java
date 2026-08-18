@@ -47,6 +47,7 @@ import com.samhanair.logis.product.repository.ProductEstimateExposureRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.repository.SpecKeyTemplateRepository;
 import com.samhanair.logis.product.service.BundleComponentService;
+import com.samhanair.logis.product.service.BundleComponentEstimateSettingService;
 import com.samhanair.logis.product.service.CategoryService;
 import com.samhanair.logis.product.service.EcountProductImporter;
 import com.samhanair.logis.product.service.ProductLookupSheetSyncService;
@@ -163,6 +164,7 @@ class ProductPermissionControllerIT {
     @MockBean private JpaMetamodelMappingContext jpaMetamodelMappingContext;
     // §1c/§1d 신규 빈 (ProductCatalogController 신규 의존성 — feedback_it_mockbean_external_clients.md)
     @MockBean private BundleComponentService bundleComponentService;
+    @MockBean private BundleComponentEstimateSettingService bundleComponentEstimateSettingService;
     @MockBean private BundleComponentRepository bundleComponentRepository;
     @MockBean private ProductEstimateExposureRepository productEstimateExposureRepository;
     // P3-1: SSE publish 시점 통일 게이트웨이 (ProductCatalogController 신규 의존성)

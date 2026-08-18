@@ -78,6 +78,12 @@ test('D-03 옵션 명칭 DB 속성축 통일', async (t) => {
     assert.deepEqual(configuredOptionVariants(rows, 'MATERIAL'), []);
   });
 
+  await t.test('컬러유선 리모컨 모델은 설정 구성품에서 해석한다', () => {
+    const estimate = fs.readFileSync(path.resolve(__dirname, '../views/index.ejs'), 'utf8');
+    assert.doesNotMatch(estimate, /if \(opt === '컬러'\) return 'AWR-WG00N'/);
+    assert.doesNotMatch(estimate, /\^AWR-WG00N\$\/i\.test/);
+  });
+
   await t.test('360 판넬 모양도 component_shape만 옵션 목록이 된다', () => {
     assert.deepEqual(configuredOptionShapes([
       { componentKind: 'PANEL', componentShape: '원형' },

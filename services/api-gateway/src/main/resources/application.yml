@@ -385,6 +385,15 @@ spring:
           filters:
             - JwtAuthentication
 
+        # 카테고리별 구성품 설정 CRUD — ProductCatalogController 풀패스라 no-strip.
+        # generic product-service-v1(StripPrefix=2)보다 먼저 선언하지 않으면 실제 화면 호출이 404가 된다.
+        - id: product-component-settings-v1
+          uri: lb://product-service
+          predicates:
+            - Path=/api/v1/products/*/component-settings
+          filters:
+            - JwtAuthentication
+
         # [RC9 후속] 표시 순서 일괄 갱신 — /products/display-orders 는 strip=2 통과 시
         # /products/display-orders 가 되어 컨트롤러 매핑 /api/v1/products/display-orders 불일치.
         # 풀패스 no-strip. product-service-v1(strip=2) 보다 먼저 선언.

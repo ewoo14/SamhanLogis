@@ -68,7 +68,7 @@ const code = require('../lib/code');
 const directory = require('../lib/directory');
 const axios = require('axios');
 
-const SHEET_ID = '1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ';
+const SHEET_ID = code._constants.SRC_SHEET_ID;
 const HOME_NAME = '홈멀티_단가인상';
 const SINGLE_NAME = '싱글 세트_단가인상';
 const COMM_NAME = '상업멀티_단가인상';

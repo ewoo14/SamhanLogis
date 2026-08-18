@@ -7,7 +7,7 @@
 
 ## 0. 결론
 
-1. `일마감 프로그램`이 여는 시트 파일은 하나다. `SOURCE_SHEET_URL`은 ID `1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ`를 가리키며 두 로더가 모두 `openByUrl`로 연다.
+1. `일마감 프로그램`이 여는 시트 파일은 하나다. `SOURCE_SHEET_URL`은 ID `<SHEET_ID>`를 가리키며 두 로더가 모두 `openByUrl`로 연다.
 2. 접근 탭은 정적 다섯 계열(`홈멀티`, `상업멀티`, `상업멀티 구성`, `싱글 세트`, `싱글 구성품`)과 각 `_단가인상` 후보, 그리고 **이름에 `구형`이 들어가는 모든 탭**이다.
 3. 중복 `납품가` 계약은 하나가 아니다.
    - `loadSingleSetCatalog`: `싱글 구성품`의 **두 번째 `납품가`**를 세트 구성품 예상금액에 쓴다.
@@ -24,8 +24,7 @@
 
 `tools/legacy-gas/일마감 프로그램/Code.js:8`
 
-> `const SOURCE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ/edit';`
-
+> `const SOURCE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/<SHEET_ID>/edit';`
 두 시트 로더가 동일 URL을 직접 연다.
 
 `tools/legacy-gas/일마감 프로그램/Code.js:215-219`
@@ -563,7 +562,7 @@
 
 `tools/legacy-gas` 아래 `.js`, `.html`, `.json`을 대상으로 다음을 전수 검색했다.
 
-- 정확 ID: `1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ`
+- 정확 ID: `<SHEET_ID>`
 - 탭 문자열: `싱글 구성품`, `싱글 세트`, `홈멀티`, `상업멀티`, `상업멀티 구성`, `구형`, `단가인상`
 - 호출: `SpreadsheetApp.openById(`, `SpreadsheetApp.openByUrl(`
 
@@ -622,7 +621,7 @@
 
 `tools/legacy-gas/거래처 발송 주문서/Code.js:70-78`
 
-> `const SRC_SHEET_ID      = '1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ';`  
+> `const SRC_SHEET_ID      = '<SHEET_ID>';`
 > `const HOME_NAME         = '홈멀티';`  
 > `const SINGLE_NAME       = '싱글 세트';`  
 > `const SINGLE_PARTS_NAME = '싱글 구성품';`  
@@ -650,7 +649,7 @@
 
 `tools/legacy-gas/종합견적서/Code.js:48-56`
 
-> `const SRC_SHEET_ID      = '1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ';`  
+> `const SRC_SHEET_ID      = '<SHEET_ID>';`
 > `const HOME_NAME         = '홈멀티_단가인상';`  
 > `const SINGLE_NAME       = '싱글 세트_단가인상';`  
 > `const SINGLE_PARTS_NAME = '싱글 구성품_단가인상';`  
@@ -678,7 +677,7 @@
 
 `tools/legacy-gas/에어디자이너 전용 주문서 인식/Code.js:22-28`
 
-> `const SRC_SHEET_ID        = '1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ';`  
+> `const SRC_SHEET_ID        = '<SHEET_ID>';`
 > `const MASTER_SHEET        = '종합 견적서';`  
 > `const HOME_SHEET          = '홈멀티';`  
 > `const SINGLE_SHEET        = '싱글 세트';`  
@@ -705,7 +704,7 @@
 
 `tools/legacy-gas/제이시스템 전용 주문서 인식/Code.js:22-28`
 
-> `const SRC_SHEET_ID        = '1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ';`  
+> `const SRC_SHEET_ID        = '<SHEET_ID>';`
 > `const MASTER_SHEET        = '종합 견적서';`  
 > `const HOME_SHEET          = '홈멀티';`  
 > `const SINGLE_SHEET        = '싱글 세트';`  

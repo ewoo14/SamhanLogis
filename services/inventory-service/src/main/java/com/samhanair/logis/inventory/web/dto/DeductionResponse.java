@@ -17,6 +17,6 @@ public record DeductionResponse(
         List<DeductedLotEntry> affectedLots) {
 
     /** 차감 분배 내역 — lotId 와 차감량 한 쌍. */
-    public record DeductedLotEntry(UUID lotId, int amount) {
+    public record DeductedLotEntry(int amount) {
     }
 }
