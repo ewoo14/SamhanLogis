@@ -1,0 +1,31 @@
+{
+  "from": "2025-01-01",
+  "to": "2026-08-17",
+  "sourceRows": 77,
+  "amountIndex": 4,
+  "qtyIndex": 0,
+  "amountBefore": 11000,
+  "amountAfter": 12000,
+  "qtyBefore": 1,
+  "qtyAfter": 2,
+  "a": {
+    "dpsRows": 77,
+    "mismatches": 0,
+    "detailRows": 0
+  },
+  "c": {
+    "dpsRows": 77,
+    "mismatches": 1,
+    "detailRows": 1
+  },
+  "d": {
+    "dpsRows": 77,
+    "mismatches": 1,
+    "detailRows": 1
+  },
+  "b": {
+    "dpsRows": 77,
+    "mismatches": 0,
+    "detailRows": 0
+  }
+}

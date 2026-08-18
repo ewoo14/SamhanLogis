@@ -49,7 +49,7 @@ import {
   type ChangeEvent,
   type CSSProperties,
 } from 'react'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Button, Tabs } from '@samhan/design-system'
 import {
   compareDps,
@@ -71,6 +71,7 @@ import { DpsSaveDialog } from '../components/DpsSaveDialog'
 import { maskCreatedBy } from '../utils/maskCreatedBy'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { useIsMobile } from '../hooks/useIsMobile'
+import { refreshDpsHistoryQueries } from '../utils/dpsHistoryRefresh'
 
 /** 오늘 날짜 (YYYY-MM-DD) — date input 기본값. */
 function todayIso(): string {
@@ -143,6 +144,7 @@ function errorMessage(err: unknown): string {
 export function InventoryDpsComparePage() {
   usePageTitle('DPS 입고 비교')
   const isMobile = useIsMobile()
+  const queryClient = useQueryClient()
 
   // ── 폼 상태 ────────────────────────────────────────────────
   const today = useMemo(todayIso, [])
@@ -177,7 +179,7 @@ export function InventoryDpsComparePage() {
           mismatchCount: data.mismatchCount,
         },
         responsePayload: data,
-      }).catch(() => {
+      }).then(() => refreshDpsHistoryQueries(queryClient)).catch(() => {
         // 자동 저장 실패는 비교 실행 UX 를 막지 않는다. 명시 저장에서 사용자에게 재시도 기회를 제공한다.
       })
     },
@@ -200,7 +202,8 @@ export function InventoryDpsComparePage() {
         responsePayload: payload,
       })
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      await refreshDpsHistoryQueries(queryClient)
       setSaveDialogOpen(false)
       setActiveTab(1)
     },

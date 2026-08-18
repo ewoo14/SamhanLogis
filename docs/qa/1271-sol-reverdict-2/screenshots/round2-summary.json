@@ -1,0 +1,13 @@
+{
+  "normalization": { "inbound": 77, "dps": 77, "matched": 77, "mismatch": 0, "details": 0 },
+  "duplicateExactFirst": { "inbound": 77, "dps": 78, "matched": 77, "mismatch": 1, "details": 1 },
+  "autoLatestSource": { "inbound": 77, "dps": 77, "matched": 77, "mismatch": 0, "details": 0 },
+  "manualTopic": "SOL 2회차 신규 저장 1787017855276",
+  "manualRowsBeforeSave": 2,
+  "newTopicVisibleImmediately": false,
+  "newTopicVisibleAfterReload": true,
+  "autoSaveStatus": 200,
+  "manualSaveStatus": 200,
+  "latestRestoreStatus": 200,
+  "manualDetailRestoreStatus": 200
+}
