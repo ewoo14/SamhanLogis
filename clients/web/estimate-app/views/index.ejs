@@ -4164,15 +4164,20 @@ function isCommRemoteRow(r){
 }
 
 // 리모컨 모델은 제품명/모델 정규식이 아니라 카테고리별 구성품 설정의 variant로 해석한다.
-function configuredRemoteModel_(rows, variant, parentModel){
+function configuredRemoteModel_(rows, variant, parentModel, parentName){
   const wanted = d03RemoteOption(variant);
+  const aliases = new Set([wanted, wanted === '기본' ? '무선' : wanted === '무선' ? '기본' : '']);
   const candidates = (Array.isArray(rows) ? rows : []).filter(r => {
     const kind = String(r?.kind || r?.componentKind || '').toUpperCase();
     const text = `${r?.name || ''} ${r?.disp || ''}`;
-    const rowVariant = [r?.variant, r?.componentVariant, r?.feat, r?.remoteType, r?.remoteOption]
+    const explicitVariant = [r?.variant, r?.componentVariant, r?.feat, r?.remoteType, r?.remoteOption]
       .find(value => String(value ?? '').trim() !== '');
-    return (kind === 'REMOTE' || /리모컨|remote/i.test(text))
-      && d03RemoteOption(rowVariant) === wanted && r?.model;
+    const rowVariant = d03RemoteOption(String(explicitVariant ?? '').trim() ||
+      (/컬러/i.test(text) ? '컬러' : /유선/i.test(text) ? '유선' : /무선/i.test(text) ? '무선' : '기본'));
+    const contextMatch = wanted === '기본' || wanted === '무선'
+      ? (/인피니트/i.test(parentName || '') ? /인피니트/i.test(text) : /360/i.test(parentName || '') ? /360/i.test(text) : !/인피니트|360/i.test(text)) : true;
+    return contextMatch && (kind === 'REMOTE' || /리모컨|remote/i.test(text))
+      && aliases.has(rowVariant) && r?.model;
   });
   return (candidates.find(r => parentModel && (r.setModel === parentModel || r.refModel === parentModel))
     || candidates[0] || {}).model || null;
@@ -4191,26 +4196,20 @@ function computeCommRemoteModelForIndoor_(row){
   const opt = String(rawRemote).trim();
   const nm  = rawNameOf(row) || '';
   const remoteRows = (typeof COMM_PARTS !== 'undefined' ? COMM_PARTS : COMMULTI);
-  if (!remoteRows.some(r => /리모컨|remote/i.test(`${r?.name || ''} ${r?.kind || ''}`))) {
-    return ({ 기본: 'AR-EH05', 무선: 'AR-EH05', 유선: 'AWR-WE13N', 컬러: 'AWR-WG00N' }[opt] || 'AR-EH05');
-  }
-
   // 제외
   if (opt === '제외') return '';
 
   // 전열
-  if (/전열교환기/i.test(nm)) return 'AWR-VH12N';
-
   // 덕트
-  const configured = configuredRemoteModel_(remoteRows, opt, row?.model);
+  const configured = configuredRemoteModel_(remoteRows, opt, row?.model, nm);
   if (configured) return configured;
+  if (/전열교환기/i.test(nm)) return '';
 
   // 살균
-  if (opt === '무선' && /UV-?C/i.test(nm)) return configuredRemoteModel_(remoteRows, '기본', row?.model) || REMOTE_WIRELESS;
+  if (opt === '무선' && /UV-?C/i.test(nm)) return configuredRemoteModel_(remoteRows, '기본', row?.model, nm) || '';
 
   // 무선
-  return configuredRemoteModel_(remoteRows, '기본', row?.model)
-    || ({ 기본: REMOTE_WIRELESS || 'AR-EH05', 무선: REMOTE_WIRELESS || 'AR-EH05', 유선: REMOTE_WIRED || 'AWR-WE13N', 컬러: REMOTE_WIRED_COLOR || 'AWR-WG00N' }[opt] || REMOTE_WIRELESS);
+  return configuredRemoteModel_(remoteRows, '기본', row?.model, nm) || '';
 }
 
 function pickHoseModel(kind){
@@ -8471,14 +8470,13 @@ function recomputeHomeRemotes() {
   if (opt === '제외') return;
   if (REMOTE_COLOR_AIRCOMBO) setR(REMOTE_COLOR_AIRCOMBO, Math.max(0, cntCombo));
 
-  const resolveRemote = variant => configuredRemoteModel_(HOMEMULTI, variant)
-    || ({ 유선: REMOTE_WIRED, 컬러: REMOTE_WIRED_COLOR, 기본: REMOTE_INF_DEFAULT }[variant] || null);
+  const resolveRemote = variant => configuredRemoteModel_(HOMEMULTI, variant);
   const R_CH = resolveRemote('기본');
 
   if (opt === '기본') {
-    if (REMOTE_360_DEFAULT) setR(REMOTE_360_DEFAULT, cntC);
-    if (R_CH) setR(R_CH, cntI);
-    if (REMOTE_WIRELESS) setR(REMOTE_WIRELESS, cntW + cntWall);
+    setR(configuredRemoteModel_(HOMEMULTI, '기본', null, '360'), cntC);
+    setR(configuredRemoteModel_(HOMEMULTI, '기본', null, '인피니트'), cntI);
+    setR(configuredRemoteModel_(HOMEMULTI, '기본', null, '무선'), cntW + cntWall);
   } else {
     const tot = cntC + cntI + cntW + cntWall;
     const main = resolveRemote(opt);
