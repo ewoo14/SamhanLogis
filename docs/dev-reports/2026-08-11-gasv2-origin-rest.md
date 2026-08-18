@@ -502,7 +502,7 @@ rg -n "<각 함수명>" <동일 프로젝트의 Code.js·HTML·appsscript.json>
 | 세트 목표가-고정 구성품가 | 나머지를 실내/실외 `6:4`, 그 외 `4:6`으로 분배; 실내기 먼저 1,000원 단위, 실외기로 잔차 조정 |
 | 주문 전송 | qty를 양수 정수화; 총액÷1.1을 절대값 floor해 공급가, 잔액을 VAT로 하고 음수 부호 복원; HTTP 200이면서 `Data.SuccessCnt>0`만 성공 |
 
-③ 공통 리터럴: `CURRENCY=KRW`, `HOME_DISCOUNT_RATE=.45`, legacy `.47`, `SURCHARGE_RATE=0`, `ROUND_TO=0`, `ROUND_MODE=ROUND`, `PRICE_DECIMALS=0`, 옵션 정액 할인 기본 `0`, hose code `FH-LFHIF`, cache `5분`; catalog Sheet `1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ`, 탭 `종합 견적서,홈멀티,싱글 세트,싱글 구성품,담당자`와 각 `_단가인상`; 인상판 cutoff `shipDate >= 20260401`; option token `Black,air,lift,circle,square,color,wired,wireless,제외,L,I`; warehouse 초월 `00003`, 상일 `2`; VAT divisor `1.1`, set 배분 `0.6/0.4`, 단위 `1000`, Ecount language `ko-KR`, size 빈값용 zero-width character.
+③ 공통 리터럴: `CURRENCY=KRW`, `HOME_DISCOUNT_RATE=.45`, legacy `.47`, `SURCHARGE_RATE=0`, `ROUND_TO=0`, `ROUND_MODE=ROUND`, `PRICE_DECIMALS=0`, 옵션 정액 할인 기본 `0`, hose code `FH-LFHIF`, cache `5분`; catalog Sheet `<SHEET_ID>`, 탭 `종합 견적서,홈멀티,싱글 세트,싱글 구성품,담당자`와 각 `_단가인상`; 인상판 cutoff `shipDate >= 20260401`; option token `Black,air,lift,circle,square,color,wired,wireless,제외,L,I`; warehouse 초월 `00003`, 상일 `2`; VAT divisor `1.1`, set 배분 `0.6/0.4`, 단위 `1000`, Ecount language `ko-KR`, size 빈값용 zero-width character.
 
 ④ Sheet 축: 고객코드·담당자·모델명·출고가·납품가·고정DC·규격·세트코드·구성품 모델·수량·그룹·기능·상품명·옵션별 할인. Notion 축: 홈/상업 DC, 유연호스 I/L, 단위처리, 옵션별 금액. Ecount payload는 날짜·거래처·창고·품목·수량·단가·공급가·VAT·배송지·메모. ⑤ **[부분]** partner-order parser/confirm은 있지만 pricing/세트 구성/외부 전송 전부는 동일하지 않다. ⑥ **[자동]** 통화 KRW, 세금 inclusive 분해는 계약으로 명시할 수 있음. 🚩 DC fallback, 6:4 배분, VAT 절사, 세트 결측 기본을 결정해야 한다. ⑦ 미이식: versioned customer pricing, bundle price allocation, Ecount idempotency/result snapshot.
 
@@ -724,7 +724,7 @@ API token 값은 원본부터 `REDACTED_NOTION_TOKEN`이거나 Script Properties
 | 거래처 DC | `193a1006d6588161a02cc8f196d7102b` | DC script·두 OCR |
 | 거래처 auth password | `2dda1006d6588047b1bbc7c2660203c0` | 비밀번호 `Code.js:3` |
 | 교육 안내 | `1b5a1006d658804b9d6fc48f7b735490` | 교육 `Code.js:3` |
-| 제품 catalog Sheet | `1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ` | 두 OCR `Code.js:23` |
+| 제품 catalog Sheet | `<SHEET_ID>` | 두 OCR `Code.js:23` |
 | 거래처 갱신 master Sheet | `1-jsEDyyLkYkwYEDYkTymDJ2cUUdLuZbsdNgJEtBSXvE` | 거래처 갱신 `Code.js:1` |
 | 알리고 source Sheet | `1YVJZxMRLEDBfa_BdzetXdFJXE_WR_v2V09nbkqIX7cI` | 알리고 `Code.js:229` |
 | 알리고 promo/all/golf folders | `1YdALcpyYBFrO6U_X4lJpO3RBESilfKcr` / `11XY6jVo8E1ROt2U4eJW8mvpfvzvzqCmU` / `1OKlP1kOzRBEaXGh5F00x_iB9_futKIt7` | 알리고 `Index.html:652,677,722` |

@@ -66,7 +66,7 @@ test.describe('SP-07 Google Sheets quote/order source contract', () => {
   })
 
   test('live snapshot documents exact spreadsheet tabs without publishing secrets', () => {
-    expect(sourceDoc).toContain('1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ')
+    expect(sourceDoc).toContain('<SHEET_ID>')
     expect(sourceDoc).toContain('27개 tab')
     expect(sourceDoc).toContain('홈멀티_단가인상')
     expect(sourceDoc).toContain('싱글 세트_단가인상')

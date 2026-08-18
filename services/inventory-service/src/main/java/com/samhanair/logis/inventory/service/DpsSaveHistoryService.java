@@ -49,7 +49,7 @@ public class DpsSaveHistoryService {
         validateRequest(request);
         String user = normalizeUser(currentUser);
         DpsSaveHistory saved = saveInternal(request, user, true);
-        return new DpsSaveHistorySaveResponse(saved.getId(), saved.getCreatedAt());
+        return new DpsSaveHistorySaveResponse(saved.getCreatedAt());
     }
 
     /**

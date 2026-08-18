@@ -20,7 +20,6 @@ public record StockLotResponse(
         LocalDateTime receivedAt,
         BigDecimal unitCost,
         StockLotStatus status,
-        UUID sourceTransferId,
         LocalDateTime createdAt,
         String createdBy) {
 
@@ -36,7 +35,6 @@ public record StockLotResponse(
                 lot.getReceivedAt(),
                 lot.getUnitCost(),
                 lot.getStatus(),
-                lot.getSourceTransferId(),
                 lot.getCreatedAt(),
                 lot.getCreatedBy());
     }

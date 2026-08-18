@@ -12,15 +12,11 @@ import java.util.UUID;
  * inventory 수정 요청 응답 DTO — PR-H4b (Phase 12 Step 4b).
  */
 public record InventoryEditRequestResponse(
-        UUID id,
-        UUID entityId,
-        UUID requesterId,
         String requesterName,
         EditRequestType requestType,
         String reason,
         EditRequestStatus status,
         EditTargetRole targetRole,
-        UUID decidedById,
         String decidedByName,
         String decisionReason,
         LocalDateTime requestedAt,
@@ -29,15 +25,11 @@ public record InventoryEditRequestResponse(
 
     public static InventoryEditRequestResponse from(InventoryEditRequest r) {
         return new InventoryEditRequestResponse(
-                r.getId(),
-                r.getEntityId(),
-                r.getRequesterId(),
                 ActorDisplayName.resolve(r.getRequesterId() == null ? null : r.getRequesterId().toString(), r.getRequesterName()),
                 r.getRequestType(),
                 r.getReason(),
                 r.getStatus(),
                 r.getTargetRole(),
-                r.getDecidedById(),
                 ActorDisplayName.resolve(r.getDecidedById() == null ? null : r.getDecidedById().toString(), r.getDecidedByName()),
                 r.getDecisionReason(),
                 r.getRequestedAt(),

@@ -119,7 +119,7 @@ DC율 210행이 **전부 존재하지 않는 거래처를 가리켜 사용 가�
 
 ```text
 관리자 화면의 시트 동기화 실행
-원천: Drive "종합 견적서"  1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ
+원천: Drive "종합 견적서"  <SHEET_ID>
 ```
 
 ### 확정된 정책

@@ -7,7 +7,6 @@ import java.util.UUID;
 
 /** 전표 종류별 마감 기준선 응답. */
 public record SlipClosingBaselineResponse(
-        UUID id,
         SlipType slipType,
         String slipTypeName,
         LocalDate baselineDate,
@@ -15,7 +14,7 @@ public record SlipClosingBaselineResponse(
 ) {
     public static SlipClosingBaselineResponse from(SlipClosingBaseline baseline) {
         return new SlipClosingBaselineResponse(
-                baseline.getId(), baseline.getSlipType(), baseline.getSlipType().getDisplayName(),
+                baseline.getSlipType(), baseline.getSlipType().getDisplayName(),
                 baseline.getBaselineDate(), baseline.isEnabled());
     }
 }

@@ -245,7 +245,7 @@ class InventoryPermissionControllerIT {
         lenient().when(dpsByProductService.analyze(any(), any(), any()))
                 .thenReturn(DpsByProductResponse.of(List.of()));
         lenient().when(dpsSaveHistoryService.save(any(), anyString()))
-                .thenReturn(new DpsSaveHistorySaveResponse(ID, LocalDateTime.of(2026, 5, 26, 9, 0)));
+                .thenReturn(new DpsSaveHistorySaveResponse(LocalDateTime.of(2026, 5, 26, 9, 0)));
         lenient().when(dpsSaveHistoryService.list(any(), any(), any(), any(), anyString(), any()))
                 .thenReturn(new PageImpl<>(List.of()));
         lenient().when(dpsSaveHistoryService.findDetail(any(), anyString())).thenReturn(historyDetail());
@@ -685,13 +685,13 @@ class InventoryPermissionControllerIT {
 
     private TransferResponse transferRow() {
         return new TransferResponse(ID, "TR-001", ID, "WH-A", OTHER_ID, "WH-B",
-                TransferReason.REBALANCE, TransferStatus.REQUESTED, "tester", null,
+                TransferReason.REBALANCE, TransferStatus.REQUESTED,
                 LocalDateTime.now(), null, null, null, null);
     }
 
     private TransferDetailResponse transferDetail() {
         return new TransferDetailResponse(ID, "TR-001", ID, "WH-A", OTHER_ID, "WH-B",
-                TransferReason.REBALANCE, "reason", TransferStatus.REQUESTED, "tester", null,
+                TransferReason.REBALANCE, "reason", TransferStatus.REQUESTED,
                 LocalDateTime.now(), null, null, null, null, List.of());
     }
 
@@ -705,7 +705,7 @@ class InventoryPermissionControllerIT {
                 ID, ID, OTHER_ID, "WH-001", "LOT-001", 1, 1,
                 LocalDateTime.now(), java.math.BigDecimal.ONE,
                 com.samhanair.logis.inventory.domain.StockLotStatus.AVAILABLE,
-                null, LocalDateTime.now(), "tester");
+                LocalDateTime.now(), "tester");
     }
 
     private ReservationResponse reservation() {

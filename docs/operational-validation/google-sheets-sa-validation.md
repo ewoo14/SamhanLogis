@@ -9,7 +9,7 @@
 
 | service | 환경 변수 | application.yml 위치 | default |
 | ------- | --------- | -------------------- | ------- |
-| product-service | `GOOGLE_SHEETS_SHEET_ID` | §52 `google.sheets.sheet-id` | `1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ` (실제 시트) |
+| product-service | `GOOGLE_SHEETS_SHEET_ID` | §52 `google.sheets.sheet-id` | `<SHEET_ID>` (실제 시트) |
 | product-service | `GOOGLE_SERVICE_ACCOUNT_KEY` | §53 `google.sheets.service-account-key-path` | `/etc/samhan/sa-key.json` |
 | partner-order-service | `GOOGLE_SERVICE_ACCOUNT_KEY` | §61 (동일) | `/etc/samhan/sa-key.json` |
 
@@ -62,7 +62,7 @@ GOOGLE_SERVICE_ACCOUNT_KEY=/etc/samhan/sa-key.json
 ### 2-4. 시트 측 공유 권한 부여
 
 1. SA 키 JSON 의 `client_email` 필드 복사 (예: `samhan-sheets-reader@<프로젝트>.iam.gserviceaccount.com`)
-2. Google Sheets 시트 (sheet-id `1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ`) 열기
+2. Google Sheets 시트 (sheet-id `<SHEET_ID>`) 열기
 3. 우상단 "공유" 버튼 → SA email 추가 → **편집자** 권한 부여 (read-only sync 라도 metadata 호출 시 편집자 권한 필요)
 4. partner-order-service 가 별도 시트 사용 시 동일 절차 반복
 
