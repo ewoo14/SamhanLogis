@@ -53,7 +53,7 @@ function identityHeaders(login: Record<string, unknown>, attestation: string): R
   }
 }
 
-async function openTab(page: Page, tab: 'pre_issued' | 'result' = 'pre_issued'): Promise<void> {
+async function openTab(page: Page, tab: 'pre_issued' | 'result' = 'result'): Promise<void> {
   await page.goto(`${BASE_URL}/#/accounting/daily-closings`)
   await expect(page.getByTestId('daily-closing-nav')).toBeVisible({ timeout: 60_000 })
   await page.getByTestId('daily-closing-filter-date').fill(QA_DATE)
@@ -138,10 +138,10 @@ test('PR 1250 SOL 재수렴 금액·상태·조작 계약을 격리 라이브 �
   await page.route(`${SHARED_API}/**`, forward)
 
   await openTab(page)
-  const initialPre = initialRows.filter((row) => !row.accountingPostedAt).length
-  const initialResult = initialRows.filter((row) => Boolean(row.accountingPostedAt)).length
-  expect(await page.locator('[data-testid^="daily-closing-data-row-"]').count()).toBe(initialPre)
-  await page.screenshot({ path: path.join(SHOTS, '05-reconv-pre-edit-real-qa.png'), fullPage: true })
+  const initialResult = initialRows.filter((row) => !row.accountingPostedAt).length
+  const initialPreIssued = initialRows.filter((row) => Boolean(row.accountingPostedAt)).length
+  expect(await page.locator('[data-testid^="daily-closing-data-row-"]').count()).toBe(initialResult)
+  await page.screenshot({ path: path.join(SHOTS, '05-reconv-result-edit-real-qa.png'), fullPage: true })
 
   const directColumns = [
     page.getByTestId('daily-closing-unit-14').first(),
@@ -247,8 +247,8 @@ test('PR 1250 SOL 재수렴 금액·상태·조작 계약을 격리 라이브 �
   expect(await page.locator('[data-testid^="daily-closing-data-row-"]').count()).toBe(1)
   await page.getByTestId('daily-closing-filter-reset').click()
 
-  await openTab(page, 'result')
-  expect(await page.locator('[data-testid^="daily-closing-data-row-"]').count()).toBe(initialResult)
+  await openTab(page, 'pre_issued')
+  expect(await page.locator('[data-testid^="daily-closing-data-row-"]').count()).toBe(initialPreIssued)
   const posted = initialRows.find((row) => row.accountingPostedAt)!
   const postedUnit = page.getByTestId(`daily-closing-unit-${posted.seqNo}`).first()
   await expect(postedUnit).toBeDisabled()
@@ -268,7 +268,7 @@ test('PR 1250 SOL 재수렴 금액·상태·조작 계약을 격리 라이브 �
     route: `${BASE_URL}/#/accounting/daily-closings`,
     uniqueElements: ['daily-closing-nav', 'daily-closing-table', 'daily-closing-save-all'],
     loginRole: String(login['role'] ?? ''),
-    rows: { backendAll: initialRows.length, screenAll, backendPreIssued: initialPre, screenPreIssued: countBeforeSort, backendResult: initialResult, screenResult: initialResult },
+    rows: { backendAll: initialRows.length, screenAll, backendResult: initialResult, screenResult: countBeforeSort, backendPreIssued: initialPreIssued, screenPreIssued: initialPreIssued },
     quantityCases,
     priceOnly: { identifier: `${QA_DATE}-6`, before: priceOnlyBefore, editing: priceOnlyEditing, payload: priceOnlySaved.payload, requery: priceOnlyAfter },
     directDiscountRate: { identifier: `${QA_DATE}-12`, editing: directRateEditing, payload: directRateSaved.payload, requery: directRateAfter },
