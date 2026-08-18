@@ -23,7 +23,6 @@ export interface DpsSaveHistoryRequest {
 
 /** DPS 저장 생성 응답. */
 export interface DpsSaveHistorySaveResponse {
-  id: string
   savedAt: string
 }
 

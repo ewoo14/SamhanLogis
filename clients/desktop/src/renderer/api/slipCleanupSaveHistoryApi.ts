@@ -24,7 +24,6 @@ export interface SlipCleanupSaveHistoryRequest {
 
 /** 저장 생성 응답. */
 export interface SlipCleanupSaveHistorySaveResponse {
-  id: string
   savedAt: string
 }
 

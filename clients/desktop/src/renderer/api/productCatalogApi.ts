@@ -335,6 +335,28 @@ export interface BundleComponentInput {
   allocationRoundUnit?: string | number | null
 }
 
+/** 카테고리별 설정 응답 — 설정 전용 저장소이며 납품가를 포함하지 않는다. */
+export interface BundleComponentEstimateSetting {
+  componentProductCode: string
+  estimateCategory: EstimateCategory
+  qtyMode: QtyMode
+  componentKind: ComponentKind
+  componentVariant: string | null
+  componentShape: string | null
+  isDefault: boolean
+  displayOrder: number | null
+  configurationOnly: boolean
+}
+
+export interface BundleComponentEstimateSettingInput {
+  componentProductCode: string
+  qtyMode?: QtyMode | null
+  componentKind?: ComponentKind | null
+  componentVariant?: string | null
+  componentShape?: string | null
+  isDefault?: boolean
+}
+
 /**
  * `PUT /api/v1/products/display-orders` 요청 body 항목.
  */
@@ -719,6 +741,32 @@ export async function updateBundleComponents(
   const res = await apiClient.put<BundleComponentItem[]>(
     `/api/v1/products/${encodeURIComponent(modelCode)}/components`,
     components,
+  )
+  return res.data
+}
+
+/** 카테고리별 수량동기화·옵션·품목구분 설정 조회. /usage를 호출하지 않는다. */
+export async function listBundleComponentSettings(
+  modelCode: string,
+  estimateCategory: EstimateCategory,
+): Promise<BundleComponentEstimateSetting[]> {
+  const res = await apiClient.get<BundleComponentEstimateSetting[]>(
+    `/api/v1/products/${encodeURIComponent(modelCode)}/component-settings`,
+    { params: { estimateCategory } },
+  )
+  return res.data
+}
+
+/** 카테고리별 3종 설정 저장. 구성품 관계와 납품가는 변경하지 않는다. */
+export async function updateBundleComponentSettings(
+  modelCode: string,
+  estimateCategory: EstimateCategory,
+  settings: BundleComponentEstimateSettingInput[],
+): Promise<BundleComponentEstimateSetting[]> {
+  const res = await apiClient.put<BundleComponentEstimateSetting[]>(
+    `/api/v1/products/${encodeURIComponent(modelCode)}/component-settings`,
+    settings,
+    { params: { estimateCategory } },
   )
   return res.data
 }

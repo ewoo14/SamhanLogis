@@ -125,14 +125,12 @@ class MessageBulkSendIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.messages[0].status").value("UNREAD"))
                 .andReturn();
 
-        UUID batchId = UUID.fromString(new com.fasterxml.jackson.databind.ObjectMapper()
-                .readTree(result.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8))
-                .path("data").path("batchId").asText());
-
-        // 검증 결함 fix — 응답 JSON만 보면 수신자마다 다른 batchId를 넣는 뮤테이션도 GREEN이 된다.
-        // 실 DB를 batch_id로 직접 조회해 V14 마이그레이션(batch_id 컬럼)의 존재 이유를 실증한다.
-        List<com.samhanair.logis.groupware.domain.Message> stored = messageRepository.findAllByBatchId(batchId);
+        // batchId는 사용자 후속 호출에 쓰이지 않는 내부 원자성 키다. 응답 UUID가 아닌
+        // 실제 저장 행 전체를 조회해 다섯 행이 같은 batchId를 공유하는지 검증한다.
+        List<com.samhanair.logis.groupware.domain.Message> stored = messageRepository.findAll();
         assertThat(stored).hasSize(5);
+        assertThat(stored).extracting(com.samhanair.logis.groupware.domain.Message::getBatchId)
+                .doesNotContainNull().containsOnly(stored.get(0).getBatchId());
         assertThat(stored)
                 .extracting(com.samhanair.logis.groupware.domain.Message::getRecipientId)
                 .containsExactlyInAnyOrderElementsOf(recipients);

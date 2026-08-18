@@ -100,7 +100,6 @@ class SlipCleanupSaveHistoryIT extends AbstractPostgresIT {
                         .header("X-User-Id", USER_A)
                         .header("X-User-Role", "SALES"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.id").exists())
                 .andExpect(jsonPath("$.data.savedAt").exists())
                 .andReturn();
 
@@ -110,13 +109,9 @@ class SlipCleanupSaveHistoryIT extends AbstractPostgresIT {
                         .header("X-User-Id", USER_A)
                         .header("X-User-Role", "SALES"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.id").exists())
                 .andExpect(jsonPath("$.data.savedAt").exists());
 
-        String historyId = objectMapper.readTree(firstCreated.getResponse().getContentAsString())
-                .path("data").path("id").asText();
-
-        mockMvc.perform(get(BASE_URL)
+        MvcResult listed = mockMvc.perform(get(BASE_URL)
                         .param("programType", "SLIP_CLEANUP")
                         .param("mode", "MANUAL_NAMED")
                         .param("from", fromDate)
@@ -128,7 +123,11 @@ class SlipCleanupSaveHistoryIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.content[0].topic").value("cycle1-second"))
                 .andExpect(jsonPath("$.data.content[0].rowCount").value(4))
                 .andExpect(jsonPath("$.data.content[1].topic").value("오전 마감 점검"))
-                .andExpect(jsonPath("$.data.content[1].rowCount").value(2));
+                .andExpect(jsonPath("$.data.content[1].rowCount").value(2))
+                .andReturn();
+
+        String historyId = objectMapper.readTree(listed.getResponse().getContentAsString())
+                .path("data").path("content").path(1).path("id").asText();
 
         mockMvc.perform(get(BASE_URL + "/" + historyId)
                         .header("X-User-Id", USER_A)
@@ -220,8 +219,7 @@ class SlipCleanupSaveHistoryIT extends AbstractPostgresIT {
                         .header("X-User-Role", "SALES"))
                 .andExpect(status().isOk())
                 .andReturn();
-        UUID id = UUID.fromString(objectMapper.readTree(created.getResponse().getContentAsString())
-                .path("data").path("id").asText());
+        UUID id = repository.findAll().stream().findFirst().orElseThrow().getId();
 
         mockMvc.perform(get(BASE_URL + "/" + id)
                         .header("X-User-Id", USER_B)
@@ -253,8 +251,7 @@ class SlipCleanupSaveHistoryIT extends AbstractPostgresIT {
                         .header("X-User-Role", "SALES"))
                 .andExpect(status().isOk())
                 .andReturn();
-        UUID id = UUID.fromString(objectMapper.readTree(created.getResponse().getContentAsString())
-                .path("data").path("id").asText());
+        UUID id = repository.findAll().stream().findFirst().orElseThrow().getId();
         jdbcTemplate.update("""
                 UPDATE slip_cleanup_save_history
                    SET is_deleted = TRUE, deleted_by = ?, deleted_at = now()
