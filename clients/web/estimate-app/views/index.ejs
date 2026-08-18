@@ -5281,7 +5281,8 @@ function explodeSetParts(s, qty, setUnitOverride){
     name: String(p?.name||''),
     model: p.model,
     unit: p.unit || 'EA',
-    qty: qty,
+    qty: String(p.qtyMode || 'FOLLOW_SET').toUpperCase() === 'FIXED'
+      ? (Number(p.qty) || 1) : qty * (Number(p.qty) || 1),
     price: partUnitPrice(p),
     kind: p.kind || '',
     spec: p.spec || '',
@@ -7292,7 +7293,8 @@ function explodeCommSets_(setRow, setQty){
       section: 'COMM',
       name: p.name || p.partName || p.model,
       model: p.model, 
-      qty: finalQty, 
+      qty: String(p.qtyMode || 'FOLLOW_SET').toUpperCase() === 'FIXED'
+        ? (parseInt(p.qty, 10) || 1) : finalQty,
       price: getRealCommPrice(p.model) || 0,
       kind: p.kind || '',
       spec: mySpec,

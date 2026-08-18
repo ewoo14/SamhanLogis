@@ -63,8 +63,7 @@ vi.mock('../api/productCatalogApi', async (importOriginal) => {
   }
   })
 
-  // RED-first surface tests: these intentionally exercised the missing shape surface.
-  it('renders kind-specific feature choices, disables shape for non-360 panels, and preserves the component code', async () => {
+  it('moves category-specific component settings out of the basic product editor and preserves the component code', async () => {
     const seed = seedFor('SET-FEATURE-SHAPE-RED')
     seed.summary.productType = 'BUNDLE'
     seed.detail.itemKind = 'SET'
@@ -81,16 +80,13 @@ vi.mock('../api/productCatalogApi', async (importOriginal) => {
 
     expect(await screen.findByTestId('product-form-component-row-0')).not.toBeNull()
     const row = screen.getByTestId('product-form-component-row-0')
-    expect(row.textContent).toContain('블랙')
-    expect(row.textContent).toContain('형상')
-    const selects = row.querySelectorAll('select')
-    expect(selects.length).toBeGreaterThanOrEqual(4)
-    fireEvent.change(selects[1], { target: { value: '블랙' } })
+    expect(row.textContent).toContain('수량동기화·옵션·품목구분은 견적품목의 카테고리별 설정에서 관리합니다.')
+    expect(row.querySelector('input')?.getAttribute('value')).toBe('PANEL-360')
     fireEvent.click(screen.getByTestId('product-form-components-save'))
 
     await waitFor(() => expect(mocks.updateBundleComponents).toHaveBeenCalledTimes(1))
     expect(mocks.updateBundleComponents).toHaveBeenCalledWith('SET-FEATURE-SHAPE-RED', [expect.objectContaining({
-      componentProductCode: 'PANEL-360', componentVariant: '블랙', componentShape: null,
+      componentProductCode: 'PANEL-360', componentVariant: '기본', componentShape: null,
     })])
   })
 
