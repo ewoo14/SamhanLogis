@@ -117,7 +117,7 @@ test('D-02 실제 매출·매입 회계전표 생성, 중복 차단, 회계반�
   expect(inbound.length).toBeGreaterThan(0)
 
   await page.goto(`${process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5942'}/#/accounting/daily-closings`, { waitUntil: 'domcontentloaded' })
-  await openDateAndKind(page, 'SALES', 'pre_issued')
+  await openDateAndKind(page, 'SALES', 'result')
   const salesButton = page.locator('[data-testid^="daily-closing-accounting-create-"]').first()
   await expect(salesButton).toBeEnabled()
   await salesButton.click()
@@ -125,7 +125,7 @@ test('D-02 실제 매출·매입 회계전표 생성, 중복 차단, 회계반�
   await page.screenshot({ path: path.join(shotsDir, '01-sales-accounting-slip-created.png'), fullPage: true })
 
   await page.locator('[data-testid="closing-kind-toggle"]').locator('button').filter({ hasText: '매입' }).evaluate((element) => (element as HTMLButtonElement).click())
-  await page.getByTestId('daily-closing-tab-pre_issued').click()
+  await page.getByTestId('daily-closing-tab-result').click()
   await expect(page.getByTestId('daily-closing-table')).toBeVisible({ timeout: 30_000 })
   const purchaseButton = page.locator('[data-testid^="daily-closing-accounting-create-"]').last()
   await expect(purchaseButton).toBeEnabled()
@@ -134,7 +134,7 @@ test('D-02 실제 매출·매입 회계전표 생성, 중복 차단, 회계반�
   await page.screenshot({ path: path.join(shotsDir, '02-purchase-accounting-slip-created.png'), fullPage: true })
 
   await page.locator('[data-testid="closing-kind-toggle"]').locator('button').filter({ hasText: '매출' }).evaluate((element) => (element as HTMLButtonElement).click())
-  await page.getByTestId('daily-closing-tab-pre_issued').click()
+  await page.getByTestId('daily-closing-tab-result').click()
   await expect(page.getByTestId('daily-closing-table')).toBeVisible({ timeout: 30_000 })
   const duplicateButton = page.locator('[data-testid^="daily-closing-accounting-create-"]').first()
   await expect(duplicateButton).toBeDisabled()
