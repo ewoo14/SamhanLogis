@@ -36,7 +36,10 @@ public record DailyClosingRowResponse(
         UUID lineId,
         LocalDateTime updatedAt,
         boolean amountEditable,
-        String amountEditBlockReason) {
+        String amountEditBlockReason,
+        String categoryKey,
+        BigDecimal deliveryPrice,
+        Integer expectedRate) {
 
     /** S1 기존 호출자 호환 생성자 — S7 내부 편집 메타데이터는 읽기 전용 기본값으로 둔다. */
     public DailyClosingRowResponse(
@@ -52,7 +55,8 @@ public record DailyClosingRowResponse(
                 productPrice, discountRate, grandTotal, confirmation, confirmationReason,
                 accountingPostedAt, dcAmount, sourceStatus, null, null,
                 null,
-                accountingPostedAt == null, accountingPostedAt == null ? null : "회계전표가 이미 반영되었습니다.");
+                accountingPostedAt == null, accountingPostedAt == null ? null : "회계전표가 이미 반영되었습니다.",
+                null, null, null);
     }
 
     public enum Confirmation { CONFIRMED, MISMATCH, UNDETERMINED }
@@ -62,7 +66,14 @@ public record DailyClosingRowResponse(
             BigDecimal productPrice,
             String dcCondition,
             LocalDateTime accountingPostedAt,
-            String sourceFailureReason) {
+            String sourceFailureReason,
+            String categoryKey,
+            BigDecimal deliveryPrice,
+            Integer expectedRate) {
+        public SourceValues(BigDecimal productPrice, String dcCondition,
+                            LocalDateTime accountingPostedAt, String sourceFailureReason) {
+            this(productPrice, dcCondition, accountingPostedAt, sourceFailureReason, null, null, null);
+        }
     }
 
     public static DailyClosingRowResponse from(Slip slip, SlipLine line) {
@@ -116,7 +127,8 @@ public record DailyClosingRowResponse(
                 line.getId(),
                 slip.getModifiedAt() == null ? slip.getCreatedAt() : slip.getModifiedAt(),
                 source.accountingPostedAt() == null,
-                source.accountingPostedAt() == null ? null : "회계전표가 이미 반영되었습니다.");
+                source.accountingPostedAt() == null ? null : "회계전표가 이미 반영되었습니다.",
+                source.categoryKey(), source.deliveryPrice(), source.expectedRate());
     }
 
     /** 마감일 잠금 결과를 조회 응답에 반영한다. */
@@ -126,7 +138,7 @@ public record DailyClosingRowResponse(
                 productPrice, discountRate, grandTotal, confirmation, confirmationReason,
                 accountingPostedAt, dcAmount, sourceStatus, slipId, lineId, updatedAt,
                 editable && amountEditable, editable && amountEditable ? null
-                        : (editable ? amountEditBlockReason : reason));
+                        : (editable ? amountEditBlockReason : reason), categoryKey, deliveryPrice, expectedRate);
     }
 
     private static BigDecimal zero(BigDecimal value) {

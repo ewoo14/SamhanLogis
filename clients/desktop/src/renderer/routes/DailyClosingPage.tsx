@@ -530,6 +530,8 @@ function LegacyAmountEditor({
   row,
   values,
   error,
+  includeBaseColumns = true,
+  includeReferenceColumns = true,
   onChange,
   rowIndex,
   selectedCells,
@@ -540,6 +542,8 @@ function LegacyAmountEditor({
   row: DailyClosingSourceRow
   values: CalculatedAmountValues | null
   error?: string
+  includeBaseColumns?: boolean
+  includeReferenceColumns?: boolean
   onChange: (values: CalculatedAmountValues) => void
   rowIndex: number
   selectedCells: Set<string>
@@ -612,20 +616,20 @@ function LegacyAmountEditor({
   >{content}</td>
 
   return <>
-    {amountCell(<>
+    {includeBaseColumns ? amountCell(<>
       {input('unit', current.unit, '단가(VAT포함)')}
       {!disabled && values ? <span role="status" style={{ marginLeft: 4, fontSize: 11 }}>수정됨</span> : null}
       {error ? <span role="alert" style={{ display: 'block', fontSize: 11 }}>{error}</span> : null}
-    </>, 6)}
-    {amountCell(values ? formatLegacyNumber(current.supply) : formatLegacyNumber(row.supplyAmount), 7)}
-    {amountCell(values ? formatLegacyNumber(current.vat) : formatLegacyNumber(row.vatAmount), 8)}
-    {amountCell(values ? formatLegacyNumber(current.total) : formatLegacyNumber(row.total), 9)}
-    {amountCell(input('price', current.price, '출고가'), 12)}
-    {amountCell(<div style={{ display: 'inline-flex', width: '100%', alignItems: 'center', justifyContent: 'center' }}>
+    </>, 6) : null}
+    {includeBaseColumns ? amountCell(values ? formatLegacyNumber(current.supply) : formatLegacyNumber(row.supplyAmount), 7) : null}
+    {includeBaseColumns ? amountCell(values ? formatLegacyNumber(current.vat) : formatLegacyNumber(row.vatAmount), 8) : null}
+    {includeBaseColumns ? amountCell(values ? formatLegacyNumber(current.total) : formatLegacyNumber(row.total), 9) : null}
+    {includeReferenceColumns ? amountCell(input('price', current.price, '출고가'), 12) : null}
+    {includeReferenceColumns ? amountCell(<div style={{ display: 'inline-flex', width: '100%', alignItems: 'center', justifyContent: 'center' }}>
         {input('rate', current.rate, '할인율')}
         <span style={{ marginLeft: 2 }}>%</span>
-      </div>, 13, { ...num, background: LEGACY_DISCOUNT_COLORS[legacyDiscountClass(Math.round(current.rate))] }, legacyDiscountClass(Math.round(current.rate)) || undefined)}
-    {amountCell(values ? formatLegacyNumber(current.total) : formatLegacyNumber(row.grandTotal), 14)}
+      </div>, 13, { ...num, background: LEGACY_DISCOUNT_COLORS[legacyDiscountClass(Math.round(current.rate))] }, legacyDiscountClass(Math.round(current.rate)) || undefined) : null}
+    {includeReferenceColumns ? amountCell(values ? formatLegacyNumber(current.total) : formatLegacyNumber(row.grandTotal), 14) : null}
   </>
 }
 
@@ -1097,9 +1101,22 @@ function EditableLegacyDailyClosingTable({
                       onCellMouseDown={handleCellMouseDown}
                       onCellMouseEnter={handleCellMouseEnter}
                       selectionKey={cellSelectionKey}
+                      includeReferenceColumns={false}
                     />
                     {mergedCell(row.partnerName || '', '거래처명', cell, merge, index, 10)}
                     {mergedCell(row.partnerCode || '', '거래처코드', cell, merge, index, 11)}
+                    <LegacyAmountEditor
+                      row={row}
+                      values={drafts[rowKey(row)] ?? committedValues[rowKey(row)] ?? null}
+                      error={undefined}
+                      onChange={(values) => changeDraft(row, values)}
+                      rowIndex={index}
+                      selectedCells={selectedCells}
+                      onCellMouseDown={handleCellMouseDown}
+                      onCellMouseEnter={handleCellMouseEnter}
+                      selectionKey={cellSelectionKey}
+                      includeBaseColumns={false}
+                    />
                     {selectableCell(legacyStatusBadge(row), index, 15, cell)}
                     {mergedCell(
                       row.accountingPostedAt ? row.accountingPostedAt.replace('T', ' ').slice(0, 16) : '',

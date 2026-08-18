@@ -122,6 +122,24 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
     expect(screen.getByText('확보 품목')).toBeTruthy()
   })
 
+  it('17열의 거래처·가격 축은 헤더 순서대로 DOM에 놓인다', async () => {
+    getDailyClosingRowsMock.mockResolvedValue([rows[1]!])
+    renderPage()
+
+    const table = await screen.findByTestId('daily-closing-table')
+    const dataRow = within(table).getByTestId('daily-closing-data-row-0')
+    const cells = Array.from(dataRow.children)
+    expect(cells.map((cell) => cell.getAttribute('data-testid'))).toEqual([
+      'daily-closing-cell-0-DC', 'daily-closing-cell-0-일자', 'daily-closing-cell-0-번호',
+      'daily-closing-cell-0-창고명', 'daily-closing-cell-0-품목명', 'daily-closing-cell-0-수량',
+      'daily-closing-cell-0-단가(VAT포함)', 'daily-closing-cell-0-공급가액',
+      'daily-closing-cell-0-부가세', 'daily-closing-cell-0-합계',
+      'daily-closing-cell-0-거래처명', 'daily-closing-cell-0-거래처코드',
+      'daily-closing-cell-0-출고가', 'daily-closing-cell-0-할인율', 'daily-closing-cell-0-총계',
+      'daily-closing-cell-0-확인', 'daily-closing-cell-0-회계반영일자',
+    ])
+  })
+
   it('posted_at 유무로 결과와 선발행을 분리한다', async () => {
     getDailyClosingRowsMock.mockResolvedValue(rows)
     renderPage()
