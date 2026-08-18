@@ -159,6 +159,9 @@ public class PartnerOrderConvertService {
             linePayload.put("remarks", line.getRemark());
             linePayload.put("sourceOrderLineId", line.getId().toString());
             linePayload.put("categoryKey", line.getCategoryKey());
+            if (line.getBundleSetOptions() != null) {
+                linePayload.put("bundleSetOptions", line.getBundleSetOptions());
+            }
             payloadLines.add(linePayload);
         }
 

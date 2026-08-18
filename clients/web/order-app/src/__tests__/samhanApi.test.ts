@@ -57,6 +57,27 @@ describe('samhanApi.fetchBootstrap', () => {
       homemulti: [{ model: 'HM-1' }],
     });
   });
+
+  it('confirm fidelity: forwards display name, category, selected bundle options and price', async () => {
+    const items = [{
+      section: 'SINGLE', model: 'MODEL-1', name: '웹 품목명', categoryKey: 'singleSets', qty: 1,
+      price: 123456, setAllocation: true,
+      bundleSetOptions: { panelOption: '블랙판넬', remoteOption: '유선리모컨', panelShape360: null,
+        remoteExcluded: false, materialIncluded: true },
+    }];
+    mocks.post
+      .mockResolvedValueOnce({ data: { success: true, data: { draftId: '44444444-4444-4444-4444-444444444444' } } })
+      .mockResolvedValueOnce({ data: { success: true, data: { orderNo: '2026/08/17-1' } } });
+    await samhanApi.call('sendOrderFromUi', [items, { bizno: '1234567890' }]);
+    expect(mocks.post).toHaveBeenNthCalledWith(2,
+      '/partner-orders/44444444-4444-4444-4444-444444444444/confirm',
+      { lines: [expect.objectContaining({
+        modelCode: 'MODEL-1', productName: '웹 품목명', categoryKey: 'singleSets',
+        quantity: 1, unitPrice: 123456, setAllocation: true,
+        bundleSetOptions: expect.objectContaining({ panelOption: '블랙판넬', remoteOption: '유선리모컨' }),
+      })] }, { headers: { 'X-Biz-Code': '1234567890' } },
+    );
+  });
 });
 
 describe('samhanApi.fetchQuantitySyncRules', () => {

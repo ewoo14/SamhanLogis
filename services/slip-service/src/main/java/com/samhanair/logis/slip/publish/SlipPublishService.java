@@ -283,6 +283,13 @@ public class SlipPublishService {
                     saved.getSlipNo());
         }
 
+        // 단건 주문도 병합 주문과 동일하게 사용자 표시용 주문번호를 별도 원천 행에 보존한다.
+        // orderNo가 없는 구형 호출은 기존 replay 호환을 위해 생략한다.
+        if (req.orderNo() != null && !req.orderNo().isBlank()) {
+            sourceOrderRepository.save(SlipSourceOrder.of(
+                    saved.getId(), UUID.fromString(req.partnerOrderId()), req.orderNo().trim()));
+        }
+
         String dcSnapshot = serializeDiscount(req.discountInfo(), req.paymentDueLabel());
         SlipPublishAudit audit = SlipPublishAudit.create(saved.getId(), SlipSourceType.PARTNER_ORDER,
                 req.partnerOrderId(), idempotencyKey,
@@ -799,7 +806,8 @@ public class SlipPublishService {
                     l.unitPriceVat() != null,
                     l.remarks(),
                     l.sourceOrderLineId(),
-                    l.categoryKey()));
+                    l.categoryKey(),
+                    l.bundleSetOptions()));
             if (l.supplyAmount() != null) {
                 resolved.totalSupplyAmount = resolved.totalSupplyAmount.add(l.supplyAmount());
             }
@@ -865,6 +873,7 @@ public class SlipPublishService {
         Map<String, Object> canonical = new LinkedHashMap<>();
         canonical.put("kind", "PARTNER_ORDER");
         canonical.put("partnerOrderId", req.partnerOrderId());
+        canonical.put("orderNo", canonicalOptionalText(req.orderNo()));
         canonical.put("ioDate", canonicalOptionalText(req.ioDate()));
         canonical.put("warehouseCode", req.warehouseCode());
         canonical.put("warehouseId", canonicalOptionalText(req.warehouseId()));
@@ -1099,20 +1108,27 @@ public class SlipPublishService {
          */
         List<SlipLine> toEntityLines(Slip slip) {
             return entries.stream()
-                    .map(e -> e.vatInclusive
-                            ? SlipLine.createFromVatInclusive(slip, e.productId, e.productName, e.modelName,
-                                    e.specification, e.quantity, e.unitPrice, e.note, e.sourceOrderLineId,
-                                    e.categoryKey)
-                            : SlipLine.create(slip, e.productId, e.productName, e.modelName,
-                                    e.specification, e.quantity, e.unitPrice, e.note, e.sourceOrderLineId,
-                                    e.categoryKey))
+                    .map(e -> {
+                        SlipLine line = e.vatInclusive
+                                ? SlipLine.createFromVatInclusive(slip, e.productId, e.productName, e.modelName,
+                                        e.specification, e.quantity, e.unitPrice, e.note, e.sourceOrderLineId,
+                                        e.categoryKey)
+                                : SlipLine.create(slip, e.productId, e.productName, e.modelName,
+                                        e.specification, e.quantity, e.unitPrice, e.note, e.sourceOrderLineId,
+                                        e.categoryKey);
+                        if (e.bundleSetOptions != null) {
+                            line.assignBundleComponent(null, false, e.bundleSetOptions);
+                        }
+                        return line;
+                    })
                     .toList();
         }
 
         record Entry(UUID productId, String productName, String modelName, String specification,
                      int quantity, BigDecimal unitPrice, boolean vatInclusive, String note,
                      UUID sourceOrderLineId,
-                     String categoryKey) {
+                     String categoryKey,
+                     com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions bundleSetOptions) {
         }
     }
 

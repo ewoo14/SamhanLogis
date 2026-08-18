@@ -30,6 +30,7 @@ import com.samhanair.logis.slip.price.domain.PartnerProductPriceMemory;
 import com.samhanair.logis.slip.price.service.PartnerProductPriceMemoryCommand;
 import com.samhanair.logis.slip.price.service.PartnerProductPriceMemoryService;
 import com.samhanair.logis.slip.repository.SlipRepository;
+import com.samhanair.logis.slip.repository.SlipSourceOrderRepository;
 import com.samhanair.logis.slip.service.dispatchgroup.DispatchGroupSlipReferenceGuard;
 import com.samhanair.logis.slip.revision.domain.SlipRevisionType;
 import com.samhanair.logis.slip.revision.repository.SlipRevisionRepository;
@@ -110,6 +111,7 @@ public class SlipService {
     private static final String INBOUND_INSPECT_ACTION_KEY = "INBOUND_INSPECT";
 
     private final SlipRepository slipRepository;
+    private final SlipSourceOrderRepository slipSourceOrderRepository;
     private final SlipNumberService slipNumberService;
     private final ProductClient productClient;
     /** 신규 출고전표의 라인별 전역DC/고정DC 계산기. 장애 시 입력 정가를 보존한다. */
@@ -1604,8 +1606,17 @@ public class SlipService {
         String acceptedByFullName = outbound ? null : resolveUserFullName(slip.getAcceptedBy());
         String inspectorFullName = resolveUserFullName(slip.getInspectorUserId());
         boolean canInspect = isOutboundInspectApprovalMember(slip.getSlipType(), slip.getStatus(), actorUserId);
+        String sourceReference = slip.getSourceType() == SlipSourceType.PARTNER_ORDER
+                ? slipSourceOrderRepository.findAllBySlipId(slip.getId()).stream()
+                        .map(com.samhanair.logis.slip.domain.SlipSourceOrder::getOrderNo)
+                        .filter(java.util.Objects::nonNull)
+                        .distinct()
+                        .sorted()
+                        .findFirst()
+                        .orElse(null)
+                : slip.getSourceId();
         return SlipDetailResponse.from(slip, ownerFullName, dispatcherFullName,
-                inspectorFullName, acceptedByFullName, canInspect);
+                inspectorFullName, acceptedByFullName, canInspect, sourceReference);
     }
 
     /** 창고 QR 출고용 최소 문맥을 전표번호로 조회한다. */

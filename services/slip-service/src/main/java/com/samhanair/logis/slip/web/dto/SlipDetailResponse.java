@@ -62,6 +62,8 @@ public record SlipDetailResponse(
         boolean lockFlag,
         /** 발행 출처 — FE가 subtype별 lifecycle 액션을 정확히 계산할 때 사용한다. */
         SlipSourceType sourceType,
+        /** 화면에 표시 가능한 원천 업무 식별자(견적번호 또는 주문번호). */
+        String sourceReference,
         @JsonSerialize(using = OpaqueUuidSerializer.class) UUID partnerId,
         String partnerName,
         String partnerCode,
@@ -205,6 +207,19 @@ public record SlipDetailResponse(
             String inspectorFullName,
             String acceptedByFullName,
             boolean canInspect) {
+        return from(slip, ownerFullName, dispatcherFullName, inspectorFullName,
+                acceptedByFullName, canInspect, slip.getSourceId());
+    }
+
+    /** 원천 주문번호를 repository에서 해석한 단건 조회 응답 빌더. */
+    public static SlipDetailResponse from(
+            Slip slip,
+            String ownerFullName,
+            String dispatcherFullName,
+            String inspectorFullName,
+            String acceptedByFullName,
+            boolean canInspect,
+            String sourceReference) {
         return new SlipDetailResponse(
                 slip.getId(),
                 slip.getSlipType(),
@@ -214,6 +229,7 @@ public record SlipDetailResponse(
                 slip.getStatus(),
                 Boolean.TRUE.equals(slip.getLockFlag()),
                 slip.getSourceType(),
+                sourceReference,
                 slip.getPartnerId(),
                 slip.getPartnerName(),
                 slip.getPartnerCode(),

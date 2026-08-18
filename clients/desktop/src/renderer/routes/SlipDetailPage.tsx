@@ -3356,6 +3356,10 @@ export function SlipDetailPage({ mode, slipId }: SlipDetailPageProps) {
           <span className="detail-label">판매번호</span>
           <Input inputSize="sm" readOnly value={slip.slipNo} aria-label="판매번호" />
         </label>
+        {slip.sourceReference ? <div className="sales-edit-field" data-testid="slip-source-reference">
+          <span className="detail-label">원천 {slip.sourceType === 'ESTIMATE' ? '견적' : '주문'}</span>
+          <span>{slip.sourceReference}</span>
+        </div> : null}
         {/*
           D-R8-7: 거래처는 PartnerAutocomplete 단일 경로.
           기존 수동 '거래처' CollaborativeSlipInput 제거 — SlipFormPage 가 "P0 D-AC3-01" 로
@@ -3733,6 +3737,10 @@ export function SlipDetailPage({ mode, slipId }: SlipDetailPageProps) {
           <span className="detail-label">구매번호</span>
           <Input inputSize="sm" readOnly value={slip.slipNo} aria-label="구매번호" />
         </label>
+        {slip.sourceReference ? <div className="purchase-edit-field" data-testid="slip-source-reference">
+          <span className="detail-label">원천 {slip.sourceType === 'ESTIMATE' ? '견적' : '주문'}</span>
+          <span>{slip.sourceReference}</span>
+        </div> : null}
         {/* D-R8-7: 거래처 = PartnerAutocomplete 단일 경로(매출 폼과 동일 계약). inputTestId=협업 partnerName 식별자. */}
         <label className="purchase-edit-field">
           <span className="detail-label">거래처</span>
@@ -4540,6 +4548,10 @@ export function SlipDetailPage({ mode, slipId }: SlipDetailPageProps) {
             <span className="detail-value">
               {renderRedlineCell('header.partnerName', salesSlipPartnerHeader.name || '-')}
             </span>
+          </div>
+          <div data-testid="slip-detail-source-reference">
+            <span className="detail-label">원천 {slip.sourceType === 'ESTIMATE' ? '견적' : '주문'}</span>
+            <span className="detail-value">{slip.sourceReference ?? '—'}</span>
           </div>
           <div>
             <span className="detail-label">일자</span>

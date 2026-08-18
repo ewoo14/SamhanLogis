@@ -9884,7 +9884,14 @@ function buildSendRows(){
         list: fmt(sList),
         has360: flags.has360, has4way: flags.has4way, hasStand: flags.hasStand,
         hasOneWayDc: flags.hasOneWay, hasDeluxeDc: flags.hasDeluxe, hasFirstGradeDc: flags.hasGrade1,
-        fixedDc: fDc, spec: finalSpec || '\u200B'
+        fixedDc: fDc, spec: finalSpec || '\u200B',
+        bundleSetOptions: {
+          remoteOption: document.getElementById('ss_remote')?.value || null,
+          remoteExcluded: !!document.getElementById('ss_remote_ex')?.checked,
+          panelOption: document.getElementById('ss_panel')?.value || null,
+          panelShape360: document.getElementById('ss_p360')?.value || null,
+          materialIncluded: (document.getElementById('ss_mat')?.value || '') === '포함'
+        }
       });
     });
   });

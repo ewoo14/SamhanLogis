@@ -418,6 +418,20 @@ class BootstrapServiceTest {
     }
 
     @Test
+    void fetch_catalog가_모두_비어있고_materialPrices만_존재해도_빈_catalog를_캐시하지_않는다() throws Exception {
+        setField("sheetPrefetchEnabled", false);
+        when(estimateCatalogClient.materialPrices()).thenReturn(List.of(
+                Map.of("model", "MATERIAL-ONLY", "price", "100")));
+        when(cacheRepository.findAllByOrderByCacheKeyAsc()).thenReturn(List.of(
+                makeCacheRow("homemulti", "[[\"seed-row\"]]")));
+
+        bootstrapService.prefetch();
+        BootstrapResponse response = bootstrapService.fetch();
+
+        assertThat(response.payloads().get("homemulti")).isEqualTo(List.of(List.of("seed-row")));
+    }
+
+    @Test
     void fetch_priceChangeSchedule_예외발생시에도_catalog_7종_payload는_보존된다() throws Exception {
         // given — BE-2 (#688 S3 R1 리뷰): priceChangeSchedule() 이 실패해도 이미 조회에 성공한
         // catalog 7종(homemulti~materialPrices)은 loadProductCatalogPayloadsSafely() 의 catch-all

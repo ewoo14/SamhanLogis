@@ -574,6 +574,30 @@ describe('slip-bridge — 견적 finalize → slip-service POST', () => {
     expect(body.estimateNumber).toMatch(/^WEB-20260610-\d+$/);
   });
 
+  test('buildSlipRequest는 웹 품목명·카테고리·구성품 옵션을 그대로 전표 라인에 전달한다', () => {
+    const body = slipBridge.buildSlipRequest({ estimateNumber: 'EST-FIDELITY' }, [{
+      BulkDatas: {
+        IO_DATE: '20260817', CUST: 'C1', PROD_CD: 'MODEL-1', PROD_DES: '웹 품목명',
+        CATEGORY_KEY: 'homemulti', BUNDLE_SET_OPTIONS: JSON.stringify({
+          panelOption: '블랙판넬', remoteOption: '유선리모컨', panelShape360: null,
+          remoteExcluded: false, materialIncluded: true,
+        }), QTY: '1', PRICE: '100', USER_PRICE_VAT: '110',
+      },
+    }]);
+    expect(body.lines[0]).toEqual(expect.objectContaining({
+      productName: '웹 품목명', categoryKey: 'homemulti',
+      bundleSetOptions: expect.objectContaining({ panelOption: '블랙판넬', remoteOption: '유선리모컨' }),
+    }));
+  });
+
+  test('buildSlipRequest는 웹이 추가 값을 보내지 않으면 기존 기본 동작을 유지한다', () => {
+    const body = slipBridge.buildSlipRequest({}, [{ BulkDatas: {
+      IO_DATE: '20260817', CUST: 'C1', PROD_CD: 'MODEL-1', QTY: '1', PRICE: '100', USER_PRICE_VAT: '110',
+    } }]);
+    expect(body.lines[0]).toEqual(expect.objectContaining({ productName: '', remarks: '' }));
+    expect(body.lines[0]).not.toHaveProperty('bundleSetOptions');
+  });
+
   test('postSlip — slip-service 200 응답 시 slipNo 반환 (axios mock)', async () => {
     const order = { estimateNumber: 'EST-2' };
     const saleList = [{ BulkDatas: { CUST: 'C1', PROD_CD: 'AC1', QTY: '1', PRICE: '100', USER_PRICE_VAT: '110' } }];

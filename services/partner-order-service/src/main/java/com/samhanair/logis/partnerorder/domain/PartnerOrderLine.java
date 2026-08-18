@@ -17,6 +17,9 @@ import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.UUID;
+import com.fasterxml.jackson.databind.JsonNode;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -100,6 +103,10 @@ public class PartnerOrderLine extends BaseEntity {
     /** 비고 (selectVal3 / specVal 등 legacy 옵션 합성 — 단순 텍스트 보관). */
     @Column(name = "remark", length = 500)
     private String remark;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "bundle_set_options", columnDefinition = "jsonb")
+    private JsonNode bundleSetOptions;
 
     /**
      * 출고전표로 전환된 누적 수량 — Phase 2.6a (V8 migration).
@@ -186,6 +193,11 @@ public class PartnerOrderLine extends BaseEntity {
         line.amountAuthority = AmountAuthority.PRICE;
         line.validateStorableAmounts();
         return line;
+    }
+
+    public PartnerOrderLine withBundleSetOptions(JsonNode options) {
+        this.bundleSetOptions = options;
+        return this;
     }
 
     /**

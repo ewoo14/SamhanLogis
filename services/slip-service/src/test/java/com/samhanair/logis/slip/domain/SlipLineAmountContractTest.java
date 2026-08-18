@@ -15,7 +15,7 @@ class SlipLineAmountContractTest {
 
     @ParameterizedTest(name = "단가 {0}원, 수량 {1}")
     @MethodSource("경계금액")
-    void 경계금액도_일마감_변경에서는_단가축_계약을_따른다(String unit, int quantity, String supply, String vat, String total) {
+    void 경계금액도_일마감_변경에서는_총액축_계약을_따른다(String unit, int quantity, String supply, String vat, String total) {
         SlipLine line = SlipLine.createFromVatInclusive(
                 null, UUID.randomUUID(), "경계 품목", null, null, 1,
                 BigDecimal.ZERO, null, null);
@@ -32,8 +32,8 @@ class SlipLineAmountContractTest {
                 Arguments.of("0", 1, "0", "0", "0"),
                 Arguments.of("5", 1, "5", "0", "5"),
                 Arguments.of("101", 1, "92", "9", "101"),
-                Arguments.of("105", 2, "190", "20", "210"),
-                Arguments.of("105", 3, "285", "30", "315"),
+                Arguments.of("105", 2, "191", "19", "210"),
+                Arguments.of("105", 3, "286", "29", "315"),
                 Arguments.of("999999999", 3, "2727272724", "272727273", "2999999997"));
     }
 
@@ -53,8 +53,8 @@ class SlipLineAmountContractTest {
         line.changeUnitPriceWithVat(new BigDecimal("105"));
 
         assertThat(line.getUnitPriceWithVat()).isEqualByComparingTo("105");
-        assertThat(line.getSupplyAmount()).isEqualByComparingTo("190");
-        assertThat(line.getVatAmount()).isEqualByComparingTo("20");
+        assertThat(line.getSupplyAmount()).isEqualByComparingTo("191");
+        assertThat(line.getVatAmount()).isEqualByComparingTo("19");
         assertThat(line.getLineTotal()).isEqualByComparingTo("190");
     }
 
@@ -68,7 +68,7 @@ class SlipLineAmountContractTest {
 
         assertThat(line.getSupplyAmount().add(line.getVatAmount()))
                 .isEqualByComparingTo("210");
-        assertThat(line.getSupplyAmount()).isEqualByComparingTo("190");
-        assertThat(line.getVatAmount()).isEqualByComparingTo("20");
+        assertThat(line.getSupplyAmount()).isEqualByComparingTo("191");
+        assertThat(line.getVatAmount()).isEqualByComparingTo("19");
     }
 }

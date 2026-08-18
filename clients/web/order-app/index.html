@@ -6833,7 +6833,18 @@ function initEvents(){
     }
     const authoritativeItems = window.__SAMHAN_PRICE_AUTHORITY__(itemsRaw, serverPricePayload);
     // 모델명+납품가 기준으로 병합
-    const items = aggregateSendRows(authoritativeItems);
+    const selectedBundleOptions = {
+      panelOption: el('#ss_panel')?.value || null,
+      remoteOption: el('#ss_remote')?.value || null,
+      panelShape360: el('#ss_p360')?.value || null,
+      remoteExcluded: !!el('#ss_remote_ex')?.checked,
+      materialIncluded: (el('#ss_mat')?.value || '') === '포함'
+    };
+    const items = aggregateSendRows(authoritativeItems).map(it => ({
+      ...it,
+      categoryKey: it.categoryKey || ({ HOME: 'homemulti', COMM: 'commercialMulti', SINGLE: 'singleSets', OLD: 'oldProducts' }[it.section] || ''),
+      ...(it.section === 'SINGLE' ? { bundleSetOptions: selectedBundleOptions } : {})
+    }));
 
     const addrShip = (el('#addrBase').value.trim() + ' ' + el('#addrDetail').value.trim()).trim();
     const addrAuditRaw = (el('#addrAuditBase')?.value.trim() + ' ' + el('#addrAuditDetail')?.value.trim()).trim();

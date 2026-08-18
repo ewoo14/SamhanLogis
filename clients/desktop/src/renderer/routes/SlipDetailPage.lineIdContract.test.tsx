@@ -921,6 +921,17 @@ describe('SlipDetailPage — 금액 입력 거부 규칙 (발견 3, #937 R1, E4)
   })
 })
 
+describe('SlipDetailPage — 출고전표 상세 원천 주문번호 표시', () => {
+  it('읽기 전용 상세 카드에도 API sourceReference를 사용자 표시한다', () => {
+    const source = readFileSync(
+      fileURLToPath(new URL('./SlipDetailPage.tsx', import.meta.url)),
+      'utf8',
+    )
+    expect(source).toContain('data-testid="slip-detail-source-reference"')
+    expect(source).toContain('{slip.sourceReference ?? \'—\'}')
+  })
+})
+
 /**
  * 2차 적대검증(CODEX SOL) E-1(#937 R2) — RED-first.
  *

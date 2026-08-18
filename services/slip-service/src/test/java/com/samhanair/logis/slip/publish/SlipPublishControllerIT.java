@@ -197,6 +197,31 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    void publishFromPartnerOrder_persistsOrderNoForSourceDisplay() throws Exception {
+        UUID partnerOrderId = UUID.randomUUID();
+        String orderNo = "2026/08/18-501";
+        Map<String, Object> body = partnerOrderBody(partnerOrderId.toString());
+        body.put("orderNo", orderNo);
+        body.put("bizCode", "230-70-10310");
+
+        MvcResult result = mockMvc.perform(post("/api/v1/slips/from-partner-order")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MANAGER")
+                        .header("Idempotency-Key", "idem-po-source-order-no")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        UUID slipId = OpaqueUuidTestDecoder.decode(
+                objectMapper.readTree(result.getResponse().getContentAsString())
+                        .get("data").get("slipId").asText());
+        org.assertj.core.api.Assertions.assertThat(jdbcTemplate.queryForObject(
+                "SELECT order_no FROM slip_source_orders WHERE slip_id = ?",
+                String.class, slipId)).isEqualTo(orderNo);
+    }
+
+    @Test
     void 배포전_단건멱등키_배송주소없는_재시도는_기존전표를_replay한다() throws Exception {
         String partnerOrderId = "PO-LEGACY-REPLAY-001";
         String idempotencyKey = "idem-legacy-replay-001";

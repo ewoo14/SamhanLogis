@@ -26,6 +26,7 @@ import java.util.List;
  */
 public record PublishFromPartnerOrderRequest(
         @NotBlank @Size(max = 64) String partnerOrderId,
+        @Size(max = 64) String orderNo,
         String ioDate,
         @Size(max = 100) String partnerCode,
         @NotBlank @Size(max = 20) String bizCode,
@@ -49,7 +50,7 @@ public record PublishFromPartnerOrderRequest(
             String shippingAddress, String deliveryAddress, String receiverPhone,
             String memo, String paymentDueLabel, String discountInfo,
             String orderApprovedAt, List<PublishLineRequest> lines) {
-        this(partnerOrderId, ioDate, partnerCode, null, partnerName, employeeCode, warehouseCode,
+        this(partnerOrderId, null, ioDate, partnerCode, null, partnerName, employeeCode, warehouseCode,
                 warehouseId, shippingAddress, deliveryAddress, receiverPhone, memo,
                 paymentDueLabel, discountInfo, orderApprovedAt, lines);
     }

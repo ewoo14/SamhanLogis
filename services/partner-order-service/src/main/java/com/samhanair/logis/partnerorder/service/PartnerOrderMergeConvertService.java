@@ -175,6 +175,9 @@ public class PartnerOrderMergeConvertService {
                 lp.put("remarks", line.getRemark());
                 lp.put("sourceOrderLineId", line.getId().toString());
                 lp.put("categoryKey", line.getCategoryKey());
+                if (line.getBundleSetOptions() != null) {
+                    lp.put("bundleSetOptions", line.getBundleSetOptions());
+                }
                 payloadLines.add(lp);
             }
         }

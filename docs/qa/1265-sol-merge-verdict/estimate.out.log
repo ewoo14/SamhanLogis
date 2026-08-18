@@ -1,0 +1,246 @@
+[estimate-app] v2 listening on http://localhost:2583
+[estimate-app] SAMHAN_API_BASE_URL=http://127.0.0.1:8080
+[estimate-app] SLIP_SERVICE_URL=http://127.0.0.1:28086
+[AppsScript] [bootstrap] db estimateConfig: dc-config GET /estimate-config → HTTP 404
+[AppsScript] [bootstrap] db estimateConfig: dc-config GET /estimate-config → HTTP 404
+[AppsScript] [getAllNotionDcConfigs_] dc-config 벌크 404 → 금액 미확정
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [bootstrap] db estimateConfig: dc-config GET /estimate-config → HTTP 404
+[AppsScript] [getAllNotionDcConfigs_] dc-config 벌크 404 → 금액 미확정
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [bootstrap] db estimateConfig: dc-config GET /estimate-config → HTTP 404
+[AppsScript] [getAllNotionDcConfigs_] dc-config 벌크 404 → 금액 미확정
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [bootstrap] db estimateConfig: dc-config GET /estimate-config → HTTP 404
+[AppsScript] [getAllNotionDcConfigs_] dc-config 벌크 404 → 금액 미확정
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [bootstrap] db estimateConfig: dc-config GET /estimate-config → HTTP 404
+[AppsScript] [getAllNotionDcConfigs_] dc-config 벌크 404 → 금액 미확정
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [bootstrap] db estimateConfig: dc-config GET /estimate-config → HTTP 404
+[AppsScript] [getAllNotionDcConfigs_] dc-config 벌크 404 → 금액 미확정
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [bootstrap] db estimateConfig: dc-config GET /estimate-config → HTTP 404
+[AppsScript] [getAllNotionDcConfigs_] dc-config 벌크 404 → 금액 미확정
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [bootstrap] db estimateConfig: dc-config GET /estimate-config → HTTP 404
+[AppsScript] [getAllNotionDcConfigs_] dc-config 벌크 404 → 금액 미확정
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [bootstrap] db estimateConfig: dc-config GET /estimate-config → HTTP 404
+[AppsScript] [getAllNotionDcConfigs_] dc-config 벌크 404 → 금액 미확정
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [bootstrap] db estimateConfig: dc-config GET /estimate-config → HTTP 404
+[AppsScript] [getAllNotionDcConfigs_] dc-config 벌크 404 → 금액 미확정
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [bootstrap] db estimateConfig: dc-config GET /estimate-config → HTTP 404
+[AppsScript] [getAllNotionDcConfigs_] dc-config 벌크 404 → 금액 미확정
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [bootstrap] db estimateConfig: dc-config GET /estimate-config → HTTP 404
+[AppsScript] [getAllNotionDcConfigs_] dc-config 벌크 404 → 금액 미확정
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [bootstrap] db estimateConfig: dc-config GET /estimate-config → HTTP 404
+[AppsScript] [getAllNotionDcConfigs_] dc-config 벌크 404 → 금액 미확정
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [bootstrap] db estimateConfig: dc-config GET /estimate-config → HTTP 404
+[AppsScript] [getAllNotionDcConfigs_] dc-config 벌크 404 → 금액 미확정
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [bootstrap] db estimateConfig: dc-config GET /estimate-config → HTTP 404
+[AppsScript] [getAllNotionDcConfigs_] dc-config 벌크 404 → 금액 미확정
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [bootstrap] db estimateConfig: dc-config GET /estimate-config → HTTP 404
+[AppsScript] [getAllNotionDcConfigs_] dc-config 벌크 404 → 금액 미확정
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [bootstrap] db estimateConfig: dc-config GET /estimate-config → HTTP 404
+[AppsScript] [getAllNotionDcConfigs_] dc-config 벌크 404 → 금액 미확정
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [bootstrap] db estimateConfig: dc-config GET /estimate-config → HTTP 404
+[AppsScript] [getAllNotionDcConfigs_] dc-config 벌크 404 → 금액 미확정
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] 📤 slip-service POST 시작
+[AppsScript] [slip-bridge] POST http://127.0.0.1:28086/internal/slips/from-estimate (lines=4)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [bootstrap] db estimateConfig: dc-config GET /estimate-config → HTTP 404
+[AppsScript] [getAllNotionDcConfigs_] dc-config 벌크 404 → 금액 미확정
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] 📤 slip-service POST 시작
+[AppsScript] [slip-bridge] POST http://127.0.0.1:28086/internal/slips/from-estimate (lines=4)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [bootstrap] db estimateConfig: dc-config GET /estimate-config → HTTP 404
+[AppsScript] [getAllNotionDcConfigs_] dc-config 벌크 404 → 금액 미확정
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] 📤 slip-service POST 시작
+[AppsScript] [slip-bridge] POST http://127.0.0.1:28086/internal/slips/from-estimate (lines=4)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [bootstrap] db estimateConfig: dc-config GET /estimate-config → HTTP 404
+[AppsScript] [getAllNotionDcConfigs_] dc-config 벌크 404 → 금액 미확정
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] 📤 slip-service POST 시작
+[AppsScript] [slip-bridge] POST http://127.0.0.1:28086/internal/slips/from-estimate (lines=4)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [bootstrap] db estimateConfig: dc-config GET /estimate-config → HTTP 404
+[AppsScript] [getAllNotionDcConfigs_] dc-config 벌크 404 → 금액 미확정
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] 📤 slip-service POST 시작
+[AppsScript] [slip-bridge] POST http://127.0.0.1:28086/internal/slips/from-estimate (lines=4)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [bootstrap] db estimateConfig: dc-config GET /estimate-config → HTTP 404
+[AppsScript] [getAllNotionDcConfigs_] dc-config 벌크 404 → 금액 미확정
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] 📤 slip-service POST 시작
+[AppsScript] [slip-bridge] POST http://127.0.0.1:28086/internal/slips/from-estimate (lines=4)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [bootstrap] db estimateConfig: dc-config GET /estimate-config → HTTP 404
+[AppsScript] [getAllNotionDcConfigs_] dc-config 벌크 404 → 금액 미확정
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
+[AppsScript] 📤 slip-service POST 시작
+[AppsScript] [slip-bridge] POST http://127.0.0.1:28086/internal/slips/from-estimate (lines=4)
+[AppsScript] [ms] POST http://127.0.0.1:8080/api/v1/audit-logs/front → 401
+[AppsScript] [logFrontEvent] audit-log 전송 실패 (무시): SamhanLogis MS POST 실패: http://127.0.0.1:8080/api/v1/audit-logs/front (HTTP 401)
