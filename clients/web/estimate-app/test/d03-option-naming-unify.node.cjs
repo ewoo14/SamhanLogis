@@ -84,6 +84,16 @@ test('D-03 옵션 명칭 DB 속성축 통일', async (t) => {
     assert.doesNotMatch(estimate, /\^AWR-WG00N\$\/i\.test/);
   });
 
+  await t.test('코드에 없는 신규 variant도 리모컨 소비 분기를 통과한다', () => {
+    const estimate = fs.readFileSync(path.resolve(__dirname, '../views/index.ejs'), 'utf8');
+    const order = fs.readFileSync(path.resolve(__dirname, '../../order-app/index.html'), 'utf8');
+    for (const source of [estimate, order]) {
+      assert.doesNotMatch(source, /if\s*\(opt\s*===\s*'유선'\s*\|\|\s*opt\s*===\s*'컬러'\)/);
+      assert.doesNotMatch(source, /\(\['유선',\s*'컬러'\]\)\.includes\(d03RemoteOption\(remoteOpt\)\)/);
+      assert.doesNotMatch(source, /const main = \(opt === '유선'\) \? R_WE : R_WG/);
+    }
+  });
+
   await t.test('360 판넬 모양도 component_shape만 옵션 목록이 된다', () => {
     assert.deepEqual(configuredOptionShapes([
       { componentKind: 'PANEL', componentShape: '원형' },

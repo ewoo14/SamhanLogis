@@ -206,6 +206,7 @@ function catalogPreludeScript(source, input) {
   const single = clone(input.catalog?.single || []);
   const singleParts = clone(input.catalog?.singleParts || []);
   return `
+    ${sourceFunctionBundle(source, ['d03RemoteOption', 'configuredRemoteModel_'])}
     const HOMEMULTI = ${JSON.stringify(home)};
     const SINGLE_SETS = ${JSON.stringify(single)};
     const SINGLE_PARTS = ${JSON.stringify(singleParts)};
