@@ -1,0 +1,135 @@
+-- V7__load_missing_92_legacy_dc_configs.sql
+-- PR #1245: 2026-08-16 고정 원천 스냅샷 기준 DC 누락 92코드 add-only 적재.
+-- drift 43코드, 현행-only/중복 충돌 코드는 이 migration의 범위가 아니다.
+-- partner 마스터가 없거나 대상 DC가 이미 있으면 전체를 중단하여 부분 적재·overwrite를 막는다;
+
+CREATE TEMP TABLE legacy_dc_missing_1245 (
+    partner_code VARCHAR(64) PRIMARY KEY,
+    home_discount_rate NUMERIC(5,4), commercial_discount_rate NUMERIC(5,4),
+    show_i_hose BOOLEAN NOT NULL,
+    discount_360_amount NUMERIC(12,2), discount_4way_amount NUMERIC(12,2),
+    discount_1way_amount NUMERIC(12,2), discount_stand_amount NUMERIC(12,2),
+    discount_deluxe_amount NUMERIC(12,2), discount_first_grade_amount NUMERIC(12,2)
+) ON COMMIT DROP;
+
+INSERT INTO legacy_dc_missing_1245 VALUES
+    ('1050647786', 0.45, 0.46, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('1071654133', NULL, 0.47, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('1098648979', NULL, 0.45, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('1108606305', NULL, 0.47, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('1134400635', 0.45, 0.46, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('1140436334', 0.45, 0.46, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('1191669454', 0.45, 0.46, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('1221050231', 0.45, 0.45, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('1244393480', 0.45, NULL, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('1244430575', 0.45, 0.46, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('1258157102', 0.45, 0.46, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('1262829773', 0.45, 0.46, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('1291757461', 0.45, 0.46, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('1304695112', 0.45, 0.45, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('1371097505', NULL, 0.46, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('1380445028', NULL, 0.47, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('1388119934', 0.45, 0.45, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('1420368630', 0.45, 0.46, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('1453200599', 0.45, 0.45, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('1482800849', 0.45, 0.45, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('1638802229', 0.46, NULL, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('1741300830', 0.45, 0.46, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('1850703122', 0.47, 0.47, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('1965300234', 0.45, NULL, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('2031555957', NULL, NULL, FALSE, NULL, 60000, 50000, 60000, 20000, 20000),
+    ('2050187424', NULL, 0.48, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('2100518868', 0.45, 0.47, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('2122422127', 0.46, 0.46, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('2148824216', 0.45, 0.45, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('2170623210', NULL, 0.45, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('2241625985', 0.45, 0.45, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('2402700828', NULL, 0.45, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('2544700897', 0.45, NULL, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('2780101953', 0.45, NULL, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('2848803001', NULL, 0.48, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('2863800330', 0.46, 0.46, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('3013114338', 0.45, NULL, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('3018175344', 0.45, 0.45, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('3030996427', 0.45, 0.45, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('3140238957', 0.45, NULL, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('3141952184', 0.45, 0.45, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('3198802666', 0.45, NULL, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('3208601227', 0.45, 0.45, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('3365200096', 0.45, 0.46, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('3372201956', 0.45, 0.45, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('3585500762', 0.45, NULL, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('3738103340', NULL, 0.48, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('3855600742', 0.45, 0.45, TRUE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('3870602891', 0.45, 0.45, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('4094034931', 0.47, 0.46, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('4110985726', 0.45, 0.45, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('4158800272', 0.45, 0.45, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('4161455949', NULL, 0.46, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('4221102392', 0.45, 0.45, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('4238103359', 0.48, 0.48, TRUE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('4313701515', NULL, NULL, FALSE, NULL, 70000, 50000, 70000, 20000, NULL),
+    ('4371102526', 0.45, 0.45, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('4417400309', 0.45, 0.46, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('4480403721', 0.45, 0.45, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('4560801794', NULL, 0.45, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('4598800796', 0.45, 0.45, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('4888800270', NULL, 0.47, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('5080783386', 0.45, NULL, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('5128115645', 0.45, 0.47, FALSE, NULL, 20000, NULL, 20000, NULL, NULL),
+    ('5131958636', 0.45, NULL, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('5182302250', 0.45, 0.45, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('5208800856', 0.45, NULL, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('5384900784', 0.45, NULL, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('5498102711', 0.46, NULL, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('5683601090', 0.45, 0.46, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('5688801217', 0.45, 0.45, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('5761400649', 0.45, 0.45, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('5997900544', 0.45, NULL, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('6068199542', 0.45, 0.45, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('6330501008', 0.45, 0.45, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('6531502257', NULL, NULL, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('6696700326', 0.45, NULL, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('6778101910', NULL, 0.45, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('6796000358', NULL, 0.45, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('6840700879', 0.45, NULL, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('6862500957', 0.45, NULL, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('7138803227', NULL, NULL, FALSE, NULL, 30000, 30000, 30000, 30000, NULL),
+    ('7312401114', NULL, 0.46, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('7393101872', 0.45, 0.47, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('7670200863', NULL, 0.47, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('7702702201', NULL, 0.45, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('7998702583', 0.45, 0.45, FALSE, NULL, 30000, 30000, 30000, NULL, NULL),
+    ('8060901429', 0.45, NULL, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('8248600996', NULL, 0.45, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('8635800509', 0.45, 0.47, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('8886200882', 0.45, NULL, FALSE, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('8900100263', 0.45, 0.45, FALSE, NULL, NULL, NULL, NULL, NULL, NULL)
+;
+
+DO $$ DECLARE missing_partners INTEGER; existing_configs INTEGER; BEGIN
+    SELECT COUNT(*) INTO missing_partners FROM legacy_dc_missing_1245 x
+    LEFT JOIN partners p ON p.partner_code=x.partner_code AND p.is_deleted=FALSE WHERE p.id IS NULL;
+    SELECT COUNT(*) INTO existing_configs FROM legacy_dc_missing_1245 x
+    JOIN partners p ON p.partner_code=x.partner_code AND p.is_deleted=FALSE
+    JOIN dc_configs c ON c.partner_id=p.id AND c.is_deleted=FALSE;
+    IF missing_partners <> 0 THEN RAISE EXCEPTION 'PR1245 missing partner masters: %', missing_partners; END IF;
+    IF existing_configs <> 0 THEN RAISE EXCEPTION 'PR1245 target dc_configs are not all missing: %', existing_configs; END IF;
+END $$;
+
+INSERT INTO dc_configs (id, partner_id, home_discount_rate, commercial_discount_rate, show_i_hose,
+    discount_360_amount, discount_4way_amount, discount_1way_amount, discount_stand_amount,
+    discount_deluxe_amount, discount_first_grade_amount, unit_round_to, unit_processing_enabled,
+    unit_round_mode, source, note, created_at, created_by, modified_at, modified_by, deleted_at, deleted_by, is_deleted)
+SELECT md5('pr1245-dc-' || x.partner_code)::uuid, p.id, x.home_discount_rate, x.commercial_discount_rate,
+    x.show_i_hose, x.discount_360_amount, x.discount_4way_amount, x.discount_1way_amount,
+    x.discount_stand_amount, x.discount_deluxe_amount, x.discount_first_grade_amount,
+    NULL, FALSE, 'ROUND', 'LEGACY_CSV', NULL, CURRENT_TIMESTAMP, 'PR1245', NULL, NULL, NULL, NULL, FALSE
+FROM legacy_dc_missing_1245 x JOIN partners p ON p.partner_code=x.partner_code AND p.is_deleted=FALSE;
+
+DO $$ DECLARE inserted_configs INTEGER; BEGIN
+    SELECT COUNT(*) INTO inserted_configs FROM legacy_dc_missing_1245 x
+    JOIN partners p ON p.partner_code=x.partner_code AND p.is_deleted=FALSE
+    JOIN dc_configs c ON c.partner_id=p.id AND c.is_deleted=FALSE AND c.source='LEGACY_CSV';
+    IF inserted_configs <> 92 THEN RAISE EXCEPTION 'PR1245 expected 92 inserted dc_configs, got %', inserted_configs; END IF;
+END $$;
