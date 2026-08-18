@@ -19,6 +19,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
+import java.util.Arrays;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -58,6 +59,32 @@ class EcountProductImporterTest {
                     return sql.contains("SELECT id") ? List.of(PRODUCT_ID) : List.of();
                 });
         lenient().when(jdbcTemplate.update(anyString(), any(SqlParameterSource.class))).thenReturn(1);
+    }
+
+    @Test
+    void importCsv_활성_동명_기초품목은_품목코드별로_정상_등록한다() {
+        lenient().when(jdbcTemplate.queryForObject(
+                org.mockito.ArgumentMatchers.argThat(sql -> sql.contains("name = :name")
+                        && sql.contains("status = 'ACTIVE'")),
+                any(SqlParameterSource.class), eq(Integer.class)))
+                .thenReturn(1);
+
+        EcountProductImportResult result = importer.importCsv(
+                itemCsv(row("DUP-001", "이미 존재하는 품목", "100", "0", "")),
+                null, null, "duplicate-name-green");
+
+        assertThat(result.imported()).isEqualTo(1);
+        assertThat(result.aliasImported()).isEqualTo(1);
+    }
+
+    @Test
+    void importCsv_동명이_아닌_기초품목은_정상_등록한다() {
+        EcountProductImportResult result = importer.importCsv(
+                itemCsv(row("UNIQUE-001", "새로운 품목", "100", "0", "")),
+                null, null, "unique-name-green-target");
+
+        assertThat(result.imported()).isEqualTo(1);
+        assertThat(result.aliasImported()).isEqualTo(1);
     }
 
     @Test
@@ -540,5 +567,22 @@ class EcountProductImporterTest {
 
     private static InputStream stream(String csv) {
         return new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static InputStream itemCsv(String row) {
+        String header = Arrays.stream(EcountProductImporter.ITEM_HEADERS)
+                .map(EcountProductImporterTest::quote)
+                .collect(java.util.stream.Collectors.joining(","));
+        return stream(quote("데이터관리>품목-Excel다운로드") + "\n" + header + "\n" + row + "\n");
+    }
+
+    private static String row(String code, String name, String outbound, String inbound, String specification) {
+        String[] cells = {code, name, outbound, inbound, "", "", "0", "0", "0", "0", "[상품]", specification, "YES"};
+        return Arrays.stream(cells).map(EcountProductImporterTest::quote)
+                .collect(java.util.stream.Collectors.joining(","));
+    }
+
+    private static String quote(String value) {
+        return "\"" + value.replace("\"", "\"\"") + "\"";
     }
 }
