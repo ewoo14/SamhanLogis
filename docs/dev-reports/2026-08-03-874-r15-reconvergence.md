@@ -577,7 +577,7 @@ rg -n -C 3 "(openById|getActiveSpreadsheet|getActive|getSheetByName|SpreadsheetA
 출력 원문:
 
 ```text
-8:const SOURCE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ/edit';
+8:const SOURCE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/<SHEET_ID>/edit';
 217:  var ss = SpreadsheetApp.openByUrl(SOURCE_SHEET_URL);
 218-  var targetName = '싱글 구성품' + (suffix || '');
 219:  var sh = ss.getSheetByName(targetName) || ss.getSheetByName('싱글 구성품');

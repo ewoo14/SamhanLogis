@@ -55,4 +55,9 @@ public interface SalesCommissionSettlementRepository
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select s from SalesCommissionSettlement s where s.id = :id")
     Optional<SalesCommissionSettlement> findByIdAndIsDeletedFalseForUpdate(@Param("id") UUID id);
+
+    /** 계산 저장 요청의 도착 순서를 판정하기 위해 정산 행을 잠근다. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select s from SalesCommissionSettlement s where s.id = :id")
+    Optional<SalesCommissionSettlement> findByIdForCalculationUpdate(@Param("id") UUID id);
 }

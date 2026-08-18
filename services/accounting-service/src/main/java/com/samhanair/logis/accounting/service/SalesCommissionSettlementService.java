@@ -172,6 +172,30 @@ public class SalesCommissionSettlementService {
                 rateContract, input, calculator.calculate(input, rateContract)));
     }
 
+    /** 도착 순서가 뒤집혀도 최신 화면 입력만 저장하도록 잠금·sequence를 적용한다. */
+    public SalesCommissionSettlement calculate(UUID settlementId,
+                                               int rateContractVersion,
+                                               SalesCommissionSettlementCalculationInput input,
+                                               long requestSequence) {
+        SalesCommissionSettlement settlement = repository.findByIdForCalculationUpdate(settlementId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "영업수수료 정산서를 찾을 수 없습니다: " + settlementId));
+        if (settlement.getStatus() != SalesCommissionSettlementStatus.DRAFT) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "DRAFT 상태에서만 영업수수료 정산을 재계산할 수 있습니다");
+        }
+        if (settlement.getLastCalculationRequestSequence() != null
+                && requestSequence <= settlement.getLastCalculationRequestSequence()) {
+            return settlement;
+        }
+        SalesCommissionRateContract rateContract = rateContractRepository
+                .findByVersionNoAndIsDeletedFalse(rateContractVersion)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "활성 요율 계약을 찾을 수 없습니다: version=" + rateContractVersion));
+        return repository.save(settlement.recordCalculation(
+                rateContract, input, calculator.calculate(input, rateContract), requestSequence));
+    }
+
     private SalesCommissionSettlement findSettlement(UUID settlementId) {
         return repository.findById(settlementId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,

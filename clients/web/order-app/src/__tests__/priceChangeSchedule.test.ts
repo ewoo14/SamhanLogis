@@ -131,8 +131,22 @@ function loadRuntime(due: string, schedule: Record<string, string>) {
 }
 
 describe('order-app price change schedule', () => {
-  it('모델 B: due가 카테고리 변동일 전이면 INC 인상전 단가를 사용한다', () => {
+  it('레거시 규칙: due가 변동일 전이면 base 단가를 사용한다', () => {
     const runtime = loadRuntime('2026-11-30', {
+      homemulti: '2026-12-01',
+      commercialMulti: '2026-12-01',
+      singleSets: '2026-12-01',
+    });
+
+    expect(runtime.homeUnitPrice('HM1')).toBe(1100);
+    expect(runtime.commUnitPrice('CM1')).toBe(2100);
+    expect(runtime.singleUnitPrice({ model: 'SS1', name: '싱글', priceRaw: 3100 })).toBe(3100);
+    expect(runtime.partUnitPrice({ model: 'SP1', name: '판넬', price: 4100 })).toBe(4100);
+    expect(runtime.setBasePriceRightFirst({ model: 'SS1', name: '싱글', price: 3100 })).toBe(3100);
+  });
+
+  it('레거시 규칙: due가 정확히 변동일이면 INC 단가를 사용한다', () => {
+    const runtime = loadRuntime('2026-12-01', {
       homemulti: '2026-12-01',
       commercialMulti: '2026-12-01',
       singleSets: '2026-12-01',
@@ -145,18 +159,18 @@ describe('order-app price change schedule', () => {
     expect(runtime.setBasePriceRightFirst({ model: 'SS1', name: '싱글', price: 3100 })).toBe(3000);
   });
 
-  it('모델 B: due가 카테고리 변동일 이상이면 base 인상후 단가를 사용한다', () => {
-    const runtime = loadRuntime('2026-12-01', {
+  it('레거시 규칙: due가 변동일 후여도 INC 단가를 사용한다', () => {
+    const runtime = loadRuntime('2026-12-02', {
       homemulti: '2026-12-01',
       commercialMulti: '2026-12-01',
       singleSets: '2026-12-01',
     });
 
-    expect(runtime.homeUnitPrice('HM1')).toBe(1100);
-    expect(runtime.commUnitPrice('CM1')).toBe(2100);
-    expect(runtime.singleUnitPrice({ model: 'SS1', name: '싱글', priceRaw: 3100 })).toBe(3100);
-    expect(runtime.partUnitPrice({ model: 'SP1', name: '판넬', price: 4100 })).toBe(4100);
-    expect(runtime.setBasePriceRightFirst({ model: 'SS1', name: '싱글', price: 3100 })).toBe(3100);
+    expect(runtime.homeUnitPrice('HM1')).toBe(1000);
+    expect(runtime.commUnitPrice('CM1')).toBe(2000);
+    expect(runtime.singleUnitPrice({ model: 'SS1', name: '싱글', priceRaw: 3100 })).toBe(3000);
+    expect(runtime.partUnitPrice({ model: 'SP1', name: '판넬', price: 4100 })).toBe(4000);
+    expect(runtime.setBasePriceRightFirst({ model: 'SS1', name: '싱글', price: 3100 })).toBe(3000);
   });
 
   it('schedule 키가 없으면 변동 없음으로 보고 항상 base 인상후 단가를 사용한다', () => {
@@ -189,13 +203,13 @@ describe('order-app price change schedule', () => {
     expect(runtime.setBasePriceRightFirst({ model: 'SS1', name: '싱글', price: 3100 })).toBe(3100);
   });
 
-  it('상업 구성품은 due가 commercialMulti 변동일 전이면 COMM_PARTS_INC 인상전 단가를 사용한다', () => {
+  it('상업 구성품은 due가 commercialMulti 변동일 전이면 base 단가를 사용한다', () => {
     const runtime = loadRuntime('2026-11-30', {
       commercialMulti: '2026-12-01',
     });
 
-    expect(runtime.explodeCommPreviewParts('CM1', 1)[0]!.price).toBe(76000);
-    expect(runtime.explodeCommSets_({ model: 'CM1' }, 1)[0]!.price).toBe(76000);
+    expect(runtime.explodeCommPreviewParts('CM1', 1)[0]!.price).toBe(88000);
+    expect(runtime.explodeCommSets_({ model: 'CM1' }, 1)[0]!.price).toBe(88000);
   });
 
   it('상업 SET 전송 폭파 수량은 세트 수량과 구성품 기본 수량을 곱한다', () => {
@@ -215,13 +229,13 @@ describe('order-app price change schedule', () => {
     expect(runtime.explodeSetParts({ model: 'SS1', price: 3000 }, 3, null)[0]!.qty).toBe(6);
   });
 
-  it('상업 구성품은 due가 commercialMulti 변동일 이상이면 base 인상후 단가를 사용한다', () => {
+  it('상업 구성품은 due가 commercialMulti 변동일이면 COMM_PARTS_INC 단가를 사용한다', () => {
     const runtime = loadRuntime('2026-12-01', {
       commercialMulti: '2026-12-01',
     });
 
-    expect(runtime.explodeCommPreviewParts('CM1', 1)[0]!.price).toBe(88000);
-    expect(runtime.explodeCommSets_({ model: 'CM1' }, 1)[0]!.price).toBe(88000);
+    expect(runtime.explodeCommPreviewParts('CM1', 1)[0]!.price).toBe(76000);
+    expect(runtime.explodeCommSets_({ model: 'CM1' }, 1)[0]!.price).toBe(76000);
   });
 
   it('상업 구성품은 COMM_PARTS_INC가 없으면 변동일 전에도 base 인상후 단가로 fallthrough 한다', () => {
@@ -233,12 +247,12 @@ describe('order-app price change schedule', () => {
     expect(runtime.explodeCommSets_({ model: 'CM1' }, 1)[1]!.price).toBe(99000);
   });
 
-  it('commPartUnitPrice 공유 헬퍼: 변동일 전=인상전 / 후=base 폴백 / INC 결측=base (렌더·재동기화 경로 단일화 보증)', () => {
+  it('commPartUnitPrice 공유 헬퍼: 변동일 전=base / 경계일=INC / INC 결측=base (렌더·재동기화 경로 단일화 보증)', () => {
     const before = loadRuntime('2026-11-30', { commercialMulti: '2026-12-01' });
-    expect(before.commPartUnitPrice('COMM-PART-1', 88000)).toBe(76000);
+    expect(before.commPartUnitPrice('COMM-PART-1', 88000)).toBe(88000);
     expect(before.commPartUnitPrice('COMM-PART-MISSING', 99000)).toBe(99000);
 
     const after = loadRuntime('2026-12-01', { commercialMulti: '2026-12-01' });
-    expect(after.commPartUnitPrice('COMM-PART-1', 88000)).toBe(88000);
+    expect(after.commPartUnitPrice('COMM-PART-1', 88000)).toBe(76000);
   });
 });

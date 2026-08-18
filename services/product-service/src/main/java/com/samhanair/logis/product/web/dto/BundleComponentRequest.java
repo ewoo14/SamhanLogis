@@ -35,7 +35,8 @@ public record BundleComponentRequest(
         String specText,
         BundleComponent.AllocationMode allocationMode,
         Integer allocationWeight,
-        BigDecimal fixedAllocationAmount
+        BigDecimal fixedAllocationAmount,
+        @jakarta.validation.constraints.DecimalMin("1") BigDecimal allocationRoundUnit
 ) {
     public BundleComponentRequest(String componentProductCode, BigDecimal defaultQty,
                                   BundleComponent.QtyMode qtyMode,
@@ -44,7 +45,7 @@ public record BundleComponentRequest(
                                   BundleComponent.AllocationMode allocationMode,
                                   Integer allocationWeight, BigDecimal fixedAllocationAmount) {
         this(componentProductCode, defaultQty, qtyMode, componentKind, componentVariant, null,
-                isDefault, specText, allocationMode, allocationWeight, fixedAllocationAmount);
+                isDefault, specText, allocationMode, allocationWeight, fixedAllocationAmount, null);
     }
 
     public BundleComponentRequest(String componentProductCode, BigDecimal defaultQty,
@@ -52,6 +53,6 @@ public record BundleComponentRequest(
                                   BundleComponent.ComponentKind componentKind,
                                   String componentVariant, boolean isDefault, String specText) {
         this(componentProductCode, defaultQty, qtyMode, componentKind, componentVariant,
-                null, isDefault, specText, null, null, null);
+                null, isDefault, specText, null, null, null, null);
     }
 }

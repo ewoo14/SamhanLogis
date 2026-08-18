@@ -6,7 +6,7 @@
   - `싱글 자재가격` → `material_price`
   - `추천실외기` → `odu_recommendation_lookup`
   - `분기계산` → `branch_pipe_lookup`
-- 시트 source-of-truth: legacy Google Sheet `1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ`
+- 시트 source-of-truth: legacy Google Sheet `<SHEET_ID>`
 - 구현 원칙: 기존 `ProductSheetSyncService` 와 동일한 rowHash 변경감지 + soft-delete upsert 패턴
 
 ## 매핑

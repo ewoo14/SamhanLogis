@@ -48,7 +48,7 @@ class ProductAdminControllerTest {
     }
 
     @Test
-    void triggerSync_캐시invalidate_후_syncAll_호출하고_lastSnapshot_갱신() {
+    void triggerSync는_폐기되어_시트에_연결하지_않는다() {
         // given
         ProductSheetSyncService.SyncSummary summary = new ProductSheetSyncService.SyncSummary();
         summary.totalInsertedRows = 3;
@@ -59,27 +59,18 @@ class ProductAdminControllerTest {
         lookupTab.insertedRows = 4;
         lookupSummary.byTab.put("싱글 자재가격", lookupTab);
         lookupSummary.totalInsertedRows = 4;
-        when(syncService.syncAll()).thenReturn(summary);
-        when(lookupSyncService.syncAll()).thenReturn(lookupSummary);
+        lenient().when(syncService.syncAll()).thenReturn(summary);
+        lenient().when(lookupSyncService.syncAll()).thenReturn(lookupSummary);
 
         // when
         ResponseEntity<ApiResponse<ProductSheetSyncService.SyncSummary>> response = controller.triggerSync();
 
-        // then — cache invalidate + syncAll 호출 순서 + 응답 페이로드
-        verify(sheetsClient).invalidateCache();
-        verify(syncService).syncAll();
-        verify(lookupSyncService).syncAll();
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        // then — runtime에서 시트/동기화 호출이 없어야 한다.
+        org.mockito.Mockito.verifyNoInteractions(sheetsClient, syncService, lookupSyncService);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.GONE);
         assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().getData().totalInsertedRows).isEqualTo(7);
-        assertThat(response.getBody().getData().totalUpdatedRows).isEqualTo(2);
-        assertThat(response.getBody().getData().totalSoftDeletedRows).isEqualTo(1);
-        assertThat(response.getBody().getData().byTab).containsKey("lookup:싱글 자재가격");
-
-        // lastSnapshot 도 trigger 후 갱신 — GET /sync/last 가 즉시 시각 + summary 노출
-        ApiResponse<ProductAdminController.LastSyncSnapshot> last = controller.lastSync();
-        assertThat(last.getData().lastSyncAt()).isNotNull();
-        assertThat(last.getData().summary()).isSameAs(summary);
+        assertThat(response.getBody().isSuccess()).isFalse();
+        assertThat(response.getBody().getCode()).isEqualTo("SHEET_SYNC_DISABLED");
     }
 
     @Test
@@ -88,15 +79,13 @@ class ProductAdminControllerTest {
         summary.totalTabs = 11;
         summary.successfulTabs = 6;
         summary.failedTabs = 5;
-        when(syncService.syncAll()).thenReturn(summary);
-        when(lookupSyncService.syncAll()).thenReturn(new ProductLookupSheetSyncService.SyncSummary());
+        lenient().when(syncService.syncAll()).thenReturn(summary);
+        lenient().when(lookupSyncService.syncAll()).thenReturn(new ProductLookupSheetSyncService.SyncSummary());
 
         ResponseEntity<ApiResponse<ProductSheetSyncService.SyncSummary>> response = controller.triggerSync();
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.MULTI_STATUS);
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().isSuccess()).isFalse();
-        assertThat(response.getBody().getData().failedTabs).isEqualTo(5);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.GONE);
+        org.mockito.Mockito.verifyNoInteractions(sheetsClient, syncService, lookupSyncService);
     }
 
     @Test
@@ -104,14 +93,13 @@ class ProductAdminControllerTest {
         ProductSheetSyncService.SyncSummary summary = new ProductSheetSyncService.SyncSummary();
         summary.totalTabs = 11;
         summary.failedTabs = 11;
-        when(syncService.syncAll()).thenReturn(summary);
-        when(lookupSyncService.syncAll()).thenReturn(new ProductLookupSheetSyncService.SyncSummary());
+        lenient().when(syncService.syncAll()).thenReturn(summary);
+        lenient().when(lookupSyncService.syncAll()).thenReturn(new ProductLookupSheetSyncService.SyncSummary());
 
         ResponseEntity<ApiResponse<ProductSheetSyncService.SyncSummary>> response = controller.triggerSync();
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().isSuccess()).isFalse();
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.GONE);
+        org.mockito.Mockito.verifyNoInteractions(sheetsClient, syncService, lookupSyncService);
     }
 
     @Test

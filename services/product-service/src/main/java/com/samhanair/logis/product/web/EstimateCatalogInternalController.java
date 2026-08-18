@@ -18,6 +18,7 @@ import com.samhanair.logis.product.domain.ProductStatus;
 import com.samhanair.logis.product.domain.UsageScope;
 import com.samhanair.logis.product.repository.BranchPipeLookupRepository;
 import com.samhanair.logis.product.repository.BundleComponentRepository;
+import com.samhanair.logis.product.repository.BundleComponentEstimateSettingRepository;
 import com.samhanair.logis.product.repository.MaterialPriceRepository;
 import com.samhanair.logis.product.repository.OduRecommendationLookupRepository;
 import com.samhanair.logis.product.repository.PriceHistoryRepository;
@@ -73,6 +74,7 @@ public class EstimateCatalogInternalController {
     private static final String SPEC_MAX_INDOOR = "최대연결실내기대수";
 
     private final QuantitySyncRuleService quantitySyncRuleService;
+    private final BundleComponentEstimateSettingRepository estimateSettingRepository;
 
     /*
      * legacy clients/web/estimate-app/lib/code.js getSpecDetailMap_()
@@ -196,6 +198,7 @@ public class EstimateCatalogInternalController {
             String unit,
             BigDecimal deliveryPrice,
             BigDecimal releasePrice,
+            BigDecimal outboundPrice,
             String catL,
             String catM,
             String catS,
@@ -212,7 +215,7 @@ public class EstimateCatalogInternalController {
             ProductStatus status) {
     }
 
-    /** 구성품 행 — legacy 싱글 구성품/상업멀티 구성 row 동등 (자체 단가는 product join). */
+    /** 구성품 행 — legacy 싱글 구성품/상업멀티 구성 row 동등 (관계 단가 우선, NULL이면 전역가). */
     public record ComponentRow(
             String setModelCode,
             String componentModelCode,
@@ -224,13 +227,14 @@ public class EstimateCatalogInternalController {
             String variant,
             Boolean isDefault,
             BigDecimal defaultQty,
+            String qtyMode,
             String specText,
             List<ProductSpecResponse> specs) {
     }
 
-    /** 인상 전 단가 baseline 행 — legacy getPriceIncData_ 동등. */
+    /** 변동 전 단가 baseline 행 — legacy getPriceIncData_ 동등. */
     public record PriceBaselineRow(String modelCode, String estimateCategory,
-            BigDecimal releasePrice, BigDecimal deliveryPrice) {
+            BigDecimal releasePrice, BigDecimal deliveryPrice, BigDecimal outboundPrice) {
     }
 
     /** legacy getSpecDetailMap_ 모델별 상세 사양 sub-object. null scope 는 JSON 에서 생략한다. */
@@ -267,6 +271,7 @@ public class EstimateCatalogInternalController {
                             p.getUnit(),
                             p.getDeliveryPrice(),
                             p.getReleasePrice(),
+                            p.getOutboundPrice(),
                             p.getCatL() == null ? null : p.getCatL().getName(),
                             p.getCatM() == null ? null : p.getCatM().getName(),
                             p.getCatS() == null ? null : p.getCatS().getName(),
@@ -288,6 +293,11 @@ public class EstimateCatalogInternalController {
 
     /**
      * 카테고리별 세트 구성품 — legacy getSingleParts/getCommercialParts.
+     *
+     * <p>관계 단가가 있으면 세트-구성품 문맥 단가를 반환하고, 관계 단가가 NULL인 레거시
+     * 세트는 구성품 Product의 전역 단가로 fallback한다. 이 응답은 partner-order bootstrap
+     * 캐시의 원천이므로 주문 화면의 품목표·미리보기·확정 단가가 BundleExpander와 같은
+     * 관계 단가를 소비하도록 하는 경계다.
      *
      * <p>노출 구분(usageScope) 필터 미적용 의도: 구성품은 사용자 직접 선택 대상이 아니라 이미
      * 노출 필터된 부모 세트(BUNDLE) 전개 시 따라붙는 자식이다. 부모(products endpoint)에서
@@ -315,6 +325,12 @@ public class EstimateCatalogInternalController {
 
         List<BundleComponent> components = bundleComponentRepository
                 .findByBundleProductIdIn(parentCodeById.keySet());
+        Map<UUID, com.samhanair.logis.product.domain.BundleComponentEstimateSetting> settingsByComponentId =
+                estimateSettingRepository.findByBundleComponentIdInAndEstimateCategoryAndIsDeletedFalse(
+                                components.stream().map(BundleComponent::getId).toList(), category)
+                        .stream().collect(Collectors.toMap(
+                                com.samhanair.logis.product.domain.BundleComponentEstimateSetting::getBundleComponentId,
+                                s -> s, (left, right) -> right));
 
         // 구성품 자체 단가/품명 join (legacy 구성품 탭의 납품가/출고가/품명 컬럼)
         Set<String> componentCodes = components.stream()
@@ -343,22 +359,31 @@ public class EstimateCatalogInternalController {
         List<ComponentRow> rows = components.stream()
                 .map(c -> {
                     Product cp = componentProducts.get(c.getComponentProductCode());
+                    var setting = settingsByComponentId.get(c.getId());
                     return new ComponentRow(
                             parentCodeById.get(c.getBundleProductId()),
                             c.getComponentProductCode(),
                             cp == null ? null : cp.getName(),
                             cp == null ? "EA" : cp.getUnit(),
-                            cp == null ? null : cp.getDeliveryPrice(),
-                            cp == null ? null : cp.getReleasePrice(),
-                            c.getComponentKind() == null ? null : c.getComponentKind().name(),
-                            c.getComponentVariant(),
-                            c.getIsDefault(),
+                            firstNonNull(c.getContextDeliveryPrice(),
+                                    cp == null ? null : cp.getDeliveryPrice()),
+                            firstNonNull(c.getContextReleasePrice(),
+                                    cp == null ? null : cp.getReleasePrice()),
+                            setting == null ? (c.getComponentKind() == null ? null : c.getComponentKind().name())
+                                    : setting.getComponentKind().name(),
+                            setting == null ? c.getComponentVariant() : setting.getComponentVariant(),
+                            setting == null ? c.getIsDefault() : setting.isDefault(),
                             c.getDefaultQty(),
+                            setting == null ? c.getQtyMode().name() : setting.getQtyMode().name(),
                             c.getSpecText(),
                             specsByComponentCode.getOrDefault(c.getComponentProductCode(), List.of()));
                 })
                 .toList();
         return ApiResponse.ok(rows);
+    }
+
+    private static BigDecimal firstNonNull(BigDecimal preferred, BigDecimal fallback) {
+        return preferred != null ? preferred : fallback;
     }
 
     /** 종합견적서의 서버 규칙 기반 수량 동기화용 internal read endpoint. */
@@ -391,8 +416,8 @@ public class EstimateCatalogInternalController {
         return ApiResponse.ok(branchPipeLookupRepository.findAll());
     }
 
-    /** 인상 전 단가 baseline — legacy getPriceIncData_ (비_단가인상 탭 비교). */
-    @Operation(summary = "[내부] 인상 전 단가 baseline 벌크 (#30)")
+    /** 변동 전 단가 baseline — legacy getPriceIncData_ 비교. */
+    @Operation(summary = "[내부] 변동 전 단가 baseline 벌크 (#30)")
     @GetMapping("/price-baseline")
     @Transactional(readOnly = true)
     public ApiResponse<List<PriceBaselineRow>> priceBaseline() {
@@ -416,7 +441,7 @@ public class EstimateCatalogInternalController {
                     PriceHistory ph = byProduct.get(e.getProductId());
                     return new PriceBaselineRow(p.getModelCode(),
                             e.getEstimateCategory().name(),
-                            ph.getReleasePrice(), ph.getDeliveryPrice());
+                            ph.getReleasePrice(), ph.getDeliveryPrice(), p.getOutboundPrice());
                 })
                 .toList());
         productById.forEach((productId, product) -> {
@@ -425,7 +450,7 @@ public class EstimateCatalogInternalController {
             }
             PriceHistory ph = byProduct.get(productId);
             rows.add(new PriceBaselineRow(product.getModelCode(), null,
-                    ph.getReleasePrice(), ph.getDeliveryPrice()));
+                    ph.getReleasePrice(), ph.getDeliveryPrice(), product.getOutboundPrice()));
         });
         return ApiResponse.ok(rows);
     }

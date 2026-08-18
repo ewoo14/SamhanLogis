@@ -15,8 +15,8 @@ import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UuidGenerator;
 
 /**
- * 임시저장 (legacy saveOrderSnapshot/saveDraft → 본 entity). 30일 TTL ({@link #expiresAt}) 후
- * batch cleanup. {@link #draftSeq} 는 거래처별 1, 2, 3, ... 순번 — UNIQUE per partnerCode (DB
+ * 임시저장 (legacy saveOrderSnapshot/saveDraft → 본 entity). 레거시 snapshot은 자동 만료하지 않는다.
+ * {@link #draftSeq} 는 거래처별 1, 2, 3, ... 순번 — UNIQUE per partnerCode (DB
  * partial unique index 로 강제). confirm 시 {@code PO-CONF-{draftSeq}} 가 slip-service Idempotency-Key
  * 로 사용됨 (설계서 §3.6).
  *
@@ -52,8 +52,8 @@ public class PartnerOrderDraft extends BaseEntity {
     @Column(name = "payload_json", nullable = false, columnDefinition = "TEXT")
     private String payloadJson;
 
-    /** 만료 시각 — 30일 TTL (yml {@code samhan.draft.ttl-days}). */
-    @Column(name = "expires_at", nullable = false)
+    /** 레거시 보존 정책상 null. 기존 row 호환을 위해 nullable로 유지한다. */
+    @Column(name = "expires_at")
     private LocalDateTime expiresAt;
 
     private PartnerOrderDraft(String partnerCode, long draftSeq, String label,
@@ -70,9 +70,6 @@ public class PartnerOrderDraft extends BaseEntity {
         if (payloadJson == null) {
             throw new IllegalArgumentException("payloadJson 필수");
         }
-        if (expiresAt == null) {
-            throw new IllegalArgumentException("expiresAt 필수");
-        }
         this.partnerCode = partnerCode;
         this.draftSeq = draftSeq;
         this.label = label;
@@ -81,7 +78,7 @@ public class PartnerOrderDraft extends BaseEntity {
     }
 
     /**
-     * 임시저장 row 생성 — TTL 은 {@code expiresAt} 으로 입력 (보통 now() + ttlDays).
+     * 임시저장 row 생성 — 레거시 동등성을 위해 {@code expiresAt}은 null을 허용한다.
      *
      * @param partnerCode 거래처 코드
      * @param draftSeq 거래처별 순번 (서비스에서 MAX+1 로 계산)
@@ -102,7 +99,7 @@ public class PartnerOrderDraft extends BaseEntity {
      * @return expiresAt &lt; at 이면 true
      */
     public boolean isExpired(LocalDateTime at) {
-        return this.expiresAt.isBefore(at);
+        return this.expiresAt != null && this.expiresAt.isBefore(at);
     }
 
     /** 페이로드 갱신 (사용자 재저장). expiresAt 도 함께 연장. */

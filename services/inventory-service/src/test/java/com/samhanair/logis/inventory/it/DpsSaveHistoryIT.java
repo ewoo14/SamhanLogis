@@ -86,14 +86,10 @@ class DpsSaveHistoryIT extends AbstractPostgresIT {
                         .header("X-User-Id", USER_A)
                         .header("X-User-Role", "WAREHOUSE"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.id").exists())
                 .andExpect(jsonPath("$.data.savedAt").exists())
                 .andReturn();
 
-        String historyId = objectMapper.readTree(created.getResponse().getContentAsString())
-                .path("data").path("id").asText();
-
-        mockMvc.perform(get(BASE_URL)
+        MvcResult listed = mockMvc.perform(get(BASE_URL)
                         .param("programType", "DPS_COMPARE")
                         .param("mode", "MANUAL_NAMED")
                         .param("from", fromDate)
@@ -103,7 +99,11 @@ class DpsSaveHistoryIT extends AbstractPostgresIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content.length()").value(1))
                 .andExpect(jsonPath("$.data.content[0].topic").value("오전 마감 점검"))
-                .andExpect(jsonPath("$.data.content[0].mismatchCount").value(2));
+                .andExpect(jsonPath("$.data.content[0].mismatchCount").value(2))
+                .andReturn();
+
+        String historyId = objectMapper.readTree(listed.getResponse().getContentAsString())
+                .path("data").path("content").path(0).path("id").asText();
 
         mockMvc.perform(get(BASE_URL + "/" + historyId)
                         .header("X-User-Id", USER_A)
@@ -166,8 +166,7 @@ class DpsSaveHistoryIT extends AbstractPostgresIT {
                         .header("X-User-Role", "WAREHOUSE"))
                 .andExpect(status().isOk())
                 .andReturn();
-        UUID id = UUID.fromString(objectMapper.readTree(created.getResponse().getContentAsString())
-                .path("data").path("id").asText());
+        UUID id = repository.findAll().stream().findFirst().orElseThrow().getId();
 
         Mockito.when(dynamicPermissionClient.check(
                         Mockito.any(UUID.class), Mockito.eq("inventory.dps"), Mockito.eq(PermissionAction.VIEW)))

@@ -54,6 +54,7 @@ jest.mock('axios', () => {
         { modelCode: 'AJ060', estimateCategory: 'HOME_MULTI', releasePrice: 3800000, deliveryPrice: 3100000 },
         { modelCode: 'AC060', estimateCategory: 'SINGLE_SET', releasePrice: 1900000, deliveryPrice: 1400000 },
         { modelCode: 'AM040', estimateCategory: 'COMMERCIAL_MULTI', releasePrice: 5800000, deliveryPrice: 4700000 },
+        { modelCode: 'OLD1', estimateCategory: 'LEGACY', releasePrice: 900000, deliveryPrice: 600000 },
       ]);
     }
     if (/\/price-change-schedule$/.test(url)) {
@@ -168,12 +169,14 @@ describe('#30 db-catalog → legacy getter shape', () => {
     expect(r.id).toMatch(/^360 CST UV\|18\|0$/);
   });
 
-  test('oldProducts — isDisc/price(출고가)/sheetPrice(납품가)', async () => {
+  test('oldProducts — 현재가와 변동 전 단가를 함께 매핑한다', async () => {
     const rows = await db.oldProducts();
     const r = rows[0];
     expect(r.isDisc).toBe(true);
     expect(r.price).toBe(1000000); // 출고가
     expect(r.sheetPrice).toBe(700000); // 납품가
+    expect(r.preChangePrice).toBe(900000);
+    expect(r.preChangeSheetPrice).toBe(600000);
   });
 
   test('components SINGLE/COMMERCIAL — kind/qty/isDefault', async () => {
@@ -227,7 +230,7 @@ describe('#30 db-catalog → legacy getter shape', () => {
     });
   });
 
-  test('priceDefaultVariant — "인상 전 단가" 기본값 맵 반환 + internal token 헤더 전송 (S4a #17)', async () => {
+  test('priceDefaultVariant — "변동단가" 기본값 맵 반환 + internal token 헤더 전송', async () => {
     const getMock = axios.create.mock.results[0].value.get;
     getMock.mockClear();
     const variant = await db.priceDefaultVariant();

@@ -1,0 +1,9 @@
+{
+  "headless": true,
+  "rows": 5,
+  "captures": [
+    "docs\\qa\\1248-luna-fix-r1\\screenshots\\01-before-input-requery-real-qa.png",
+    "docs\\qa\\1248-luna-fix-r1\\screenshots\\02-after-input-requery-real-qa.png",
+    "docs\\qa\\1248-luna-fix-r1\\screenshots\\03-after-response-inversion-real-qa.png"
+  ]
+}

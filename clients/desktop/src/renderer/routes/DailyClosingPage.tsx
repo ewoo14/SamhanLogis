@@ -416,6 +416,10 @@ function dailyClosingIsDeleted(row: DailyClosingSourceRow): boolean {
 }
 const LEGACY_DISCOUNT_COLORS: Record<string,string> = {'dc-45':'#fecaca','dc-46':'#fed7aa','dc-47':'#fef08a','dc-48':'#d9f99d','dc-49':'#bfdbfe'}
 export function formatLegacyNumber(value: string|number|null|undefined): string { return Math.round(Number(value)||0).toLocaleString() }
+function formatLegacyRate(value: string|number|null|undefined): string {
+  const numeric = Number(value)
+  return Number.isFinite(numeric) ? numeric.toLocaleString('en-US', { maximumFractionDigits: 12 }) : '0'
+}
 function legacyDiscountClass(rate:number): string { return rate>=45&&rate<=49 ? `dc-${rate}` : '' }
 function legacyStatusBadge(row: DailyClosingSourceRow) {
   const variant = row.confirmation==='CONFIRMED'?'success':row.confirmation==='MISMATCH'?'danger':'neutral'
@@ -428,6 +432,7 @@ interface EditableAmountValues {
   unit: number
   price: number
   rate: number
+  quantity?: number
 }
 
 interface CalculatedAmountValues extends EditableAmountValues {
@@ -446,7 +451,8 @@ function initialEditableAmounts(row: DailyClosingSourceRow): EditableAmountValue
   return {
     unit: Number(row.unitPriceWithVat ?? 0),
     price: Number(row.productPrice ?? 0),
-    rate: rate <= 1 ? rate * 100 : rate,
+    rate,
+    quantity: row.quantity,
   }
 }
 
@@ -458,7 +464,7 @@ export function recalculateLegacyAmounts(
 ): CalculatedAmountValues {
   const next = { ...current }
   if (changedField === 'unit') {
-    next.unit = numericInputValue(rawValue)
+    next.unit = Math.round(numericInputValue(rawValue))
     next.rate = next.price ? (1 - next.unit / next.price) * 100 : 0
   } else if (changedField === 'rate') {
     next.rate = numericInputValue(rawValue)
@@ -468,12 +474,16 @@ export function recalculateLegacyAmounts(
     next.rate = next.price ? (1 - next.unit / next.price) * 100 : 0
   }
 
-  const supply = Math.round(next.unit / 1.1)
+  const roundedUnit = Math.round(next.unit)
+  const supplyPerUnit = Math.round(roundedUnit / 1.1)
+  const supply = supplyPerUnit * Math.max(1, current.quantity ?? 1)
+  const vat = (roundedUnit - supplyPerUnit) * Math.max(1, current.quantity ?? 1)
   return {
     ...next,
+    unit: roundedUnit,
     supply,
-    vat: next.unit - supply,
-    total: next.unit,
+    vat,
+    total: roundedUnit * Math.max(1, current.quantity ?? 1),
   }
 }
 
@@ -583,7 +593,7 @@ function LegacyAmountEditor({
       aria-label={label + ' ' + row.seqNo}
       data-testid={'daily-closing-' + field + '-' + row.seqNo}
       disabled={disabled}
-      value={formatLegacyNumber(value)}
+      value={field === 'rate' ? formatLegacyRate(value) : formatLegacyNumber(value)}
       onChange={(event) => commit(field, event.target.value)}
       title={disabled ? amountEditDisabledReason(row) : undefined}
       className={field === 'rate' ? 'edit-rate' : 'edit-input'}
@@ -608,13 +618,13 @@ function LegacyAmountEditor({
     </>, 6)}
     {amountCell(values ? formatLegacyNumber(current.supply) : formatLegacyNumber(row.supplyAmount), 7)}
     {amountCell(values ? formatLegacyNumber(current.vat) : formatLegacyNumber(row.vatAmount), 8)}
-    {amountCell(values ? formatLegacyNumber(current.total * row.quantity) : formatLegacyNumber(row.total), 9)}
+    {amountCell(values ? formatLegacyNumber(current.total) : formatLegacyNumber(row.total), 9)}
     {amountCell(input('price', current.price, '출고가'), 12)}
     {amountCell(<div style={{ display: 'inline-flex', width: '100%', alignItems: 'center', justifyContent: 'center' }}>
         {input('rate', current.rate, '할인율')}
         <span style={{ marginLeft: 2 }}>%</span>
       </div>, 13, { ...num, background: LEGACY_DISCOUNT_COLORS[legacyDiscountClass(Math.round(current.rate))] }, legacyDiscountClass(Math.round(current.rate)) || undefined)}
-    {amountCell(values ? formatLegacyNumber(current.total * row.quantity) : formatLegacyNumber(row.grandTotal), 14)}
+    {amountCell(values ? formatLegacyNumber(current.total) : formatLegacyNumber(row.grandTotal), 14)}
   </>
 }
 
@@ -683,7 +693,7 @@ function EditableLegacyDailyClosingTable({
             lineId: row.lineId!,
             unitPriceWithVat: values.unit,
             releasePrice: values.price,
-            discountRate: values.price ? 1 - values.unit / values.price : 0,
+            discountRate: values.price ? values.rate / 100 : 0,
           }
         }))
       }))
@@ -919,7 +929,7 @@ function EditableLegacyDailyClosingTable({
     const key = rowKey(row)
     const edited = drafts[key] ?? committedValues[key]
     return edited
-      ? { quantity: row.quantity, unit: edited.unit, supply: edited.supply, vat: edited.vat, total: edited.total * row.quantity, price: edited.price, rate: edited.rate, grand: edited.total * row.quantity }
+      ? { quantity: row.quantity, unit: edited.unit, supply: edited.supply, vat: edited.vat, total: edited.total, price: edited.price, rate: edited.rate, grand: edited.total }
       : {
         quantity: row.quantity,
         unit: Number(row.unitPriceWithVat ?? 0),

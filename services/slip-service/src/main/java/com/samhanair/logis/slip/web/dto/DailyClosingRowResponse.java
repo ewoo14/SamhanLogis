@@ -75,15 +75,17 @@ public record DailyClosingRowResponse(
         BigDecimal vat = zero(line.getVatAmount());
         BigDecimal unitPriceWithVat = zero(line.getUnitPriceWithVat());
         BigDecimal grandTotal = unitPriceWithVat.multiply(BigDecimal.valueOf(line.getQuantity()));
-        BigDecimal productPrice = source.productPrice();
+        BigDecimal productPrice = line.getDailyClosingReleasePrice() != null
+                ? line.getDailyClosingReleasePrice() : source.productPrice();
         BigDecimal discountRate = null;
         BigDecimal dcAmount = null;
         Confirmation confirmation = Confirmation.UNDETERMINED;
         String confirmationReason = source.sourceFailureReason();
         if (productPrice != null && productPrice.signum() > 0) {
-            discountRate = BigDecimal.ONE.subtract(unitPriceWithVat.divide(productPrice, 8, RoundingMode.HALF_UP))
-                    .multiply(BigDecimal.valueOf(100))
-                    .setScale(0, RoundingMode.HALF_UP);
+            discountRate = line.getDailyClosingDiscountRate() != null
+                    ? line.getDailyClosingDiscountRate().multiply(BigDecimal.valueOf(100))
+                    : BigDecimal.ONE.subtract(unitPriceWithVat.divide(productPrice, 8, RoundingMode.HALF_UP))
+                            .multiply(BigDecimal.valueOf(100)).setScale(0, RoundingMode.HALF_UP);
             dcAmount = productPrice.subtract(unitPriceWithVat);
             confirmation = Confirmation.CONFIRMED;
             confirmationReason = null;

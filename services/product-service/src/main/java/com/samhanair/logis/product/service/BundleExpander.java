@@ -7,7 +7,9 @@ import com.samhanair.logis.product.domain.BundleMode;
 import com.samhanair.logis.product.domain.Product;
 import com.samhanair.logis.product.domain.ProductCategory;
 import com.samhanair.logis.product.domain.ProductType;
+import com.samhanair.logis.product.domain.EstimateCategory;
 import com.samhanair.logis.product.repository.BundleComponentRepository;
+import com.samhanair.logis.product.repository.BundleComponentEstimateSettingRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
 import jakarta.persistence.EntityNotFoundException;
 import java.math.BigDecimal;
@@ -45,11 +47,14 @@ public class BundleExpander {
 
     private final ProductRepository productRepository;
     private final BundleComponentRepository componentRepository;
+    private final BundleComponentEstimateSettingRepository estimateSettingRepository;
 
     public BundleExpander(ProductRepository productRepository,
-                          BundleComponentRepository componentRepository) {
+                          BundleComponentRepository componentRepository,
+                          BundleComponentEstimateSettingRepository estimateSettingRepository) {
         this.productRepository = productRepository;
         this.componentRepository = componentRepository;
+        this.estimateSettingRepository = estimateSettingRepository;
     }
 
     /**
@@ -80,6 +85,13 @@ public class BundleExpander {
      */
     @Transactional(readOnly = true)
     public List<ExpandedLine> expand(String parentModelCode, BigDecimal setQty, ExpandOptions opts) {
+        return expand(parentModelCode, setQty, opts, null);
+    }
+
+    /** 카테고리가 주어지면 저장된 카테고리별 설정을 전개 입력에 병합한다. */
+    @Transactional(readOnly = true)
+    public List<ExpandedLine> expand(String parentModelCode, BigDecimal setQty, ExpandOptions opts,
+                                     EstimateCategory estimateCategory) {
         Product parent = productRepository.findByModelCodeAndIsDeletedFalse(parentModelCode)
                 .orElseThrow(() -> new EntityNotFoundException("Product 없음: " + parentModelCode));
         BigDecimal setUnit = opts.setUnitOverride() != null ? round(opts.setUnitOverride())
@@ -101,6 +113,14 @@ public class BundleExpander {
         List<BundleComponent> components = activeComponents.stream()
                 .filter(c -> Boolean.TRUE.equals(c.getIsDefault()))
                 .toList();
+        Map<java.util.UUID, com.samhanair.logis.product.domain.BundleComponentEstimateSetting> settings =
+                estimateCategory == null || components.isEmpty() ? Map.of()
+                        : estimateSettingRepository
+                                .findByBundleComponentIdInAndEstimateCategoryAndIsDeletedFalse(
+                                        components.stream().map(BundleComponent::getId).toList(), estimateCategory)
+                                .stream().collect(Collectors.toMap(
+                                        com.samhanair.logis.product.domain.BundleComponentEstimateSetting::getBundleComponentId,
+                                        s -> s, (left, right) -> right));
         Map<String, Product> productsByModelCode = components.isEmpty()
                 ? Map.of()
                 : productRepository.findByModelCodeInAndIsDeletedFalse(
@@ -111,16 +131,24 @@ public class BundleExpander {
                         .collect(Collectors.toMap(Product::getModelCode, Function.identity(), (left, right) -> left));
         List<Part> parts = new ArrayList<>();
         for (BundleComponent c : components) {
+            var setting = settings.get(c.getId());
+            BundleComponent.QtyMode qtyMode = setting == null ? c.getQtyMode() : setting.getQtyMode();
+            BundleComponent.ComponentKind componentKind = setting == null ? c.getComponentKind()
+                    : setting.getComponentKind();
+            String componentVariant = setting == null ? c.getComponentVariant() : setting.getComponentVariant();
+            boolean isDefault = setting == null ? Boolean.TRUE.equals(c.getIsDefault()) : setting.isDefault();
             Product cp = productsByModelCode.get(c.getComponentProductCode());
             String name = cp != null ? cp.getName() : c.getComponentProductCode();
             String modelName = cp != null ? cp.getModelName() : null;
             java.util.UUID pid = cp != null ? cp.getId() : null;
-            BigDecimal price = cp != null ? nz(cp.getDeliveryPrice()) : BigDecimal.ZERO;
-            BigDecimal qty = c.getQtyMode() == BundleComponent.QtyMode.FOLLOW_SET
+            BigDecimal price = cp != null ? nz(c.getContextDeliveryPrice() != null
+                    ? c.getContextDeliveryPrice() : cp.getDeliveryPrice()) : BigDecimal.ZERO;
+            BigDecimal qty = qtyMode == BundleComponent.QtyMode.FOLLOW_SET
                     ? setQty.multiply(c.getDefaultQty())
                     : c.getDefaultQty();
-            parts.add(new Part(c.getComponentProductCode(), pid, name, modelName, c.getComponentKind(),
-                    c.getComponentVariant(), Boolean.TRUE.equals(c.getIsDefault()), price, qty,
+            parts.add(new Part(c.getComponentProductCode(), pid, name, modelName, componentKind,
+                    componentVariant, isDefault, price, qty,
+                    c.getAllocationMode(), c.getAllocationWeight(), c.getFixedAllocationAmount(),
                     specOf(c.getSpecText()), cp != null ? cp.getPanelType() : null,
                     cp != null ? cp.getRemoteType() : null));
         }
@@ -129,8 +157,10 @@ public class BundleExpander {
         // explodeCommSets_ 처럼 필터/재배분 없이 전 구성품 개별 단가 유지.
         boolean isSingleSet = parent.getProductCategory() == ProductCategory.SINGLE_SET;
         List<Part> picked = isSingleSet ? pickedFilter(parts, opts) : parts;
-        if (isSingleSet) {
-            redistribute(picked, parent, setUnit, opts.setUnitOverride() != null);
+        if (isSingleSet && hasAllocationContract(picked)) {
+            redistributeFromContract(picked, parent, setUnit, opts.setUnitOverride() != null);
+        } else if (isSingleSet) {
+            redistributeLegacy(picked, parent, setUnit, opts.setUnitOverride() != null);
         }
 
         List<ExpandedLine> result = new ArrayList<>(picked.size());
@@ -300,7 +330,7 @@ public class BundleExpander {
     }
 
     // ── 싱글세트 재배분 — legacy explodeSetParts 후반부 + splitIndoorOutdoorToK ──────
-    private void redistribute(List<Part> picked, Product parent, BigDecimal setUnit, boolean explicitUnitOverride) {
+    private void redistributeLegacy(List<Part> picked, Product parent, BigDecimal setUnit, boolean explicitUnitOverride) {
         boolean household = isHousehold(parent.getName(), parent.getModelCode(), parent.getSpecText());
 
         List<Part> indoor = new ArrayList<>();
@@ -338,6 +368,65 @@ public class BundleExpander {
 
         assignGroup(indoor, split.indoor);
         assignGroup(outdoor, split.outdoor);
+    }
+
+    private boolean hasAllocationContract(List<Part> parts) {
+        return parts.stream().anyMatch(p -> p.allocationMode == BundleComponent.AllocationMode.AUTO
+                || p.fixedAllocationAmount != null);
+    }
+
+    private void redistributeFromContract(List<Part> picked, Product parent, BigDecimal setUnit,
+                                          boolean explicitUnitOverride) {
+        List<Part> indoor = picked.stream().filter(p -> p.kind == BundleComponent.ComponentKind.INDOOR
+                && p.allocationMode == BundleComponent.AllocationMode.AUTO).toList();
+        List<Part> outdoor = picked.stream().filter(p -> p.kind == BundleComponent.ComponentKind.OUTDOOR
+                && p.allocationMode == BundleComponent.AllocationMode.AUTO).toList();
+        List<Part> fixed = picked.stream().filter(this::isFixedAllocationPart).toList();
+        List<Part> reserved = picked.stream().filter(p -> !indoor.contains(p) && !outdoor.contains(p)).toList();
+        if (indoor.isEmpty() || outdoor.isEmpty()) {
+            if (!explicitUnitOverride) return;
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "싱글세트 구성품에 실내/실외 본체가 모두 필요합니다: " + parent.getModelCode());
+        }
+        BigDecimal fixedSum = reserved.stream().map(p -> p.fixedAllocationAmount != null
+                ? p.fixedAllocationAmount : p.price).map(BundleExpander::round).reduce(BigDecimal.ZERO, BigDecimal::add);
+        int inWeight = indoor.stream().mapToInt(p -> p.allocationWeight == null ? 0 : p.allocationWeight).sum();
+        int outWeight = outdoor.stream().mapToInt(p -> p.allocationWeight == null ? 0 : p.allocationWeight).sum();
+        if (inWeight + outWeight <= 0) {
+            redistributeLegacy(picked, parent, setUnit, explicitUnitOverride);
+            return;
+        }
+        Split split = splitIndoorOutdoorToK(setUnit, fixedSum, inWeight, outWeight);
+        BigDecimal roundUnit = nz(parent.getAllocationRoundUnit());
+        assignWeighted(indoor, split.indoor, roundUnit);
+        assignWeighted(outdoor, split.outdoor, roundUnit);
+        for (Part p : reserved) p.price = p.fixedAllocationAmount != null ? p.fixedAllocationAmount : p.price;
+    }
+
+    private boolean isFixedAllocationPart(Part p) {
+        return p.allocationMode == BundleComponent.AllocationMode.FIXED
+                && (p.kind == BundleComponent.ComponentKind.PANEL
+                || p.kind == BundleComponent.ComponentKind.REMOTE
+                || p.kind == BundleComponent.ComponentKind.MATERIAL);
+    }
+
+    private void assignWeighted(List<Part> group, BigDecimal total, BigDecimal roundUnit) {
+        if (group.size() == 1) { group.get(0).price = total; return; }
+        BigDecimal weightSum = group.stream().map(p -> BigDecimal.valueOf(p.allocationWeight == null ? 0 : p.allocationWeight))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal acc = BigDecimal.ZERO;
+        for (int i = 0; i < group.size(); i++) {
+            Part p = group.get(i);
+            p.price = i == group.size() - 1 ? total.subtract(acc)
+                    : roundToUnit(total.multiply(BigDecimal.valueOf(p.allocationWeight == null ? 0 : p.allocationWeight))
+                    .divide(weightSum, 2, RoundingMode.HALF_UP), roundUnit);
+            if (i < group.size() - 1) acc = acc.add(p.price);
+        }
+    }
+
+    private BigDecimal roundToUnit(BigDecimal value, BigDecimal unit) {
+        if (unit.signum() <= 0) return value;
+        return value.divide(unit, 0, RoundingMode.HALF_UP).multiply(unit);
     }
 
     /** 그룹 가격 배분 — 1개면 통째, 다수면 기존단가 비례 + 마지막 잔차 흡수(천원 반올림). */
@@ -535,13 +624,18 @@ public class BundleExpander {
         final boolean isDefault;
         BigDecimal price;
         final BigDecimal qty;
+        final BundleComponent.AllocationMode allocationMode;
+        final Integer allocationWeight;
+        final BigDecimal fixedAllocationAmount;
         final String specification;
         final String panelType;
         final String remoteType;
 
         Part(String modelCode, java.util.UUID productId, String name, String modelName,
              BundleComponent.ComponentKind kind, String variant,
-             boolean isDefault, BigDecimal price, BigDecimal qty, String specification,
+             boolean isDefault, BigDecimal price, BigDecimal qty, BundleComponent.AllocationMode allocationMode,
+             Integer allocationWeight, BigDecimal fixedAllocationAmount,
+             String specification,
              String panelType, String remoteType) {
             this.modelCode = modelCode;
             this.productId = productId;
@@ -552,6 +646,9 @@ public class BundleExpander {
             this.isDefault = isDefault;
             this.price = price == null ? BigDecimal.ZERO : price;
             this.qty = qty;
+            this.allocationMode = allocationMode;
+            this.allocationWeight = allocationWeight;
+            this.fixedAllocationAmount = fixedAllocationAmount;
             this.specification = specification;
             this.panelType = panelType;
             this.remoteType = remoteType;

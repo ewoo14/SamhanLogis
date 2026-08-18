@@ -22,7 +22,7 @@ vi.mock('../api/closingApi', async (importOriginal) => {
   }
 })
 
-import { DAILY_CLOSING_HEADERS, DailyClosingPage } from './DailyClosingPage'
+import { DAILY_CLOSING_HEADERS, DailyClosingPage, recalculateLegacyAmounts } from './DailyClosingPage'
 
 const rows = [
   {
@@ -66,8 +66,8 @@ const parityRows = [
 const editableRows = [
   {
     dcCondition: '홈45%', slipDate: '2026-08-14', seqNo: 81, warehouseName: '본사창고',
-    productName: '편집 품목', quantity: 2, unitPriceWithVat: 8000, supplyAmount: 7273,
-    vatAmount: 727, total: 16000, partnerName: '거래처', partnerCode: 'P-EDIT',
+    productName: '편집 품목', quantity: 2, unitPriceWithVat: 8000, supplyAmount: 14546,
+    vatAmount: 1454, total: 16000, partnerName: '거래처', partnerCode: 'P-EDIT',
     productPrice: 10000, discountRate: 20, grandTotal: 16000, confirmation: 'CONFIRMED',
     confirmationReason: null, accountingPostedAt: null, dcAmount: 0, sourceStatus: 'CONFIRMED',
     modelName: 'MODEL-81', categoryKey: 'home', deliveryPrice: 10000, expectedRate: 45,
@@ -183,9 +183,17 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
 
     expect((screen.getByTestId('daily-closing-rate-81') as HTMLInputElement).value).toBe('20')
     const row = screen.getByTestId('daily-closing-unit-81').closest('tr')
-    expect(row?.textContent).toContain('7,273')
-    expect(row?.textContent).toContain('727')
+    expect(row?.textContent).toContain('14,546')
+    expect(row?.textContent).toContain('1,454')
     expect(row?.textContent).toContain('16,000')
+  })
+
+  it('수량 2에서 단가별 VAT 분리를 수량만큼 누적한다', () => {
+    expect(recalculateLegacyAmounts(
+      { unit: 100, price: 200, rate: 50, quantity: 2 },
+      'unit',
+      '105',
+    )).toMatchObject({ unit: 105, supply: 190, vat: 20, total: 210 })
   })
 
   it('할인율 변경 시 출고가 기준으로 단가가 화면에서 바뀐다', async () => {

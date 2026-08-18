@@ -308,7 +308,6 @@ services:
       DB_NAME: product_db
       SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
       # Google Sheets sync — Phase 11 cutover 후 GCP Service Account 실 키 등록 시 true 전환
-      PRODUCT_SYNC_SCHEDULING_ENABLED: "false"
     ports:
       - "127.0.0.1:8084:8084"
     depends_on:

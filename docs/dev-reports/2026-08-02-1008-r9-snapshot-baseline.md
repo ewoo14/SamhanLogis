@@ -8,7 +8,7 @@
 
 - 저장 경로: `docs/dev-reports/1008-r9-snapshot/single-components-A1-N1737.csv`
 - 메타데이터: `docs/dev-reports/1008-r9-snapshot/metadata.json`
-- 출처: Spreadsheet ID `1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ`, 시트 `싱글 구성품`, range `A1:N1737`
+- 출처: Spreadsheet ID `<SHEET_ID>`, 시트 `싱글 구성품`, range `A1:N1737`
 - 취득 시각: `2026-08-02 22:40:29 +09:00`
 - 형식: GViz `text/csv; charset=utf-8` 응답 원문. 값·행·열 가공 없음.
 - 크기/행: 290,247 bytes, 헤더 1행 + data 1,735행, 14열

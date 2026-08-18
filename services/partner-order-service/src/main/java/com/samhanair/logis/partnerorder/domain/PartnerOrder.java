@@ -101,6 +101,15 @@ public class PartnerOrder extends BaseEntity {
     @Column(name = "delivery_address", length = 500)
     private String deliveryAddress;
 
+    @Column(name = "audit_address", length = 500)
+    private String auditAddress;
+
+    @Column(name = "contact_phone", length = 50)
+    private String contactPhone;
+
+    @Column(name = "payment_due_date")
+    private LocalDate paymentDueDate;
+
     /** 삭제자 표시명. {@code deleted_by} 는 감사 userId 를 보존하고, 화면용 이름만 본 컬럼에 저장한다. */
     @Column(name = "deleted_by_name", length = 100)
     private String deletedByName;
@@ -221,6 +230,23 @@ public class PartnerOrder extends BaseEntity {
         order.slipPublishStatus = SlipPublishStatus.NOT_REQUIRED;
         order.confirmedAt = null;
         order.deliveryAddress = normalizeOptionalText(deliveryAddress);
+        return order;
+    }
+
+    /** 레거시 주문서웹 확정 헤더 snapshot을 함께 보존한다. */
+    public static PartnerOrder createFromConfirm(UUID partnerId, String partnerCode, String bizCode,
+                                                 String orderNo, String idempotencyKey,
+                                                 BigDecimal totalAmount, String deliveryAddress,
+                                                 LocalDate dueDate, String auditAddress,
+                                                 String contactPhone, LocalDate paymentDueDate,
+                                                 String memo) {
+        PartnerOrder order = createFromConfirm(partnerId, partnerCode, bizCode, orderNo,
+                idempotencyKey, totalAmount, deliveryAddress);
+        order.dueDate = dueDate;
+        order.auditAddress = normalizeOptionalText(auditAddress);
+        order.contactPhone = normalizeOptionalText(contactPhone);
+        order.paymentDueDate = paymentDueDate;
+        order.memo = normalizeOptionalText(memo);
         return order;
     }
 

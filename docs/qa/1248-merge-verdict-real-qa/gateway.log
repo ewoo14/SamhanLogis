@@ -1,0 +1,691 @@
+Standard Commons Logging discovery in action with spring-jcl: please remove commons-logging.jar from classpath in order to avoid potential conflicts
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.3.5)
+
+2026-08-17T01:01:02.495+09:00  INFO 118972 --- [api-gateway] [           main] c.s.logis.gateway.ApiGatewayApplication  : Starting ApiGatewayApplication v0.1.0-SNAPSHOT using Java 17.0.18 with PID 118972 (C:\dev\Samhan-Public\.claude\worktrees\w1237\docs\qa\1248-merge-verdict-real-qa\api-gateway-pr-head.jar started by user in C:\dev\Samhan-Public\.claude\worktrees\w1237)
+2026-08-17T01:01:02.498+09:00  INFO 118972 --- [api-gateway] [           main] c.s.logis.gateway.ApiGatewayApplication  : The following 1 profile is active: "dev"
+2026-08-17T01:01:03.683+09:00  INFO 118972 --- [api-gateway] [           main] o.s.cloud.context.scope.GenericScope     : BeanFactory id=69f8361b-ac37-3226-841e-137b1ab5ba95
+2026-08-17T01:01:03.753+09:00  WARN 118972 --- [api-gateway] [           main] trationDelegate$BeanPostProcessorChecker : Bean 'org.springframework.cloud.client.loadbalancer.LoadBalancerAutoConfiguration$DeferringLoadBalancerInterceptorConfig' of type [org.springframework.cloud.client.loadbalancer.LoadBalancerAutoConfiguration$DeferringLoadBalancerInterceptorConfig] is not eligible for getting processed by all BeanPostProcessors (for example: not eligible for auto-proxying). The currently created BeanPostProcessor [lbRestClientPostProcessor] is declared through a non-static factory method on that class; consider declaring it as static instead.
+2026-08-17T01:01:03.756+09:00  WARN 118972 --- [api-gateway] [           main] trationDelegate$BeanPostProcessorChecker : Bean 'deferringLoadBalancerInterceptor' of type [org.springframework.cloud.client.loadbalancer.DeferringLoadBalancerInterceptor] is not eligible for getting processed by all BeanPostProcessors (for example: not eligible for auto-proxying). Is this bean getting eagerly injected/applied to a currently created BeanPostProcessor [lbRestClientPostProcessor]? Check the corresponding BeanPostProcessor declaration and its dependencies/advisors. If this bean does not have to be post-processed, declare it with ROLE_INFRASTRUCTURE.
+2026-08-17T01:01:03.759+09:00  WARN 118972 --- [api-gateway] [           main] trationDelegate$BeanPostProcessorChecker : Bean 'org.springframework.cloud.client.loadbalancer.reactive.LoadBalancerBeanPostProcessorAutoConfiguration' of type [org.springframework.cloud.client.loadbalancer.reactive.LoadBalancerBeanPostProcessorAutoConfiguration] is not eligible for getting processed by all BeanPostProcessors (for example: not eligible for auto-proxying). The currently created BeanPostProcessor [loadBalancerWebClientBuilderBeanPostProcessor] is declared through a non-static factory method on that class; consider declaring it as static instead.
+2026-08-17T01:01:03.760+09:00  WARN 118972 --- [api-gateway] [           main] trationDelegate$BeanPostProcessorChecker : Bean 'org.springframework.cloud.client.loadbalancer.reactive.LoadBalancerBeanPostProcessorAutoConfiguration$ReactorDeferringLoadBalancerFilterConfig' of type [org.springframework.cloud.client.loadbalancer.reactive.LoadBalancerBeanPostProcessorAutoConfiguration$ReactorDeferringLoadBalancerFilterConfig] is not eligible for getting processed by all BeanPostProcessors (for example: not eligible for auto-proxying). Is this bean getting eagerly injected/applied to a currently created BeanPostProcessor [loadBalancerWebClientBuilderBeanPostProcessor]? Check the corresponding BeanPostProcessor declaration and its dependencies/advisors. If this bean does not have to be post-processed, declare it with ROLE_INFRASTRUCTURE.
+2026-08-17T01:01:03.763+09:00  WARN 118972 --- [api-gateway] [           main] trationDelegate$BeanPostProcessorChecker : Bean 'reactorDeferringLoadBalancerExchangeFilterFunction' of type [org.springframework.cloud.client.loadbalancer.reactive.DeferringLoadBalancerExchangeFilterFunction] is not eligible for getting processed by all BeanPostProcessors (for example: not eligible for auto-proxying). Is this bean getting eagerly injected/applied to a currently created BeanPostProcessor [loadBalancerWebClientBuilderBeanPostProcessor]? Check the corresponding BeanPostProcessor declaration and its dependencies/advisors. If this bean does not have to be post-processed, declare it with ROLE_INFRASTRUCTURE.
+2026-08-17T01:01:05.794+09:00  INFO 118972 --- [api-gateway] [           main] o.s.cloud.commons.util.InetUtils         : Cannot determine local hostname
+2026-08-17T01:01:06.435+09:00  INFO 118972 --- [api-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [After]
+2026-08-17T01:01:06.436+09:00  INFO 118972 --- [api-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [Before]
+2026-08-17T01:01:06.437+09:00  INFO 118972 --- [api-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [Between]
+2026-08-17T01:01:06.437+09:00  INFO 118972 --- [api-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [Cookie]
+2026-08-17T01:01:06.437+09:00  INFO 118972 --- [api-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [Header]
+2026-08-17T01:01:06.438+09:00  INFO 118972 --- [api-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [Host]
+2026-08-17T01:01:06.438+09:00  INFO 118972 --- [api-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [Method]
+2026-08-17T01:01:06.438+09:00  INFO 118972 --- [api-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [Path]
+2026-08-17T01:01:06.438+09:00  INFO 118972 --- [api-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [Query]
+2026-08-17T01:01:06.439+09:00  INFO 118972 --- [api-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [ReadBody]
+2026-08-17T01:01:06.439+09:00  INFO 118972 --- [api-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [RemoteAddr]
+2026-08-17T01:01:06.439+09:00  INFO 118972 --- [api-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [XForwardedRemoteAddr]
+2026-08-17T01:01:06.439+09:00  INFO 118972 --- [api-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [Weight]
+2026-08-17T01:01:06.440+09:00  INFO 118972 --- [api-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [CloudFoundryRouteService]
+2026-08-17T01:01:08.278+09:00  INFO 118972 --- [api-gateway] [           main] o.s.cloud.commons.util.InetUtils         : Cannot determine local hostname
+2026-08-17T01:01:09.734+09:00  INFO 118972 --- [api-gateway] [           main] o.s.cloud.commons.util.InetUtils         : Cannot determine local hostname
+2026-08-17T01:01:09.768+09:00  INFO 118972 --- [api-gateway] [           main] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 3 endpoints beneath base path '/actuator'
+2026-08-17T01:01:09.973+09:00  INFO 118972 --- [api-gateway] [           main] DiscoveryClientOptionalArgsConfiguration : Eureka HTTP Client uses RestTemplate.
+2026-08-17T01:01:09.999+09:00  WARN 118972 --- [api-gateway] [           main] iguration$LoadBalancerCaffeineWarnLogger : Spring Cloud LoadBalancer is currently working with the default cache. While this cache implementation is useful for development and tests, it's recommended to use Caffeine cache in production.You can switch to using Caffeine cache, by adding it and org.springframework.cache.caffeine.CaffeineCacheManager to the classpath.
+2026-08-17T01:01:10.057+09:00  INFO 118972 --- [api-gateway] [           main] o.s.c.n.eureka.InstanceInfoFactory       : Setting initial instance status as: STARTING
+2026-08-17T01:01:10.079+09:00  INFO 118972 --- [api-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Initializing Eureka in region us-east-1
+2026-08-17T01:01:10.085+09:00  INFO 118972 --- [api-gateway] [           main] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T01:01:10.093+09:00  INFO 118972 --- [api-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Disable delta property : false
+2026-08-17T01:01:10.094+09:00  INFO 118972 --- [api-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Single vip registry refresh property : null
+2026-08-17T01:01:10.094+09:00  INFO 118972 --- [api-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Force full registry fetch : false
+2026-08-17T01:01:10.094+09:00  INFO 118972 --- [api-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Application is null : false
+2026-08-17T01:01:10.094+09:00  INFO 118972 --- [api-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Registered Applications size is zero : true
+2026-08-17T01:01:10.095+09:00  INFO 118972 --- [api-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Application version is -1: true
+2026-08-17T01:01:10.095+09:00  INFO 118972 --- [api-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Getting all instance registry info from the eureka server
+2026-08-17T01:01:10.421+09:00  INFO 118972 --- [api-gateway] [           main] com.netflix.discovery.DiscoveryClient    : The response status is 200
+2026-08-17T01:01:10.423+09:00  INFO 118972 --- [api-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Not registering with Eureka server per configuration
+2026-08-17T01:01:10.424+09:00  INFO 118972 --- [api-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Discovery Client initialized at timestamp 1786896070424 with initial instances count: 16
+2026-08-17T01:01:10.427+09:00  INFO 118972 --- [api-gateway] [           main] o.s.c.n.e.s.EurekaServiceRegistry        : Registering application API-GATEWAY with eureka with status UP
+2026-08-17T01:01:10.951+09:00  INFO 118972 --- [api-gateway] [           main] o.s.b.web.embedded.netty.NettyWebServer  : Netty started on port 28080 (http)
+2026-08-17T01:01:10.953+09:00  INFO 118972 --- [api-gateway] [           main] .s.c.n.e.s.EurekaAutoServiceRegistration : Updating port to 28080
+2026-08-17T01:01:12.425+09:00  INFO 118972 --- [api-gateway] [           main] o.s.cloud.commons.util.InetUtils         : Cannot determine local hostname
+2026-08-17T01:01:13.951+09:00  INFO 118972 --- [api-gateway] [           main] o.s.cloud.commons.util.InetUtils         : Cannot determine local hostname
+2026-08-17T01:01:14.033+09:00  INFO 118972 --- [api-gateway] [           main] c.s.logis.gateway.ApiGatewayApplication  : Started ApiGatewayApplication in 13.487 seconds (process running for 14.173)
+2026-08-17T01:06:10.108+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T01:11:10.118+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T01:16:10.124+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T01:21:10.127+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T01:26:10.136+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T01:31:10.150+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T01:36:10.157+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T01:41:10.162+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T01:46:10.176+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T01:51:10.185+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T01:56:10.187+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T02:01:10.202+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T02:06:10.210+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T02:11:10.226+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T02:16:10.231+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T02:21:10.243+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T02:26:10.252+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T02:31:10.260+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T02:36:10.268+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T02:41:10.273+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T02:46:10.282+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T02:51:10.290+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T02:56:10.302+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T03:01:10.303+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T03:06:10.306+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T03:11:10.314+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T03:16:10.325+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T03:21:10.335+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T03:26:10.339+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T03:31:10.346+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T03:36:10.349+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T03:41:10.353+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T03:46:10.358+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T03:51:10.366+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T03:56:10.368+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T04:01:10.376+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T04:06:10.386+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T04:11:10.401+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T04:16:10.408+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T04:21:10.423+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T04:26:10.430+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T04:31:10.434+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T04:36:10.441+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T04:41:10.448+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T04:46:10.452+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T04:51:10.462+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T04:56:10.473+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T05:01:10.480+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T05:06:10.492+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T05:11:10.499+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T05:16:10.506+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T05:21:10.520+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T05:26:10.526+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T05:31:10.532+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T05:36:10.534+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T05:41:10.546+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T05:46:10.555+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T05:51:10.558+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T05:56:10.569+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T06:01:10.578+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T06:06:10.581+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T06:11:10.594+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T06:16:10.604+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T06:21:10.605+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T06:26:10.612+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T06:31:10.614+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T06:36:10.624+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T06:41:10.629+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T06:46:10.634+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T06:51:10.643+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T06:56:10.644+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T07:01:10.652+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T07:06:10.657+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T07:11:10.670+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T07:16:10.679+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T07:21:10.691+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T07:26:10.700+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T07:31:10.713+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T07:36:10.717+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T07:41:10.720+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T07:46:10.734+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T07:51:10.744+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T07:56:10.754+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T08:01:10.760+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T08:06:10.760+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T08:11:10.774+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T08:16:10.776+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T08:21:10.785+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T08:26:10.796+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T08:31:10.801+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T08:36:10.807+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T08:41:10.817+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T08:46:10.826+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T08:46:40.361+09:00 ERROR 118972 --- [api-gateway] [ctor-http-nio-7] a.w.r.e.AbstractErrorWebExceptionHandler : [21a94d14-15]  500 Server Error for HTTP POST "/auth/logout"
+
+java.net.UnknownHostException: Failed to resolve 'd15168e4ca21' [A(1)] after 2 queries 
+	at io.netty.resolver.dns.DnsResolveContext.finishResolve(DnsResolveContext.java:1150) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+	Suppressed: reactor.core.publisher.FluxOnAssembly$OnAssemblyException: 
+Error has been observed at the following site(s):
+	*__checkpoint ? org.springframework.web.cors.reactive.CorsWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? HTTP POST "/auth/logout" [ExceptionHandlingWebHandler]
+Original Stack Trace:
+		at io.netty.resolver.dns.DnsResolveContext.finishResolve(DnsResolveContext.java:1150) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.tryToFinishResolve(DnsResolveContext.java:1097) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.query(DnsResolveContext.java:455) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.access$700(DnsResolveContext.java:70) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext$2.operationComplete(DnsResolveContext.java:524) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListener0(DefaultPromise.java:590) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListeners0(DefaultPromise.java:583) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListenersNow(DefaultPromise.java:559) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListeners(DefaultPromise.java:492) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.setValue0(DefaultPromise.java:636) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.setFailure0(DefaultPromise.java:629) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.tryFailure(DefaultPromise.java:118) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsQueryContext.finishFailure(DnsQueryContext.java:343) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsQueryContext$4.run(DnsQueryContext.java:278) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.PromiseTask.runTask(PromiseTask.java:98) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.ScheduledFutureTask.run(ScheduledFutureTask.java:156) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.AbstractEventExecutor.runTask(AbstractEventExecutor.java:173) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.AbstractEventExecutor.safeExecute(AbstractEventExecutor.java:166) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.SingleThreadEventExecutor.runAllTasks(SingleThreadEventExecutor.java:472) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:569) ~[netty-transport-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:997) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at java.base/java.lang.Thread.run(Thread.java:840) ~[na:na]
+Caused by: io.netty.resolver.dns.DnsNameResolverTimeoutException: [4242: /168.126.63.2:53] DefaultDnsQuestion(d15168e4ca21. IN A) query '4242' via UDP timed out after 5000 milliseconds (no stack trace available)
+
+2026-08-17T08:46:40.373+09:00 ERROR 118972 --- [api-gateway] [ctor-http-nio-7] a.w.r.e.AbstractErrorWebExceptionHandler : [38c258f3-16]  500 Server Error for HTTP POST "/auth/logout"
+
+java.net.UnknownHostException: Failed to resolve 'd15168e4ca21' [A(1)] after 2 queries 
+	at io.netty.resolver.dns.DnsResolveContext.finishResolve(DnsResolveContext.java:1150) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+	Suppressed: reactor.core.publisher.FluxOnAssembly$OnAssemblyException: 
+Error has been observed at the following site(s):
+	*__checkpoint ? org.springframework.web.cors.reactive.CorsWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? HTTP POST "/auth/logout" [ExceptionHandlingWebHandler]
+	*__checkpoint ? org.springframework.web.cors.reactive.CorsWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? HTTP POST "/auth/logout" [ExceptionHandlingWebHandler]
+Original Stack Trace:
+		at io.netty.resolver.dns.DnsResolveContext.finishResolve(DnsResolveContext.java:1150) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.tryToFinishResolve(DnsResolveContext.java:1097) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.query(DnsResolveContext.java:455) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.access$700(DnsResolveContext.java:70) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext$2.operationComplete(DnsResolveContext.java:524) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListener0(DefaultPromise.java:590) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListeners0(DefaultPromise.java:583) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListenersNow(DefaultPromise.java:559) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListeners(DefaultPromise.java:492) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.setValue0(DefaultPromise.java:636) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.setFailure0(DefaultPromise.java:629) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.tryFailure(DefaultPromise.java:118) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsQueryContext.finishFailure(DnsQueryContext.java:343) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsQueryContext$4.run(DnsQueryContext.java:278) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.PromiseTask.runTask(PromiseTask.java:98) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.ScheduledFutureTask.run(ScheduledFutureTask.java:156) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.AbstractEventExecutor.runTask(AbstractEventExecutor.java:173) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.AbstractEventExecutor.safeExecute(AbstractEventExecutor.java:166) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.SingleThreadEventExecutor.runAllTasks(SingleThreadEventExecutor.java:472) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:569) ~[netty-transport-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:997) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at java.base/java.lang.Thread.run(Thread.java:840) ~[na:na]
+Caused by: io.netty.resolver.dns.DnsNameResolverTimeoutException: [4242: /168.126.63.2:53] DefaultDnsQuestion(d15168e4ca21. IN A) query '4242' via UDP timed out after 5000 milliseconds (no stack trace available)
+
+2026-08-17T08:46:40.375+09:00 ERROR 118972 --- [api-gateway] [ctor-http-nio-7] a.w.r.e.AbstractErrorWebExceptionHandler : [9d9c9792-17]  500 Server Error for HTTP POST "/auth/logout"
+
+java.net.UnknownHostException: Failed to resolve 'd15168e4ca21' [A(1)] after 2 queries 
+	at io.netty.resolver.dns.DnsResolveContext.finishResolve(DnsResolveContext.java:1150) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+	Suppressed: reactor.core.publisher.FluxOnAssembly$OnAssemblyException: 
+Error has been observed at the following site(s):
+	*__checkpoint ? org.springframework.web.cors.reactive.CorsWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? HTTP POST "/auth/logout" [ExceptionHandlingWebHandler]
+	*__checkpoint ? org.springframework.web.cors.reactive.CorsWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? HTTP POST "/auth/logout" [ExceptionHandlingWebHandler]
+	*__checkpoint ? org.springframework.web.cors.reactive.CorsWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? HTTP POST "/auth/logout" [ExceptionHandlingWebHandler]
+Original Stack Trace:
+		at io.netty.resolver.dns.DnsResolveContext.finishResolve(DnsResolveContext.java:1150) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.tryToFinishResolve(DnsResolveContext.java:1097) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.query(DnsResolveContext.java:455) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.access$700(DnsResolveContext.java:70) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext$2.operationComplete(DnsResolveContext.java:524) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListener0(DefaultPromise.java:590) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListeners0(DefaultPromise.java:583) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListenersNow(DefaultPromise.java:559) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListeners(DefaultPromise.java:492) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.setValue0(DefaultPromise.java:636) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.setFailure0(DefaultPromise.java:629) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.tryFailure(DefaultPromise.java:118) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsQueryContext.finishFailure(DnsQueryContext.java:343) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsQueryContext$4.run(DnsQueryContext.java:278) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.PromiseTask.runTask(PromiseTask.java:98) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.ScheduledFutureTask.run(ScheduledFutureTask.java:156) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.AbstractEventExecutor.runTask(AbstractEventExecutor.java:173) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.AbstractEventExecutor.safeExecute(AbstractEventExecutor.java:166) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.SingleThreadEventExecutor.runAllTasks(SingleThreadEventExecutor.java:472) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:569) ~[netty-transport-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:997) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at java.base/java.lang.Thread.run(Thread.java:840) ~[na:na]
+Caused by: io.netty.resolver.dns.DnsNameResolverTimeoutException: [4242: /168.126.63.2:53] DefaultDnsQuestion(d15168e4ca21. IN A) query '4242' via UDP timed out after 5000 milliseconds (no stack trace available)
+
+2026-08-17T08:46:50.043+09:00  WARN 118972 --- [api-gateway] [tor-http-nio-10] reactor.netty.channel.FluxReceive        : [21a94d14-4, L:/127.0.0.1:28080 - R:/127.0.0.1:52862] An exception has been observed post termination, use DEBUG level to see the full stack: java.net.SocketException: Connection reset
+2026-08-17T08:46:50.043+09:00  WARN 118972 --- [api-gateway] [tor-http-nio-16] reactor.netty.channel.FluxReceive        : [4c9bab4d-1, L:/127.0.0.1:28080 - R:/127.0.0.1:58967] An exception has been observed post termination, use DEBUG level to see the full stack: java.net.SocketException: Connection reset
+2026-08-17T08:46:50.043+09:00  WARN 118972 --- [api-gateway] [tor-http-nio-11] reactor.netty.channel.FluxReceive        : [38c258f3-3, L:/127.0.0.1:28080 - R:/127.0.0.1:63772] An exception has been observed post termination, use DEBUG level to see the full stack: java.net.SocketException: Connection reset
+2026-08-17T08:47:09.603+09:00  WARN 118972 --- [api-gateway] [tor-http-nio-23] reactor.netty.channel.FluxReceive        : [cfb1820b-1, L:/127.0.0.1:28080 - R:/127.0.0.1:49313] An exception has been observed post termination, use DEBUG level to see the full stack: java.net.SocketException: Connection reset
+2026-08-17T08:47:09.603+09:00  WARN 118972 --- [api-gateway] [tor-http-nio-18] reactor.netty.channel.FluxReceive        : [5f7bc1b5-1, L:/127.0.0.1:28080 - R:/127.0.0.1:60562] An exception has been observed post termination, use DEBUG level to see the full stack: java.net.SocketException: Connection reset
+2026-08-17T08:47:09.603+09:00  WARN 118972 --- [api-gateway] [tor-http-nio-20] reactor.netty.channel.FluxReceive        : [9648ca0e-3, L:/127.0.0.1:28080 - R:/127.0.0.1:57172] An exception has been observed post termination, use DEBUG level to see the full stack: java.net.SocketException: Connection reset
+2026-08-17T08:47:09.603+09:00  WARN 118972 --- [api-gateway] [tor-http-nio-22] reactor.netty.channel.FluxReceive        : [4ca1513f-3, L:/127.0.0.1:28080 - R:/127.0.0.1:50060] An exception has been observed post termination, use DEBUG level to see the full stack: java.net.SocketException: Connection reset
+2026-08-17T08:47:09.603+09:00  WARN 118972 --- [api-gateway] [tor-http-nio-19] reactor.netty.channel.FluxReceive        : [7bafbabd-2, L:/127.0.0.1:28080 - R:/127.0.0.1:61532] An exception has been observed post termination, use DEBUG level to see the full stack: java.net.SocketException: Connection reset
+2026-08-17T08:47:09.603+09:00  WARN 118972 --- [api-gateway] [tor-http-nio-21] reactor.netty.channel.FluxReceive        : [2203634b-3, L:/127.0.0.1:28080 - R:/127.0.0.1:61796] An exception has been observed post termination, use DEBUG level to see the full stack: java.net.SocketException: Connection reset
+2026-08-17T08:47:09.603+09:00  WARN 118972 --- [api-gateway] [tor-http-nio-17] reactor.netty.channel.FluxReceive        : [781242b4-1, L:/127.0.0.1:28080 - R:/127.0.0.1:49361] An exception has been observed post termination, use DEBUG level to see the full stack: java.net.SocketException: Connection reset
+2026-08-17T08:47:35.334+09:00 ERROR 118972 --- [api-gateway] [ctor-http-nio-7] a.w.r.e.AbstractErrorWebExceptionHandler : [69099b41-41]  500 Server Error for HTTP POST "/auth/logout"
+
+java.net.UnknownHostException: Failed to resolve 'd15168e4ca21' [A(1)] after 2 queries 
+	at io.netty.resolver.dns.DnsResolveContext.finishResolve(DnsResolveContext.java:1150) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+	Suppressed: reactor.core.publisher.FluxOnAssembly$OnAssemblyException: 
+Error has been observed at the following site(s):
+	*__checkpoint ? org.springframework.web.cors.reactive.CorsWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? HTTP POST "/auth/logout" [ExceptionHandlingWebHandler]
+Original Stack Trace:
+		at io.netty.resolver.dns.DnsResolveContext.finishResolve(DnsResolveContext.java:1150) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.tryToFinishResolve(DnsResolveContext.java:1097) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.query(DnsResolveContext.java:455) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.access$700(DnsResolveContext.java:70) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext$2.operationComplete(DnsResolveContext.java:524) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListener0(DefaultPromise.java:590) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListeners0(DefaultPromise.java:583) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListenersNow(DefaultPromise.java:559) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListeners(DefaultPromise.java:492) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.setValue0(DefaultPromise.java:636) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.setFailure0(DefaultPromise.java:629) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.tryFailure(DefaultPromise.java:118) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsQueryContext.finishFailure(DnsQueryContext.java:343) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsQueryContext$4.run(DnsQueryContext.java:278) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.PromiseTask.runTask(PromiseTask.java:98) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.ScheduledFutureTask.run(ScheduledFutureTask.java:156) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.AbstractEventExecutor.runTask(AbstractEventExecutor.java:173) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.AbstractEventExecutor.safeExecute(AbstractEventExecutor.java:166) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.SingleThreadEventExecutor.runAllTasks(SingleThreadEventExecutor.java:472) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:569) ~[netty-transport-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:997) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at java.base/java.lang.Thread.run(Thread.java:840) ~[na:na]
+Caused by: io.netty.resolver.dns.DnsNameResolverTimeoutException: [15605: /168.126.63.2:53] DefaultDnsQuestion(d15168e4ca21. IN A) query '15605' via UDP timed out after 5000 milliseconds (no stack trace available)
+
+2026-08-17T08:47:35.337+09:00 ERROR 118972 --- [api-gateway] [ctor-http-nio-7] a.w.r.e.AbstractErrorWebExceptionHandler : [577baa2a-48]  500 Server Error for HTTP POST "/auth/logout"
+
+java.net.UnknownHostException: Failed to resolve 'd15168e4ca21' [A(1)] after 2 queries 
+	at io.netty.resolver.dns.DnsResolveContext.finishResolve(DnsResolveContext.java:1150) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+	Suppressed: reactor.core.publisher.FluxOnAssembly$OnAssemblyException: 
+Error has been observed at the following site(s):
+	*__checkpoint ? org.springframework.web.cors.reactive.CorsWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? HTTP POST "/auth/logout" [ExceptionHandlingWebHandler]
+	*__checkpoint ? org.springframework.web.cors.reactive.CorsWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? HTTP POST "/auth/logout" [ExceptionHandlingWebHandler]
+Original Stack Trace:
+		at io.netty.resolver.dns.DnsResolveContext.finishResolve(DnsResolveContext.java:1150) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.tryToFinishResolve(DnsResolveContext.java:1097) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.query(DnsResolveContext.java:455) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.access$700(DnsResolveContext.java:70) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext$2.operationComplete(DnsResolveContext.java:524) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListener0(DefaultPromise.java:590) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListeners0(DefaultPromise.java:583) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListenersNow(DefaultPromise.java:559) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListeners(DefaultPromise.java:492) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.setValue0(DefaultPromise.java:636) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.setFailure0(DefaultPromise.java:629) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.tryFailure(DefaultPromise.java:118) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsQueryContext.finishFailure(DnsQueryContext.java:343) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsQueryContext$4.run(DnsQueryContext.java:278) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.PromiseTask.runTask(PromiseTask.java:98) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.ScheduledFutureTask.run(ScheduledFutureTask.java:156) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.AbstractEventExecutor.runTask(AbstractEventExecutor.java:173) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.AbstractEventExecutor.safeExecute(AbstractEventExecutor.java:166) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.SingleThreadEventExecutor.runAllTasks(SingleThreadEventExecutor.java:472) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:569) ~[netty-transport-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:997) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at java.base/java.lang.Thread.run(Thread.java:840) ~[na:na]
+Caused by: io.netty.resolver.dns.DnsNameResolverTimeoutException: [15605: /168.126.63.2:53] DefaultDnsQuestion(d15168e4ca21. IN A) query '15605' via UDP timed out after 5000 milliseconds (no stack trace available)
+
+2026-08-17T08:47:35.339+09:00 ERROR 118972 --- [api-gateway] [ctor-http-nio-7] a.w.r.e.AbstractErrorWebExceptionHandler : [0c9b0c70-50]  500 Server Error for HTTP POST "/auth/logout"
+
+java.net.UnknownHostException: Failed to resolve 'd15168e4ca21' [A(1)] after 2 queries 
+	at io.netty.resolver.dns.DnsResolveContext.finishResolve(DnsResolveContext.java:1150) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+	Suppressed: reactor.core.publisher.FluxOnAssembly$OnAssemblyException: 
+Error has been observed at the following site(s):
+	*__checkpoint ? org.springframework.web.cors.reactive.CorsWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? HTTP POST "/auth/logout" [ExceptionHandlingWebHandler]
+	*__checkpoint ? org.springframework.web.cors.reactive.CorsWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? HTTP POST "/auth/logout" [ExceptionHandlingWebHandler]
+	*__checkpoint ? org.springframework.web.cors.reactive.CorsWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? HTTP POST "/auth/logout" [ExceptionHandlingWebHandler]
+Original Stack Trace:
+		at io.netty.resolver.dns.DnsResolveContext.finishResolve(DnsResolveContext.java:1150) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.tryToFinishResolve(DnsResolveContext.java:1097) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.query(DnsResolveContext.java:455) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.access$700(DnsResolveContext.java:70) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext$2.operationComplete(DnsResolveContext.java:524) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListener0(DefaultPromise.java:590) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListeners0(DefaultPromise.java:583) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListenersNow(DefaultPromise.java:559) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListeners(DefaultPromise.java:492) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.setValue0(DefaultPromise.java:636) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.setFailure0(DefaultPromise.java:629) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.tryFailure(DefaultPromise.java:118) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsQueryContext.finishFailure(DnsQueryContext.java:343) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsQueryContext$4.run(DnsQueryContext.java:278) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.PromiseTask.runTask(PromiseTask.java:98) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.ScheduledFutureTask.run(ScheduledFutureTask.java:156) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.AbstractEventExecutor.runTask(AbstractEventExecutor.java:173) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.AbstractEventExecutor.safeExecute(AbstractEventExecutor.java:166) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.SingleThreadEventExecutor.runAllTasks(SingleThreadEventExecutor.java:472) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:569) ~[netty-transport-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:997) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at java.base/java.lang.Thread.run(Thread.java:840) ~[na:na]
+Caused by: io.netty.resolver.dns.DnsNameResolverTimeoutException: [15605: /168.126.63.2:53] DefaultDnsQuestion(d15168e4ca21. IN A) query '15605' via UDP timed out after 5000 milliseconds (no stack trace available)
+
+2026-08-17T08:47:35.341+09:00 ERROR 118972 --- [api-gateway] [ctor-http-nio-7] a.w.r.e.AbstractErrorWebExceptionHandler : [09578341-49]  500 Server Error for HTTP POST "/auth/logout"
+
+java.net.UnknownHostException: Failed to resolve 'd15168e4ca21' [A(1)] after 2 queries 
+	at io.netty.resolver.dns.DnsResolveContext.finishResolve(DnsResolveContext.java:1150) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+	Suppressed: reactor.core.publisher.FluxOnAssembly$OnAssemblyException: 
+Error has been observed at the following site(s):
+	*__checkpoint ? org.springframework.web.cors.reactive.CorsWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? HTTP POST "/auth/logout" [ExceptionHandlingWebHandler]
+	*__checkpoint ? org.springframework.web.cors.reactive.CorsWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? HTTP POST "/auth/logout" [ExceptionHandlingWebHandler]
+	*__checkpoint ? org.springframework.web.cors.reactive.CorsWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? HTTP POST "/auth/logout" [ExceptionHandlingWebHandler]
+	*__checkpoint ? org.springframework.web.cors.reactive.CorsWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? HTTP POST "/auth/logout" [ExceptionHandlingWebHandler]
+Original Stack Trace:
+		at io.netty.resolver.dns.DnsResolveContext.finishResolve(DnsResolveContext.java:1150) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.tryToFinishResolve(DnsResolveContext.java:1097) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.query(DnsResolveContext.java:455) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.access$700(DnsResolveContext.java:70) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext$2.operationComplete(DnsResolveContext.java:524) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListener0(DefaultPromise.java:590) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListeners0(DefaultPromise.java:583) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListenersNow(DefaultPromise.java:559) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListeners(DefaultPromise.java:492) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.setValue0(DefaultPromise.java:636) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.setFailure0(DefaultPromise.java:629) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.tryFailure(DefaultPromise.java:118) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsQueryContext.finishFailure(DnsQueryContext.java:343) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsQueryContext$4.run(DnsQueryContext.java:278) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.PromiseTask.runTask(PromiseTask.java:98) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.ScheduledFutureTask.run(ScheduledFutureTask.java:156) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.AbstractEventExecutor.runTask(AbstractEventExecutor.java:173) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.AbstractEventExecutor.safeExecute(AbstractEventExecutor.java:166) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.SingleThreadEventExecutor.runAllTasks(SingleThreadEventExecutor.java:472) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:569) ~[netty-transport-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:997) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at java.base/java.lang.Thread.run(Thread.java:840) ~[na:na]
+Caused by: io.netty.resolver.dns.DnsNameResolverTimeoutException: [15605: /168.126.63.2:53] DefaultDnsQuestion(d15168e4ca21. IN A) query '15605' via UDP timed out after 5000 milliseconds (no stack trace available)
+
+2026-08-17T08:47:35.342+09:00 ERROR 118972 --- [api-gateway] [ctor-http-nio-7] a.w.r.e.AbstractErrorWebExceptionHandler : [c613bac4-51]  500 Server Error for HTTP POST "/auth/logout"
+
+java.net.UnknownHostException: Failed to resolve 'd15168e4ca21' [A(1)] after 2 queries 
+	at io.netty.resolver.dns.DnsResolveContext.finishResolve(DnsResolveContext.java:1150) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+	Suppressed: reactor.core.publisher.FluxOnAssembly$OnAssemblyException: 
+Error has been observed at the following site(s):
+	*__checkpoint ? org.springframework.web.cors.reactive.CorsWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? HTTP POST "/auth/logout" [ExceptionHandlingWebHandler]
+	*__checkpoint ? org.springframework.web.cors.reactive.CorsWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? HTTP POST "/auth/logout" [ExceptionHandlingWebHandler]
+	*__checkpoint ? org.springframework.web.cors.reactive.CorsWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? HTTP POST "/auth/logout" [ExceptionHandlingWebHandler]
+	*__checkpoint ? org.springframework.web.cors.reactive.CorsWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? HTTP POST "/auth/logout" [ExceptionHandlingWebHandler]
+	*__checkpoint ? org.springframework.web.cors.reactive.CorsWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? HTTP POST "/auth/logout" [ExceptionHandlingWebHandler]
+Original Stack Trace:
+		at io.netty.resolver.dns.DnsResolveContext.finishResolve(DnsResolveContext.java:1150) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.tryToFinishResolve(DnsResolveContext.java:1097) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.query(DnsResolveContext.java:455) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.access$700(DnsResolveContext.java:70) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext$2.operationComplete(DnsResolveContext.java:524) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListener0(DefaultPromise.java:590) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListeners0(DefaultPromise.java:583) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListenersNow(DefaultPromise.java:559) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListeners(DefaultPromise.java:492) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.setValue0(DefaultPromise.java:636) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.setFailure0(DefaultPromise.java:629) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.tryFailure(DefaultPromise.java:118) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsQueryContext.finishFailure(DnsQueryContext.java:343) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsQueryContext$4.run(DnsQueryContext.java:278) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.PromiseTask.runTask(PromiseTask.java:98) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.ScheduledFutureTask.run(ScheduledFutureTask.java:156) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.AbstractEventExecutor.runTask(AbstractEventExecutor.java:173) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.AbstractEventExecutor.safeExecute(AbstractEventExecutor.java:166) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.SingleThreadEventExecutor.runAllTasks(SingleThreadEventExecutor.java:472) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:569) ~[netty-transport-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:997) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at java.base/java.lang.Thread.run(Thread.java:840) ~[na:na]
+Caused by: io.netty.resolver.dns.DnsNameResolverTimeoutException: [15605: /168.126.63.2:53] DefaultDnsQuestion(d15168e4ca21. IN A) query '15605' via UDP timed out after 5000 milliseconds (no stack trace available)
+
+2026-08-17T08:47:35.344+09:00 ERROR 118972 --- [api-gateway] [ctor-http-nio-7] a.w.r.e.AbstractErrorWebExceptionHandler : [97e81dfa-52]  500 Server Error for HTTP POST "/auth/logout"
+
+java.net.UnknownHostException: Failed to resolve 'd15168e4ca21' [A(1)] after 2 queries 
+	at io.netty.resolver.dns.DnsResolveContext.finishResolve(DnsResolveContext.java:1150) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+	Suppressed: reactor.core.publisher.FluxOnAssembly$OnAssemblyException: 
+Error has been observed at the following site(s):
+	*__checkpoint ? org.springframework.web.cors.reactive.CorsWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? HTTP POST "/auth/logout" [ExceptionHandlingWebHandler]
+	*__checkpoint ? org.springframework.web.cors.reactive.CorsWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? HTTP POST "/auth/logout" [ExceptionHandlingWebHandler]
+	*__checkpoint ? org.springframework.web.cors.reactive.CorsWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? HTTP POST "/auth/logout" [ExceptionHandlingWebHandler]
+	*__checkpoint ? org.springframework.web.cors.reactive.CorsWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? HTTP POST "/auth/logout" [ExceptionHandlingWebHandler]
+	*__checkpoint ? org.springframework.web.cors.reactive.CorsWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? HTTP POST "/auth/logout" [ExceptionHandlingWebHandler]
+	*__checkpoint ? org.springframework.web.cors.reactive.CorsWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? HTTP POST "/auth/logout" [ExceptionHandlingWebHandler]
+Original Stack Trace:
+		at io.netty.resolver.dns.DnsResolveContext.finishResolve(DnsResolveContext.java:1150) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.tryToFinishResolve(DnsResolveContext.java:1097) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.query(DnsResolveContext.java:455) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.access$700(DnsResolveContext.java:70) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext$2.operationComplete(DnsResolveContext.java:524) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListener0(DefaultPromise.java:590) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListeners0(DefaultPromise.java:583) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListenersNow(DefaultPromise.java:559) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListeners(DefaultPromise.java:492) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.setValue0(DefaultPromise.java:636) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.setFailure0(DefaultPromise.java:629) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.tryFailure(DefaultPromise.java:118) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsQueryContext.finishFailure(DnsQueryContext.java:343) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsQueryContext$4.run(DnsQueryContext.java:278) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.PromiseTask.runTask(PromiseTask.java:98) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.ScheduledFutureTask.run(ScheduledFutureTask.java:156) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.AbstractEventExecutor.runTask(AbstractEventExecutor.java:173) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.AbstractEventExecutor.safeExecute(AbstractEventExecutor.java:166) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.SingleThreadEventExecutor.runAllTasks(SingleThreadEventExecutor.java:472) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:569) ~[netty-transport-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:997) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at java.base/java.lang.Thread.run(Thread.java:840) ~[na:na]
+Caused by: io.netty.resolver.dns.DnsNameResolverTimeoutException: [15605: /168.126.63.2:53] DefaultDnsQuestion(d15168e4ca21. IN A) query '15605' via UDP timed out after 5000 milliseconds (no stack trace available)
+
+2026-08-17T08:47:45.367+09:00 ERROR 118972 --- [api-gateway] [ctor-http-nio-7] a.w.r.e.AbstractErrorWebExceptionHandler : [09578341-57]  500 Server Error for HTTP GET "/auth/password/policy"
+
+java.net.UnknownHostException: Failed to resolve 'd15168e4ca21' [A(1)] after 2 queries 
+	at io.netty.resolver.dns.DnsResolveContext.finishResolve(DnsResolveContext.java:1150) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+	Suppressed: reactor.core.publisher.FluxOnAssembly$OnAssemblyException: 
+Error has been observed at the following site(s):
+	*__checkpoint ? org.springframework.web.cors.reactive.CorsWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? HTTP GET "/auth/password/policy" [ExceptionHandlingWebHandler]
+Original Stack Trace:
+		at io.netty.resolver.dns.DnsResolveContext.finishResolve(DnsResolveContext.java:1150) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.tryToFinishResolve(DnsResolveContext.java:1097) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.query(DnsResolveContext.java:455) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.access$700(DnsResolveContext.java:70) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext$2.operationComplete(DnsResolveContext.java:524) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListener0(DefaultPromise.java:590) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListeners0(DefaultPromise.java:583) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListenersNow(DefaultPromise.java:559) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListeners(DefaultPromise.java:492) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.setValue0(DefaultPromise.java:636) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.setFailure0(DefaultPromise.java:629) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.tryFailure(DefaultPromise.java:118) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsQueryContext.finishFailure(DnsQueryContext.java:343) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsQueryContext$4.run(DnsQueryContext.java:278) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.PromiseTask.runTask(PromiseTask.java:98) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.ScheduledFutureTask.run(ScheduledFutureTask.java:156) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.AbstractEventExecutor.runTask(AbstractEventExecutor.java:173) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.AbstractEventExecutor.safeExecute(AbstractEventExecutor.java:166) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.SingleThreadEventExecutor.runAllTasks(SingleThreadEventExecutor.java:472) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:569) ~[netty-transport-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:997) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at java.base/java.lang.Thread.run(Thread.java:840) ~[na:na]
+Caused by: io.netty.resolver.dns.DnsNameResolverTimeoutException: [9973: /168.126.63.2:53] DefaultDnsQuestion(d15168e4ca21. IN A) query '9973' via UDP timed out after 5000 milliseconds (no stack trace available)
+
+2026-08-17T08:47:45.369+09:00 ERROR 118972 --- [api-gateway] [ctor-http-nio-7] a.w.r.e.AbstractErrorWebExceptionHandler : [0c9b0c70-60]  500 Server Error for HTTP POST "/auth/logout"
+
+java.net.UnknownHostException: Failed to resolve 'd15168e4ca21' [A(1)] after 2 queries 
+	at io.netty.resolver.dns.DnsResolveContext.finishResolve(DnsResolveContext.java:1150) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+	Suppressed: reactor.core.publisher.FluxOnAssembly$OnAssemblyException: 
+Error has been observed at the following site(s):
+	*__checkpoint ? org.springframework.web.cors.reactive.CorsWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? HTTP GET "/auth/password/policy" [ExceptionHandlingWebHandler]
+	*__checkpoint ? org.springframework.web.cors.reactive.CorsWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? HTTP POST "/auth/logout" [ExceptionHandlingWebHandler]
+Original Stack Trace:
+		at io.netty.resolver.dns.DnsResolveContext.finishResolve(DnsResolveContext.java:1150) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.tryToFinishResolve(DnsResolveContext.java:1097) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.query(DnsResolveContext.java:455) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.access$700(DnsResolveContext.java:70) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext$2.operationComplete(DnsResolveContext.java:524) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListener0(DefaultPromise.java:590) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListeners0(DefaultPromise.java:583) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListenersNow(DefaultPromise.java:559) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListeners(DefaultPromise.java:492) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.setValue0(DefaultPromise.java:636) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.setFailure0(DefaultPromise.java:629) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.tryFailure(DefaultPromise.java:118) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsQueryContext.finishFailure(DnsQueryContext.java:343) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsQueryContext$4.run(DnsQueryContext.java:278) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.PromiseTask.runTask(PromiseTask.java:98) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.ScheduledFutureTask.run(ScheduledFutureTask.java:156) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.AbstractEventExecutor.runTask(AbstractEventExecutor.java:173) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.AbstractEventExecutor.safeExecute(AbstractEventExecutor.java:166) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.SingleThreadEventExecutor.runAllTasks(SingleThreadEventExecutor.java:472) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:569) ~[netty-transport-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:997) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at java.base/java.lang.Thread.run(Thread.java:840) ~[na:na]
+Caused by: io.netty.resolver.dns.DnsNameResolverTimeoutException: [9973: /168.126.63.2:53] DefaultDnsQuestion(d15168e4ca21. IN A) query '9973' via UDP timed out after 5000 milliseconds (no stack trace available)
+
+2026-08-17T08:47:45.833+09:00 ERROR 118972 --- [api-gateway] [ctor-http-nio-7] a.w.r.e.AbstractErrorWebExceptionHandler : [4a7fdf34-63]  500 Server Error for HTTP GET "/app/version?clientType=DESKTOP&currentVersion=2026%2F08%2F17-1248"
+
+java.net.UnknownHostException: Failed to resolve '6fdc12771887' [A(1)] after 2 queries 
+	at io.netty.resolver.dns.DnsResolveContext.finishResolve(DnsResolveContext.java:1150) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+	Suppressed: reactor.core.publisher.FluxOnAssembly$OnAssemblyException: 
+Error has been observed at the following site(s):
+	*__checkpoint ? org.springframework.web.cors.reactive.CorsWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? HTTP GET "/app/version?clientType=DESKTOP&currentVersion=2026%2F08%2F17-1248" [ExceptionHandlingWebHandler]
+Original Stack Trace:
+		at io.netty.resolver.dns.DnsResolveContext.finishResolve(DnsResolveContext.java:1150) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.tryToFinishResolve(DnsResolveContext.java:1097) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.query(DnsResolveContext.java:455) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.access$700(DnsResolveContext.java:70) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext$2.operationComplete(DnsResolveContext.java:524) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListener0(DefaultPromise.java:590) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListeners0(DefaultPromise.java:583) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListenersNow(DefaultPromise.java:559) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListeners(DefaultPromise.java:492) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.setValue0(DefaultPromise.java:636) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.setFailure0(DefaultPromise.java:629) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.tryFailure(DefaultPromise.java:118) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsQueryContext.finishFailure(DnsQueryContext.java:343) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsQueryContext$4.run(DnsQueryContext.java:278) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.PromiseTask.runTask(PromiseTask.java:98) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.ScheduledFutureTask.run(ScheduledFutureTask.java:156) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.AbstractEventExecutor.runTask(AbstractEventExecutor.java:173) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.AbstractEventExecutor.safeExecute(AbstractEventExecutor.java:166) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.SingleThreadEventExecutor.runAllTasks(SingleThreadEventExecutor.java:472) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:569) ~[netty-transport-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:997) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at java.base/java.lang.Thread.run(Thread.java:840) ~[na:na]
+Caused by: io.netty.resolver.dns.DnsNameResolverTimeoutException: [6476: /168.126.63.2:53] DefaultDnsQuestion(6fdc12771887. IN A) query '6476' via UDP timed out after 5000 milliseconds (no stack trace available)
+
+2026-08-17T08:47:55.815+09:00 ERROR 118972 --- [api-gateway] [ctor-http-nio-7] a.w.r.e.AbstractErrorWebExceptionHandler : [09578341-64]  500 Server Error for HTTP POST "/auth/logout"
+
+java.net.UnknownHostException: Failed to resolve 'd15168e4ca21' [A(1)] after 2 queries 
+	at io.netty.resolver.dns.DnsResolveContext.finishResolve(DnsResolveContext.java:1150) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+	Suppressed: reactor.core.publisher.FluxOnAssembly$OnAssemblyException: 
+Error has been observed at the following site(s):
+	*__checkpoint ? org.springframework.web.cors.reactive.CorsWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter [DefaultWebFilterChain]
+	*__checkpoint ? HTTP POST "/auth/logout" [ExceptionHandlingWebHandler]
+Original Stack Trace:
+		at io.netty.resolver.dns.DnsResolveContext.finishResolve(DnsResolveContext.java:1150) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.tryToFinishResolve(DnsResolveContext.java:1097) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.query(DnsResolveContext.java:455) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext.access$700(DnsResolveContext.java:70) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsResolveContext$2.operationComplete(DnsResolveContext.java:524) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListener0(DefaultPromise.java:590) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListeners0(DefaultPromise.java:583) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListenersNow(DefaultPromise.java:559) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.notifyListeners(DefaultPromise.java:492) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.setValue0(DefaultPromise.java:636) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.setFailure0(DefaultPromise.java:629) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.DefaultPromise.tryFailure(DefaultPromise.java:118) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsQueryContext.finishFailure(DnsQueryContext.java:343) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.resolver.dns.DnsQueryContext$4.run(DnsQueryContext.java:278) ~[netty-resolver-dns-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.PromiseTask.runTask(PromiseTask.java:98) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.ScheduledFutureTask.run(ScheduledFutureTask.java:156) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.AbstractEventExecutor.runTask(AbstractEventExecutor.java:173) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.AbstractEventExecutor.safeExecute(AbstractEventExecutor.java:166) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.SingleThreadEventExecutor.runAllTasks(SingleThreadEventExecutor.java:472) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:569) ~[netty-transport-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:997) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[netty-common-4.1.114.Final.jar!/:4.1.114.Final]
+		at java.base/java.lang.Thread.run(Thread.java:840) ~[na:na]
+Caused by: io.netty.resolver.dns.DnsNameResolverTimeoutException: [10129: /168.126.63.2:53] DefaultDnsQuestion(d15168e4ca21. IN A) query '10129' via UDP timed out after 5000 milliseconds (no stack trace available)
+
+2026-08-17T08:47:56.830+09:00  WARN 118972 --- [api-gateway] [ctor-http-nio-1] reactor.netty.channel.FluxReceive        : [4a7fdf34-2, L:/127.0.0.1:28080 - R:/127.0.0.1:53038] An exception has been observed post termination, use DEBUG level to see the full stack: java.net.SocketException: Connection reset
+2026-08-17T08:47:56.831+09:00  WARN 118972 --- [api-gateway] [tor-http-nio-28] reactor.netty.channel.FluxReceive        : [577baa2a-6, L:/127.0.0.1:28080 - R:/127.0.0.1:61044] An exception has been observed post termination, use DEBUG level to see the full stack: java.net.SocketException: Connection reset
+2026-08-17T08:47:56.831+09:00  WARN 118972 --- [api-gateway] [tor-http-nio-27] reactor.netty.channel.FluxReceive        : [09578341-7, L:/127.0.0.1:28080 - R:/127.0.0.1:51015] An exception has been observed post termination, use DEBUG level to see the full stack: java.net.SocketException: Connection reset
+2026-08-17T08:51:10.835+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-08-17T08:56:10.845+09:00  INFO 118972 --- [api-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration

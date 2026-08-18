@@ -21,29 +21,20 @@ test.describe('SP-07 Google Sheets quote/order source contract', () => {
   const validationDoc = read('docs/operational-validation/google-sheets-source-validation.md')
   const opReadme = read('docs/operational-validation/README.md')
 
-  test('bootstrap range-map keeps GAS order payload and increase helper tabs, not credential/output forms', () => {
-    expect(partnerOrderYml).toContain("homemulti:'홈멀티!A1:Z'")
-    expect(partnerOrderYml).toContain("singleSets:'싱글 세트!A1:Z'")
-    expect(partnerOrderYml).toContain("singleParts:'싱글 구성품!A1:Z'")
-    expect(partnerOrderYml).toContain("commercialMulti:'상업멀티!A1:Z'")
-    expect(partnerOrderYml).toContain("commercialParts:'상업멀티 구성!A1:Z'")
-    expect(partnerOrderYml).toContain("oldProducts:'구형!A1:Z'")
-    expect(partnerOrderYml).toContain("homeInc:'홈멀티_단가인상!A1:Z'")
-    expect(partnerOrderYml).toContain("commInc:'상업멀티_단가인상!A1:Z'")
-    expect(partnerOrderYml).toContain("singleInc:'싱글 세트_단가인상!A1:Z'")
-    expect(partnerOrderYml).toContain("singlePartsInc:'싱글 구성품_단가인상!A1:Z'")
+  test('bootstrap은 DB/seed source-of-truth이고 credential/output form을 읽지 않는다', () => {
+    expect(partnerOrderYml).toContain('range-map: "{}"')
+    expect(partnerOrderYml).not.toContain('sheet-id:')
+    expect(partnerOrderYml).not.toContain('service-account-key-path:')
     expect(partnerOrderYml).not.toContain("config:'설정!A1:Z'")
     expect(partnerOrderYml).not.toContain('전표생성폼!A1:Z')
     expect(partnerOrderYml).not.toContain('전표업로드목록!A1:Z')
     expect(partnerOrderYml).not.toContain('종합견적서!A1:Z')
   })
 
-  test('bootstrap test guards config seed fallback and secret-bearing form exclusion', () => {
-    expect(bootstrapTest).toContain('config 는 seed fallback + DC 9키 strip')
+  test('bootstrap test guards DB/seed fallback and secret-bearing form exclusion', () => {
+    expect(bootstrapTest).toContain('시트설정과_무관하게_DB와_seed만_사용한다')
     expect(bootstrapTest).toContain('doesNotContainKey("homeDiscount")')
-    expect(bootstrapTest).toContain('never()).readSheet(eq("test-sheet-id"), eq("설정!A1:Z")')
-    expect(bootstrapTest).toContain('never()).readSheet(eq("test-sheet-id"), eq("전표생성폼!A1:Z")')
-    expect(bootstrapTest).toContain('never()).readSheet(eq("test-sheet-id"), eq("전표업로드목록!A1:Z")')
+    expect(bootstrapTest).toContain('verify(sheetsClient, never()).readSheet(anyString(), anyString(), any(ValueRenderMode.class))')
   })
 
   test('partner-order catalog lookup uses current increase tabs only', () => {
@@ -75,7 +66,7 @@ test.describe('SP-07 Google Sheets quote/order source contract', () => {
   })
 
   test('live snapshot documents exact spreadsheet tabs without publishing secrets', () => {
-    expect(sourceDoc).toContain('1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ')
+    expect(sourceDoc).toContain('<SHEET_ID>')
     expect(sourceDoc).toContain('27개 tab')
     expect(sourceDoc).toContain('홈멀티_단가인상')
     expect(sourceDoc).toContain('싱글 세트_단가인상')

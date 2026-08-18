@@ -40,6 +40,9 @@ jest.mock('axios', () => {
       // DC 설정 미존재 거래처 — dcConfig null
       return ok({ success: true, data: { partner: { partnerCode: '5555555555' }, dcConfig: null } });
     }
+    if (/\/internal\/partners\/by-bizno\/4044040440$/.test(url)) {
+      return Promise.resolve({ status: 404, data: { success: false, error: '거래처를 찾을 수 없습니다' } });
+    }
     // #31 — DC 벌크 (legacy getAllNotionDcConfigs_ 대체)
     if (/\/internal\/partner-dc-configs$/.test(url)) {
       return ok({
@@ -63,8 +66,9 @@ jest.mock('axios', () => {
 const shim = require('../lib/apps-script-shim');
 const code = require('../lib/code');
 const directory = require('../lib/directory');
+const axios = require('axios');
 
-const SHEET_ID = '1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ';
+const SHEET_ID = code._constants.SRC_SHEET_ID;
 const HOME_NAME = '홈멀티_단가인상';
 const SINGLE_NAME = '싱글 세트_단가인상';
 const COMM_NAME = '상업멀티_단가인상';
@@ -545,6 +549,14 @@ describe('initDcConfigFromNotion — 필드별 가드 merge', () => {
     expect(cfg.commDiscount).toBe(0.45);
     expect(cfg.unitRoundTo).toBe(0);
   });
+
+  test('할인율 조회 404 → 임의 기본값 없이 미확정 상태로 반환', async () => {
+    const cfg = await code.initDcConfigFromNotion('404-40-40440');
+    expect(cfg.dcConfigUnavailable).toBe(true);
+    expect(cfg.dcConfigError).toEqual(expect.objectContaining({ status: 404 }));
+    expect(cfg.homeDiscount).toBeNull();
+    expect(cfg.commDiscount).toBeNull();
+  });
 });
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -578,8 +590,29 @@ describe('#31 getAllNotionDcConfigs_ / getCustomerDataAsync dc 부착', () => {
       expect(out).toHaveLength(3);
       expect(out[0].dc.homeDiscount).toBe(0.46); // bizno 매칭
       expect(out[1].dc.homeDiscount).toBe(0.5); // 거래처코드 숫자키 매칭
-      expect(out[2].dc).toBeNull(); // 미등록 → null
+      expect(out[2].dc).toEqual(expect.objectContaining({ dcConfigUnavailable: true })); // 미등록 → 미확정
       expect(out[0].bizno).toBe('9876543210');
+    } finally {
+      fetchPartnersSpy.mockRestore();
+    }
+  });
+
+  test('벌크 DC 응답에 거래처가 없으면 기본 45%가 아닌 미확정 상태로 반환', async () => {
+    const fetchPartnersSpy = jest.spyOn(directory, 'fetchPartners').mockResolvedValue([
+      { code: 'C-404', name: 'DC누락거래처', bizno: '4044040440', manager: '', managerTel: '', rep: '', addr: '', tel: '', note: '', group: '', singleDiscount: 0 },
+    ]);
+    axios.get.mockImplementationOnce(async () => ({
+      status: 200,
+      data: { success: true, data: [] },
+    }));
+
+    try {
+      const customers = await code.getCustomerDataAsync(true);
+      expect(customers[0].dc).toEqual(expect.objectContaining({
+        dcConfigUnavailable: true,
+      }));
+      expect(customers[0].dc.homeDiscount).toBeNull();
+      expect(customers[0].dc.commDiscount).toBeNull();
     } finally {
       fetchPartnersSpy.mockRestore();
     }

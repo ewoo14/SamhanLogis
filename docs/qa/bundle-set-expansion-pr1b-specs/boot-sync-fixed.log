@@ -2,7 +2,7 @@
 2026-06-09T14:26:56.778+09:00  INFO 13536 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "12 - product spec unique active"
 2026-06-09T14:26:56.854+09:00  INFO 13536 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Successfully applied 1 migration to schema "public", now at version v12 (execution time 00:00.040s)
 2026-06-09T14:27:03.402+09:00  INFO 13536 --- [product-service] [           main] c.s.l.product.ProductServiceApplication  : Started ProductServiceApplication in 12.134 seconds (process running for 12.874)
-2026-06-09T14:27:03.478+09:00  INFO 13536 --- [product-service] [           main] c.s.l.p.service.ProductSheetSyncService  : [ProductSheetSync] sync 시작: sheetId=1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ
+2026-06-09T14:27:03.478+09:00  INFO 13536 --- [product-service] [           main] c.s.l.p.service.ProductSheetSyncService  : [ProductSheetSync] sync 시작: sheetId=<SHEET_ID>
 2026-06-09T14:27:14.438+09:00  INFO 13536 --- [product-service] [           main] c.s.l.p.service.ProductSheetSyncService  : [ProductSheetSync] tab '홈멀티': inserted=0, updated=119, unchanged=0, softDeleted=0, skipped=0
 2026-06-09T14:27:33.780+09:00  INFO 13536 --- [product-service] [           main] c.s.l.p.service.ProductSheetSyncService  : [ProductSheetSync] tab '싱글 세트': inserted=0, updated=288, unchanged=0, softDeleted=0, skipped=0
 2026-06-09T14:27:49.447+09:00  INFO 13536 --- [product-service] [           main] c.s.l.p.service.ProductSheetSyncService  : [ProductSheetSync] tab '싱글 구성품': inserted=0, updated=790, unchanged=945, softDeleted=0, skipped=0
@@ -11,5 +11,5 @@
 2026-06-09T14:28:12.153+09:00  INFO 13536 --- [product-service] [           main] c.s.l.p.service.ProductSheetSyncService  : [ProductSheetSync] tab '구형': inserted=0, updated=41, unchanged=0, softDeleted=0, skipped=0
 2026-06-09T14:28:23.685+09:00  INFO 13536 --- [product-service] [           main] c.s.l.p.service.ProductSheetSyncService  : [ProductSheetSync] sync 완료: 총 inserted=0, updated=2139, softDeleted=0, skipped=0, 구성품 linked=1603, bundle marked=343, 사양 linked=8286, duration=80206ms
 2026-06-09T14:28:23.685+09:00  INFO 13536 --- [product-service] [           main] c.s.l.p.s.ProductSheetSyncScheduler      : [ProductSheetSyncScheduler] 부팅 product sync 완료: inserted=0, updated=2139, softDeleted=0
-2026-06-09T14:28:23.685+09:00  INFO 13536 --- [product-service] [           main] c.s.l.p.s.ProductLookupSheetSyncService  : [ProductLookupSheetSync] sync 시작: sheetId=1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ
+2026-06-09T14:28:23.685+09:00  INFO 13536 --- [product-service] [           main] c.s.l.p.s.ProductLookupSheetSyncService  : [ProductLookupSheetSync] sync 시작: sheetId=<SHEET_ID>
 2026-06-09T14:28:25.364+09:00  INFO 13536 --- [product-service] [           main] c.s.l.p.s.ProductLookupSheetSyncService  : [ProductLookupSheetSync] sync 완료: inserted=0, updated=66, unchanged=0, softDeleted=0, skipped=94, duration=1679ms

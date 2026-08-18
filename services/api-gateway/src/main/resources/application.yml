@@ -231,9 +231,9 @@ spring:
           predicates:
             - Path=/auth/admin/menu-catalog
           filters:
-            - name: JwtAuthentication
-              args:
-                secret: ${SAMHAN_AROLOGIS_JWT_SECRET:}
+            # Samhan Public 직원 메뉴 catalog는 일반 auth-service JWT를 사용한다.
+            # Arologis 전용 secret을 지정하면 정상 MANAGER 직원 토큰이 gateway에서 401이 된다.
+            - JwtAuthentication
 
         - id: auth-service-admin-authenticated
           uri: lb://auth-service
@@ -382,6 +382,15 @@ spring:
           uri: lb://product-service
           predicates:
             - Path=/api/v1/products/*/components
+          filters:
+            - JwtAuthentication
+
+        # 카테고리별 구성품 설정 CRUD — ProductCatalogController 풀패스라 no-strip.
+        # generic product-service-v1(StripPrefix=2)보다 먼저 선언하지 않으면 실제 화면 호출이 404가 된다.
+        - id: product-component-settings-v1
+          uri: lb://product-service
+          predicates:
+            - Path=/api/v1/products/*/component-settings
           filters:
             - JwtAuthentication
 

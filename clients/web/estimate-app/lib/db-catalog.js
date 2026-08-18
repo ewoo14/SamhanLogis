@@ -85,7 +85,9 @@ async function multiCatalog(category, classify) {
       model: r.modelCode,
       unit: r.unit || '',
       price: num(r.deliveryPrice), // 납품가
-      list: num(r.releasePrice), // 출고가
+      // desktop/dc-config의 HOME·COMM 변동DC 기준가는 출고단가(outboundPrice)다.
+      // 구형/미적재 행은 releasePrice로만 내려오는 동안 기존 경로를 유지한다.
+      list: num(r.outboundPrice || r.releasePrice),
       formula: '',
       useK2: r.hasVariableDiscount === true,
       capacity: numOrNull(r.capacity),
@@ -130,10 +132,25 @@ async function singleSets(classifyLM, normalizeSize, sanitizeDisp) {
   });
 }
 
-/** 구형. */
+/** 구형 — 변동 전 baseline을 함께 주입한다. */
 async function oldProducts() {
   const rows = await get('/products?category=LEGACY');
+  const baselineRows = await get('/price-baseline');
+  const baselineByModel = new Map(
+    baselineRows
+      .filter((r) => r && r.modelCode)
+      .map((r) => [r.modelCode, r]),
+  );
   return rows.map((r) => ({
+    ...(() => {
+      const baseline = baselineByModel.get(r.modelCode);
+      return baseline
+        ? {
+            preChangePrice: num(baseline.releasePrice),
+            preChangeSheetPrice: num(baseline.deliveryPrice),
+          }
+        : {};
+    })(),
     name: r.name,
     model: r.modelCode,
     unit: r.unit || '',
@@ -159,6 +176,7 @@ async function components(category, sanitizeDisp) {
     name: r.name ? sanitizeDisp(r.name) : '',
     feat: r.variant || '',
     isDefault: r.isDefault === true,
+    qtyMode: r.qtyMode || 'FOLLOW_SET',
     spec: r.specText || '',
     specs: Array.isArray(r.specs) ? r.specs : [],
     qty: r.defaultQty == null ? '1' : String(r.defaultQty),
@@ -193,12 +211,14 @@ async function recommendOduData() {
   return { comm, home, homeEx: home.slice() };
 }
 
-/** 인상 전 단가 비교 → { home, comm, single }. */
+/** 변동 전 단가 비교 → { home, comm, single }. */
 async function priceIncData() {
   const rows = await get('/price-baseline');
   const out = { home: {}, comm: {}, single: {} };
   rows.forEach((r) => {
-    const list = num(r.releasePrice);
+    // 단가변동 옵션은 표면의 옵션 상태를 유지하되, 실제 변동DC 기준가는
+    // desktop·dc-config와 같은 현행 출고단가를 사용한다.
+    const list = num(r.outboundPrice || r.releasePrice);
     const price = num(r.deliveryPrice);
     switch (r.estimateCategory) {
       case 'HOME_MULTI':
@@ -230,7 +250,7 @@ async function priceChangeSchedule() {
   return (resp.data && resp.data.data) || {};
 }
 
-/** 카테고리별 "인상 전 단가" 체크박스 기본값 맵 (S4a #17 defaultPreChange, S4b 소비). */
+/** 카테고리별 변동단가 체크박스 기본값 맵 (defaultPreChange 저장값, estimate-app 소비). */
 async function priceDefaultVariant() {
   const resp = await ax.get(`${PRODUCT_BASE}/products/internal/price-change-default-variant`, {
     headers: { 'X-Internal-Token': INTERNAL_TOKEN },

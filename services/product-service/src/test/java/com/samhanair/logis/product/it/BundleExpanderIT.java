@@ -585,7 +585,73 @@ class BundleExpanderIT extends AbstractPostgresIT {
                 .isEqualByComparingTo("1000000");
     }
 
+    @Test
+    void 관계_단가가_없으면_기존_전역_제품단가로_동작한다() {
+        Category cat = categoryRepository.save(Category.create("GLOBAL-PRICE-FALLBACK", "test", null, 19));
+        Product parent = bundleSet("FALLBACK_SET", "가정용 에어컨", cat, new BigDecimal("1000000"));
+        product("FALLBACK_IN", "실내기", cat, ProductCategory.SINGLE_PART, new BigDecimal("300000"));
+        product("FALLBACK_OUT", "실외기", cat, ProductCategory.SINGLE_PART, new BigDecimal("700000"));
+        comp(parent, "FALLBACK_IN", BundleComponent.ComponentKind.INDOOR);
+        comp(parent, "FALLBACK_OUT", BundleComponent.ComponentKind.OUTDOOR);
+        flush();
+
+        var lines = expander.expand("FALLBACK_SET", BigDecimal.ONE);
+
+        assertThat(unit(lines, "FALLBACK_IN")).isEqualByComparingTo("600000");
+        assertThat(unit(lines, "FALLBACK_OUT")).isEqualByComparingTo("400000");
+    }
+
+    @Test
+    void 배분계약_데이터가_있으면_품명_휴리스틱이_아닌_비중과_고정금액을_쓴다() {
+        Category cat = categoryRepository.save(Category.create("DATA-ALLOCATION", "test", null, 130));
+        Product parent = bundleSet("DATA_ALLOCATION_SET", "1way 냉난방", cat, new BigDecimal("1000000"));
+        product("DATA_IN", "실내기", cat, ProductCategory.SINGLE_PART, new BigDecimal("800000"));
+        product("DATA_OUT", "실외기", cat, ProductCategory.SINGLE_PART, new BigDecimal("200000"));
+        product("DATA_PANEL", "판넬", cat, ProductCategory.SINGLE_PART, new BigDecimal("999999"));
+        BundleComponent indoor = BundleComponent.seed(parent.getId(), "DATA_IN", BigDecimal.ONE,
+                BundleComponent.QtyMode.FOLLOW_SET, BundleComponent.ComponentKind.INDOOR, null, true, null);
+        indoor.changeAllocation(BundleComponent.AllocationMode.AUTO, 2, null);
+        BundleComponent outdoor = BundleComponent.seed(parent.getId(), "DATA_OUT", BigDecimal.ONE,
+                BundleComponent.QtyMode.FOLLOW_SET, BundleComponent.ComponentKind.OUTDOOR, null, true, null);
+        outdoor.changeAllocation(BundleComponent.AllocationMode.AUTO, 8, null);
+        BundleComponent panel = BundleComponent.seed(parent.getId(), "DATA_PANEL", BigDecimal.ONE,
+                BundleComponent.QtyMode.FOLLOW_SET, BundleComponent.ComponentKind.PANEL, null, true, null);
+        panel.changeAllocation(BundleComponent.AllocationMode.FIXED, null, new BigDecimal("100000"));
+        componentRepository.saveAll(List.of(indoor, outdoor, panel));
+        flush();
+
+        var lines = expander.expand("DATA_ALLOCATION_SET", BigDecimal.ONE);
+
+        assertThat(unit(lines, "DATA_PANEL")).isEqualByComparingTo("100000");
+        assertThat(unit(lines, "DATA_IN")).isEqualByComparingTo("180000");
+        assertThat(unit(lines, "DATA_OUT")).isEqualByComparingTo("720000");
+    }
+
     // ── helpers ─────────────────────────────────────────────
+    @Test
+    void RED_contract_rounding_matches_legacy_thousand_won_split() {
+        Category cat = categoryRepository.save(Category.create("DATA-ROUNDING-RED", "test", null, 131));
+        Product parent = bundleSet("DATA_ROUNDING_RED", "bundle", cat, new BigDecimal("999999"));
+        product("ROUND_IN", "indoor", cat, ProductCategory.SINGLE_PART, new BigDecimal("800000"));
+        product("ROUND_OUT", "outdoor", cat, ProductCategory.SINGLE_PART, new BigDecimal("200000"));
+
+        BundleComponent indoor = BundleComponent.seed(parent.getId(), "ROUND_IN", BigDecimal.ONE,
+                BundleComponent.QtyMode.FOLLOW_SET, BundleComponent.ComponentKind.INDOOR, null, true, null);
+        indoor.changeAllocation(BundleComponent.AllocationMode.AUTO, 6, null);
+        BundleComponent outdoor = BundleComponent.seed(parent.getId(), "ROUND_OUT", BigDecimal.ONE,
+                BundleComponent.QtyMode.FOLLOW_SET, BundleComponent.ComponentKind.OUTDOOR, null, true, null);
+        outdoor.changeAllocation(BundleComponent.AllocationMode.AUTO, 4, null);
+        componentRepository.saveAll(List.of(indoor, outdoor));
+        flush();
+
+        var lines = expander.expand("DATA_ROUNDING_RED", BigDecimal.ONE);
+
+        assertThat(unit(lines, "ROUND_IN")).isEqualByComparingTo("599001");
+        assertThat(unit(lines, "ROUND_OUT")).isEqualByComparingTo("400998");
+        assertThat(unit(lines, "ROUND_IN").add(unit(lines, "ROUND_OUT")))
+                .isEqualByComparingTo("999999");
+    }
+
     private Product bundleSet(String code, String name, Category cat, BigDecimal price) {
         Product p = Product.seedFromSheet(name, code, cat, price, price,
                 ProductType.BUNDLE, ProductCategory.SINGLE_SET, UsageScope.BOTH, EstimateCategory.SINGLE_SET);

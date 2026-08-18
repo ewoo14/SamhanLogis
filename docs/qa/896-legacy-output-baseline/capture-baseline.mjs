@@ -142,7 +142,7 @@ try {
     acquiredAtKst: acquiredAt.toLocaleString('sv-SE', { timeZone: 'Asia/Seoul' }).replace(' ', 'T') + '+09:00',
     baseUrl: BASE_URL,
     catalogSource: 'sheet',
-    spreadsheetId: '1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ',
+    spreadsheetId: '<SHEET_ID>',
     app: { name: pkg.name, version: pkg.version, commitSha: resolveCommitSha() },
     tabsReadByCurrentAppConstants: readAppSheetConstants(),
     canonicalTabsByDeveloperDirection: ['홈멀티', '싱글 세트', '싱글 구성품', '상업멀티', '상업멀티 구성'],

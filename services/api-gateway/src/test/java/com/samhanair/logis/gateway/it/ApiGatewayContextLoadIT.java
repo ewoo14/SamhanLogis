@@ -65,6 +65,24 @@ class ApiGatewayContextLoadIT {
         // ApplicationContext 기동 성공이 곧 PASS.
     }
 
+    @Test
+    @DisplayName("Samhan Public 직원 메뉴 catalog는 Arologis 전용 secret을 지정하지 않는다")
+    void samhanMenuCatalog_usesDefaultJwtSecret() {
+        List<RouteDefinition> routes = routeDefinitionLocator.getRouteDefinitions()
+                .collectList()
+                .block();
+
+        RouteDefinition route = findRoute(routes, "auth-service-menu-catalog-arologis");
+        FilterDefinition jwt = route.getFilters().stream()
+                .filter(filter -> filter.getName().equals("JwtAuthentication"))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(jwt.getArgs())
+                .as("Samhan Public 직원 토큰은 일반 gateway JWT secret으로 검증해야 한다")
+                .doesNotContainKey("secret");
+    }
+
     /**
      * PR #461 (RC9 후속) 신규 product-service 풀패스 라우트 계약 박제.
      *
@@ -105,6 +123,7 @@ class ApiGatewayContextLoadIT {
 
         // (1) 존재 + 정확한 Path predicate.
         assertRoutePath(routes, "product-components-v1", "/api/v1/products/*/components");
+        assertRoutePath(routes, "product-component-settings-v1", "/api/v1/products/*/component-settings");
         assertRoutePath(routes, "product-display-orders-v1", "/api/v1/products/display-orders");
         assertRoutePath(routes, "product-catalog-realtime-v1", "/api/v1/products/catalog-realtime");
         assertRoutePath(routes, "product-fixed-discount-v1", "/api/v1/products/*/fixed-discount");
@@ -115,6 +134,7 @@ class ApiGatewayContextLoadIT {
 
         // (2) no-strip — 세 라우트 모두 StripPrefix 필터 미보유.
         assertNoStripPrefix(routes, "product-components-v1");
+        assertNoStripPrefix(routes, "product-component-settings-v1");
         assertNoStripPrefix(routes, "product-display-orders-v1");
         assertNoStripPrefix(routes, "product-catalog-realtime-v1");
         assertNoStripPrefix(routes, "product-fixed-discount-v1");
@@ -129,6 +149,7 @@ class ApiGatewayContextLoadIT {
                 .isGreaterThanOrEqualTo(0);
         for (String id : List.of(
                 "product-components-v1", "product-display-orders-v1", "product-catalog-realtime-v1",
+                "product-component-settings-v1",
                 "product-fixed-discount-v1", "product-classification-v1", "product-goods-type-v1",
                 "product-classifications-v1")) {
             assertThat(indexOfRoute(routes, id))
@@ -139,6 +160,7 @@ class ApiGatewayContextLoadIT {
 
         // (4) #24 JwtAuthentication 필터 보유 — 필터 제거 = 인증 우회 회귀 가드.
         assertHasJwtAuthenticationFilter(routes, "product-components-v1");
+        assertHasJwtAuthenticationFilter(routes, "product-component-settings-v1");
         assertHasJwtAuthenticationFilter(routes, "product-display-orders-v1");
         assertHasJwtAuthenticationFilter(routes, "product-catalog-realtime-v1");
         assertHasJwtAuthenticationFilter(routes, "product-fixed-discount-v1");
