@@ -11,6 +11,7 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
@@ -58,8 +59,15 @@ public class SlipServiceClient {
     private final InternalAuthProperties internalAuthProperties;
 
     public SlipServiceClient(@Qualifier("loadBalancedRestClientBuilder") RestClient.Builder builder,
-                             InternalAuthProperties internalAuthProperties) {
-        this.restClient = builder.baseUrl(SLIP_SERVICE_BASE).build();
+                             InternalAuthProperties internalAuthProperties,
+                             @Value("${app.services.slip-service.base-url:http://slip-service}")
+                             String slipServiceBaseUrl) {
+        RestClient.Builder resolvedBuilder = slipServiceBaseUrl.startsWith("http://localhost:")
+                || slipServiceBaseUrl.startsWith("http://127.0.0.1:")
+                || slipServiceBaseUrl.startsWith("http://d02-slip-service:")
+                ? RestClient.builder()
+                : builder;
+        this.restClient = resolvedBuilder.baseUrl(slipServiceBaseUrl).build();
         this.internalAuthProperties = internalAuthProperties;
     }
 

@@ -22,7 +22,23 @@ vi.mock('../api/closingApi', async (importOriginal) => {
   }
 })
 
-import { DAILY_CLOSING_HEADERS, DailyClosingPage, recalculateLegacyAmounts } from './DailyClosingPage'
+const createSalesSlipDraftMock = vi.fn()
+const createPurchaseSlipDraftMock = vi.fn()
+const listAccountingSlipLinkEligibilityMock = vi.fn()
+vi.mock('../api/salesAccountingSlipApi', async (importOriginal) => {
+  const actual = await importOriginal()
+  return { ...actual, createSalesSlipDraft: (...args: unknown[]) => createSalesSlipDraftMock(...args) }
+})
+vi.mock('../api/purchaseAccountingSlipApi', async (importOriginal) => {
+  const actual = await importOriginal()
+  return { ...actual, createPurchaseSlipDraft: (...args: unknown[]) => createPurchaseSlipDraftMock(...args) }
+})
+vi.mock('../api/accountingSlipLinkApi', async (importOriginal) => {
+  const actual = await importOriginal()
+  return { ...actual, listAccountingSlipLinkEligibility: (...args: unknown[]) => listAccountingSlipLinkEligibilityMock(...args) }
+})
+
+import { DAILY_CLOSING_HEADERS, DailyClosingPage, dailyClosingColumnValue, recalculateLegacyAmounts } from './DailyClosingPage'
 
 const rows = [
   {
@@ -50,7 +66,7 @@ const parityRows = [
     productName: '병합 라인 1', quantity: 1, unitPriceWithVat: 100, supplyAmount: 91,
     vatAmount: 9, total: 100, partnerName: '병합 거래처', partnerCode: 'P-MERGE',
     productPrice: 200, discountRate: 47, grandTotal: 100, confirmation: 'CONFIRMED',
-    confirmationReason: null, accountingPostedAt: '2026-08-14T10:00:00', dcAmount: 0,
+    confirmationReason: null, accountingPostedAt: null, dcAmount: 0,
     sourceStatus: 'CONFIRMED', modelName: null, categoryKey: null, deliveryPrice: null, expectedRate: null,
   },
   {
@@ -58,7 +74,7 @@ const parityRows = [
     productName: '병합 라인 2', quantity: 2, unitPriceWithVat: 200, supplyAmount: 182,
     vatAmount: 18, total: 200, partnerName: '병합 거래처', partnerCode: 'P-MERGE',
     productPrice: 300, discountRate: 47, grandTotal: 200, confirmation: 'CONFIRMED',
-    confirmationReason: null, accountingPostedAt: '2026-08-14T10:00:00', dcAmount: 0,
+    confirmationReason: null, accountingPostedAt: null, dcAmount: 0,
     sourceStatus: 'CONFIRMED', modelName: null, categoryKey: null, deliveryPrice: null, expectedRate: null,
   },
 ]
@@ -96,9 +112,128 @@ afterEach(() => {
   canAccessMock.mockReturnValue(true)
   getDailyClosingRowsMock.mockReset()
   updateDailyClosingAmountMock.mockReset()
+  createSalesSlipDraftMock.mockReset()
+  createPurchaseSlipDraftMock.mockReset()
+  listAccountingSlipLinkEligibilityMock.mockReset()
+})
+
+describe('DailyClosingPage 서버 정본 재진입 잠금', () => {
+  it('매출 생성은 같은 날짜·순번의 별도 매입 원천을 잠그지 않으며 같은 매출 원천 재생성은 차단한다', async () => {
+    const salesRow = {
+      ...editableRows[0],
+      seqNo: 6,
+      slipNo: '2026/08/14-6',
+      slipId: 'outbound-slip-6',
+      lineId: 'outbound-line-6',
+      sourceLineNo: 1,
+      taxType: 'TAXABLE' as const,
+      partnerId: 'partner-6',
+      productCode: 'SKU-OUT-6',
+      accountingPostedAt: null,
+    }
+    const purchaseRow = {
+      ...salesRow,
+      productName: '매입 별도 원천',
+      slipNo: '2026/08/14-6',
+      slipId: 'inbound-slip-6',
+      lineId: 'inbound-line-6',
+    }
+    getDailyClosingRowsMock.mockImplementation(async (_date: string, slipType?: 'OUTBOUND' | 'INBOUND') =>
+      slipType === 'INBOUND' ? [purchaseRow] : [salesRow])
+    let salesCreated = false
+    listAccountingSlipLinkEligibilityMock.mockImplementation(async (sources: Array<{ sourceSlipNo?: string }>) =>
+      sources.map((source) => ({
+        sourceSlipNo: source.sourceSlipNo,
+        readModel: { linkedSlips: salesCreated && source.sourceSlipNo === salesRow.slipNo ? [{ slipNo: '2026/08/14-100' }] : [] },
+      })))
+    createSalesSlipDraftMock.mockImplementation(async () => {
+      salesCreated = true
+      return { slipNo: '2026/08/14-100' }
+    })
+
+    renderPage()
+    fireEvent.click(await screen.findByTestId('daily-closing-tab-result'))
+    const salesButton = await screen.findByTestId('daily-closing-accounting-create-6')
+    await waitFor(() => expect((salesButton as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(salesButton)
+    await waitFor(() => expect(createSalesSlipDraftMock).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect((salesButton as HTMLButtonElement).disabled).toBe(true))
+
+    fireEvent.click(within(screen.getByTestId('closing-kind-toggle')).getByRole('radio', { name: '매입', hidden: true }))
+    fireEvent.click(await screen.findByTestId('daily-closing-tab-result'))
+    const purchaseButton = await screen.findByTestId('daily-closing-accounting-create-6')
+    await waitFor(() => expect((purchaseButton as HTMLButtonElement).disabled).toBe(false))
+    expect(createPurchaseSlipDraftMock).not.toHaveBeenCalled()
+  })
+
+  it('전표 생성 후 화면을 나갔다 다시 들어오면 생성 버튼과 금액 입력을 계속 잠근다', async () => {
+    const sourceRow = {
+      ...editableRows[0],
+      seqNo: 91,
+      slipNo: '2026/08/14-91',
+      slipId: 'source-slip-91',
+      lineId: 'source-line-91',
+      sourceLineNo: 1,
+      taxType: 'TAXABLE',
+      partnerId: 'partner-91',
+      productCode: 'SKU-91',
+      accountingPostedAt: null,
+    }
+    let created = false
+    getDailyClosingRowsMock.mockResolvedValue([sourceRow])
+    createSalesSlipDraftMock.mockImplementation(async () => {
+      created = true
+      return { slipNo: '2026/08/14-191' }
+    })
+    listAccountingSlipLinkEligibilityMock.mockImplementation(async () => created
+      ? [{ sourceSlipNo: '2026/08/14-91', readModel: { linkedSlips: [{ slipNo: '2026/08/14-191' }] } }]
+      : [{ sourceSlipNo: '2026/08/14-91', readModel: { linkedSlips: [] } }])
+
+    const first = renderPage()
+    fireEvent.click(await screen.findByTestId('daily-closing-tab-result'))
+    await waitFor(() => expect(listAccountingSlipLinkEligibilityMock).toHaveBeenCalledTimes(1))
+    const createButton = await screen.findByTestId('daily-closing-accounting-create-91')
+    expect((createButton as HTMLButtonElement).disabled).toBe(false)
+    fireEvent.click(createButton)
+    await waitFor(() => expect(createSalesSlipDraftMock).toHaveBeenCalledTimes(1))
+
+    first.unmount()
+    renderPage()
+    fireEvent.click(await screen.findByTestId('daily-closing-tab-result'))
+
+    await waitFor(() => expect(listAccountingSlipLinkEligibilityMock).toHaveBeenCalledTimes(2))
+    expect((await screen.findByTestId('daily-closing-accounting-create-91') as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByTestId('daily-closing-unit-91') as HTMLInputElement).disabled).toBe(true)
+  })
+
+  it('서버 정본에 아직 연결이 없으면 재진입 후에도 생성과 금액 편집을 허용한다', async () => {
+    const sourceRow = { ...editableRows[0], seqNo: 92, slipNo: '2026/08/14-92', slipId: 'source-slip-92', lineId: 'source-line-92', sourceLineNo: 1, taxType: 'TAXABLE', partnerId: 'partner-92', productCode: 'SKU-92', accountingPostedAt: null }
+    getDailyClosingRowsMock.mockResolvedValue([sourceRow])
+    listAccountingSlipLinkEligibilityMock.mockResolvedValue([{ sourceSlipNo: '2026/08/14-92', readModel: { linkedSlips: [] } }])
+
+    const first = renderPage()
+    fireEvent.click(await screen.findByTestId('daily-closing-tab-result'))
+    first.unmount()
+    renderPage()
+    fireEvent.click(await screen.findByTestId('daily-closing-tab-result'))
+
+    const createButton = await screen.findByTestId('daily-closing-accounting-create-92')
+    expect((createButton as HTMLButtonElement).disabled).toBe(false)
+    expect((screen.getByTestId('daily-closing-unit-92') as HTMLInputElement).disabled).toBe(false)
+  })
 })
 
 describe('DailyClosingPage S3 레거시 단일표', () => {
+  it.each([
+    ['거래처명', 'partnerName', '거래처'],
+    ['거래처코드', 'partnerCode', 'P-2026-0017'],
+    ['출고가', 'productPrice', '520300'],
+    ['할인율', 'discountRate', '0'],
+    ['총계', 'grandTotal', '520300'],
+  ] as const)('열 헤더 %s 의 값은 %s 원천값이다', (header, _source, expected) => {
+    expect(dailyClosingColumnValue(rows[1]!, header)).toBe(expected)
+  })
+
   it('출고일로 조회하고 레거시 17열을 지정 순서로 표시한다', async () => {
     getDailyClosingRowsMock.mockResolvedValue(rows)
     renderPage()
@@ -109,28 +244,47 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
       .toEqual([...DAILY_CLOSING_HEADERS])
     expect(screen.getByRole('tab', { name: /^결과/ })).toBeTruthy()
     expect(screen.getByRole('tab', { name: /^선발행/ })).toBeTruthy()
+    fireEvent.click(screen.getByRole('tab', { name: /^선발행/ }))
     expect(screen.getByText('확보 품목')).toBeTruthy()
+  })
+
+  it('17열의 거래처·가격 축은 헤더 순서대로 DOM에 놓인다', async () => {
+    getDailyClosingRowsMock.mockResolvedValue([rows[1]!])
+    renderPage()
+    fireEvent.click(screen.getByRole('tab', { name: /^선발행/ }))
+
+    const table = await screen.findByTestId('daily-closing-table')
+    const dataRow = within(table).getByTestId('daily-closing-data-row-0')
+    const cells = Array.from(dataRow.children)
+    expect(cells.map((cell) => cell.getAttribute('data-testid'))).toEqual([
+      'daily-closing-cell-0-DC', 'daily-closing-cell-0-일자', 'daily-closing-cell-0-번호',
+      'daily-closing-cell-0-창고명', 'daily-closing-cell-0-품목명', 'daily-closing-cell-0-수량',
+      'daily-closing-cell-0-단가(VAT포함)', 'daily-closing-cell-0-공급가액',
+      'daily-closing-cell-0-부가세', 'daily-closing-cell-0-합계',
+      'daily-closing-cell-0-거래처명', 'daily-closing-cell-0-거래처코드',
+      'daily-closing-cell-0-출고가', 'daily-closing-cell-0-할인율', 'daily-closing-cell-0-총계',
+      'daily-closing-cell-0-확인', 'daily-closing-cell-0-회계반영일자',
+    ])
   })
 
   it('posted_at 유무로 결과와 선발행을 분리한다', async () => {
     getDailyClosingRowsMock.mockResolvedValue(rows)
     renderPage()
 
-    await screen.findByText('확보 품목')
-    expect(screen.queryByText('미확보 품목')).toBeNull()
+    await screen.findByText('미확보 품목')
+    expect(screen.queryByText('확보 품목')).toBeNull()
     fireEvent.click(screen.getByRole('tab', { name: /^선발행/ }))
-    expect(screen.getByText('미확보 품목')).toBeTruthy()
-    expect(screen.getByText('출고가·DC조건 원천 미확보')).toBeTruthy()
-    fireEvent.click(screen.getByRole('tab', { name: /^결과/ }))
     expect(screen.getByText('확보 품목')).toBeTruthy()
     expect(screen.queryByText('미확보 품목')).toBeNull()
+    fireEvent.click(screen.getByRole('tab', { name: /^결과/ }))
+    expect(screen.getByText('미확보 품목')).toBeTruthy()
+    expect(screen.getByText('출고가·DC조건 원천 미확보')).toBeTruthy()
   })
 
   it('null과 빈 원천값을 레거시처럼 0으로 표시한다', async () => {
     getDailyClosingRowsMock.mockResolvedValue(rows)
     renderPage()
-    await screen.findByText('확보 품목')
-    fireEvent.click(screen.getByRole('tab', { name: /^선발행/ }))
+    await screen.findByText('미확보 품목')
     const table = screen.getByTestId('daily-closing-table')
     expect(table.textContent).toContain('0')
   })
@@ -138,6 +292,7 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
   it('확장행에서 현대 검증값과 DC액을 표시한다', async () => {
     getDailyClosingRowsMock.mockResolvedValue(rows)
     renderPage()
+    fireEvent.click(screen.getByRole('tab', { name: /^선발행/ }))
     await screen.findByText('확보 품목')
     fireEvent.click(screen.getByRole('button', { name: '상세 펼치기 17' }))
     expect(await screen.findByTestId('daily-closing-expanded-17')).toBeTruthy()
@@ -177,8 +332,8 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
   it('단가 변경 시 할인율과 공급가액·부가세·합계·총계가 화면에서 바뀐다', async () => {
     getDailyClosingRowsMock.mockResolvedValue(editableRows)
     renderPage()
-    fireEvent.click(await screen.findByRole('tab', { name: /^선발행/ }))
-
+    await screen.findByTestId('daily-closing-table')
+    fireEvent.click(await screen.findByRole('tab', { name: /^결과/ }))
     fireEvent.change(screen.getByTestId('daily-closing-unit-81'), { target: { value: '8,000' } })
 
     expect((screen.getByTestId('daily-closing-rate-81') as HTMLInputElement).value).toBe('20')
@@ -199,7 +354,8 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
   it('할인율 변경 시 출고가 기준으로 단가가 화면에서 바뀐다', async () => {
     getDailyClosingRowsMock.mockResolvedValue(editableRows)
     renderPage()
-    fireEvent.click(await screen.findByRole('tab', { name: /^선발행/ }))
+    await screen.findByTestId('daily-closing-table')
+    fireEvent.click(await screen.findByRole('tab', { name: /^결과/ }))
 
     fireEvent.change(screen.getByTestId('daily-closing-rate-81'), { target: { value: '47' } })
 
@@ -209,7 +365,8 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
   it('출고가 변경 시 단가는 유지하고 할인율을 다시 계산한다', async () => {
     getDailyClosingRowsMock.mockResolvedValue(editableRows)
     renderPage()
-    fireEvent.click(await screen.findByRole('tab', { name: /^선발행/ }))
+    await screen.findByTestId('daily-closing-table')
+    fireEvent.click(await screen.findByRole('tab', { name: /^결과/ }))
 
     fireEvent.change(screen.getByTestId('daily-closing-price-81'), { target: { value: '20,000' } })
 
@@ -220,11 +377,33 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
   it('회계전표가 있는 행은 금액 입력이 비활성이다', async () => {
     getDailyClosingRowsMock.mockResolvedValue(editableRows)
     renderPage()
+    await screen.findByTestId('daily-closing-table')
+    fireEvent.click(screen.getByRole('tab', { name: /^선발행/ }))
     await screen.findByText('회계 반영 품목')
 
     expect((screen.getByTestId('daily-closing-unit-82') as HTMLInputElement).disabled).toBe(true)
     expect((screen.getByTestId('daily-closing-rate-82') as HTMLInputElement).disabled).toBe(true)
-    expect(screen.getByText('수정 불가')).toBeTruthy()
+    expect((screen.getByTestId('daily-closing-unit-82') as HTMLInputElement).title).toContain('회계전표')
+  })
+
+  it('잠긴 행과 편집 가능한 행의 금액 셀 렌더 구조와 행 높이 기준이 같다', async () => {
+    getDailyClosingRowsMock.mockResolvedValue([
+      { ...editableRows[0]!, accountingPostedAt: '2026-08-14T10:00:00' },
+      { ...editableRows[1]!, accountingPostedAt: '2026-08-14T11:00:00', amountEditable: true },
+    ])
+    renderPage()
+    fireEvent.click(screen.getByRole('tab', { name: /^선발행/ }))
+
+    const table = await screen.findByTestId('daily-closing-table')
+    const editableUnitCell = within(table).getByTestId('daily-closing-unit-81').closest('td')!
+    const lockedUnitCell = within(table).getByTestId('daily-closing-unit-82').closest('td')!
+
+    expect(lockedUnitCell.children.length).toBe(editableUnitCell.children.length)
+    expect(editableUnitCell.closest('tr')?.getAttribute('style')).toContain('height: 57px')
+    expect(lockedUnitCell.closest('tr')?.getAttribute('style')).toContain('height: 57px')
+    expect((within(lockedUnitCell).getByRole('textbox') as HTMLInputElement).title).toContain('회계전표')
+    expect(editableUnitCell.querySelector('span')).toBeNull()
+    expect(lockedUnitCell.querySelector('span')).toBeNull()
   })
 
   it('레거시처럼 네 개의 상단 탭과 표 위 액션 줄을 사용한다', async () => {
@@ -302,7 +481,8 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
       }
     })
     renderPage()
-    fireEvent.click(await screen.findByRole('tab', { name: '선발행' }))
+    await screen.findByTestId('daily-closing-table')
+    fireEvent.click(await screen.findByRole('tab', { name: /^결과/ }))
 
     fireEvent.change(screen.getByTestId('daily-closing-unit-81'), { target: { value: '8,100' } })
     fireEvent.change(screen.getByTestId('daily-closing-unit-83'), { target: { value: '8,200' } })
@@ -319,7 +499,8 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
     getDailyClosingRowsMock.mockResolvedValue([editableRows[0], secondLine])
     updateDailyClosingAmountMock.mockResolvedValue(undefined)
     renderPage()
-    fireEvent.click(await screen.findByRole('tab', { name: /^선발행/ }))
+    await screen.findByTestId('daily-closing-table')
+    fireEvent.click(await screen.findByRole('tab', { name: /^결과/ }))
 
     fireEvent.change(screen.getAllByTestId('daily-closing-unit-81')[0]!, { target: { value: '8,100' } })
     fireEvent.change(screen.getAllByLabelText('단가(VAT포함) 81')[1]!, { target: { value: '5,100' } })
@@ -335,7 +516,8 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
   it('저장 메타데이터가 없는 편집행은 저장 버튼이 비활성이고 이유를 표시한다', async () => {
     getDailyClosingRowsMock.mockResolvedValue([{ ...editableRows[0], slipId: null, lineId: null, updatedAt: null }])
     renderPage()
-    fireEvent.click(await screen.findByRole('tab', { name: /^선발행/ }))
+    await screen.findByTestId('daily-closing-table')
+    fireEvent.click(await screen.findByRole('tab', { name: /^결과/ }))
 
     fireEvent.change(screen.getByTestId('daily-closing-unit-81'), { target: { value: '8,100' } })
 
@@ -347,7 +529,8 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
   it('편집 입력 높이는 같고 할인율 접미사는 입력 옆 inline-flex로 배치된다', async () => {
     getDailyClosingRowsMock.mockResolvedValue(editableRows)
     renderPage()
-    fireEvent.click(await screen.findByRole('tab', { name: /^선발행/ }))
+    await screen.findByTestId('daily-closing-table')
+    fireEvent.click(await screen.findByRole('tab', { name: /^결과/ }))
 
     const unit = screen.getByTestId('daily-closing-unit-81') as HTMLInputElement
     const price = screen.getByTestId('daily-closing-price-81') as HTMLInputElement
@@ -385,7 +568,8 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
     getDailyClosingRowsMock.mockResolvedValue(fourLineSlip)
     updateDailyClosingAmountMock.mockResolvedValue(undefined)
     renderPage()
-    fireEvent.click(await screen.findByRole('tab', { name: '선발행' }))
+    await screen.findByTestId('daily-closing-table')
+    fireEvent.click(await screen.findByRole('tab', { name: /^결과/ }))
 
     const firstRow = screen.getByText('첫 행').closest('tr')!
     fireEvent.change(within(firstRow).getByLabelText('단가(VAT포함) 6'), { target: { value: '17,000' } })
@@ -498,5 +682,25 @@ describe('DailyClosingPage S3 레거시 단일표', () => {
     const setData = vi.fn()
     fireEvent.copy(table, { clipboardData: { setData } })
     expect(setData).toHaveBeenCalledWith('text/plain', '9,091\n9,091')
+  })
+
+  it('금액 편집 뒤 정렬과 열 필터는 화면의 최신 draft 값을 사용한다', async () => {
+    getDailyClosingRowsMock.mockResolvedValue(editableRows.slice(0, 2))
+    renderPage()
+
+    fireEvent.click(screen.getByRole('tab', { name: /^결과/ }))
+    const table = await screen.findByTestId('daily-closing-table')
+    const priceInput = within(table).getByDisplayValue('10,000')
+    fireEvent.change(priceInput, { target: { value: '20,000' } })
+
+    fireEvent.click(screen.getByTestId('daily-closing-sort-asc-출고가'))
+    let dataRows = Array.from(table.querySelectorAll('[data-testid^="daily-closing-data-row-"]'))
+    expect(dataRows[0]?.textContent).toContain('편집 품목')
+
+    fireEvent.click(screen.getByTestId('daily-closing-filter-button-출고가'))
+    fireEvent.change(screen.getByLabelText('출고가 필터 검색'), { target: { value: '20,000' } })
+    dataRows = Array.from(table.querySelectorAll('[data-testid^="daily-closing-data-row-"]'))
+    expect(dataRows).toHaveLength(1)
+    expect(dataRows[0]?.textContent).toContain('편집 품목')
   })
 })

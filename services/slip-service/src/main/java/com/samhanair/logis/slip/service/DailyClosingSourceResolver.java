@@ -20,15 +20,20 @@ public class DailyClosingSourceResolver {
     private final AccountingPostedAtClient accountingPostedAtClient;
 
     public SourceValues resolve(Slip slip, SlipLine line) {
-        Optional<java.math.BigDecimal> productPrice = productPriceHistoryClient
+        Optional<ProductPriceHistoryClient.ApplicablePrice> applicable = productPriceHistoryClient
                 .applicable(line.getProductId(), slip.getSlipDate());
         Optional<String> dcCondition = dcConfigReadClient.condition(slip.getPartnerCode());
         java.time.LocalDateTime postedAt = accountingPostedAtClient.find(slip.getSlipNo());
         ArrayList<String> missing = new ArrayList<>();
-        if (productPrice.isEmpty()) missing.add("출고가");
+        if (applicable.isEmpty()) missing.add("출고가·견적품목");
         if (dcCondition.isEmpty()) missing.add("DC조건");
         if (postedAt == null) missing.add("회계반영일자(posted_at)");
-        return new SourceValues(productPrice.orElse(null), dcCondition.orElse(null), postedAt,
-                missing.isEmpty() ? null : String.join(", ", missing) + " 원천 미확보");
+        ProductPriceHistoryClient.ApplicablePrice price = applicable.orElse(null);
+        String category = line.getCategoryKey() != null ? line.getCategoryKey()
+                : price == null || price.estimateCategories().isEmpty() ? null
+                : String.join(", ", price.estimateCategories());
+        return new SourceValues(price == null ? null : price.release(), dcCondition.orElse(null), postedAt,
+                missing.isEmpty() ? null : String.join(", ", missing) + " 원천 미확보",
+                category, price == null ? null : price.delivery(), null);
     }
 }

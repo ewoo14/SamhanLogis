@@ -6,6 +6,7 @@ import com.samhanair.logis.security.InternalAuthProperties;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -20,7 +21,7 @@ public class ProductPriceHistoryClient {
     private final InternalAuthProperties auth;
     private final ObjectMapper mapper;
 
-    public Optional<BigDecimal> applicable(UUID productId, LocalDate asOf) {
+    public Optional<ApplicablePrice> applicable(UUID productId, LocalDate asOf) {
         if (productId == null || asOf == null || auth.getToken() == null || auth.getToken().isBlank()) {
             return Optional.empty();
         }
@@ -33,10 +34,16 @@ public class ProductPriceHistoryClient {
                     .header("X-Internal-Token", auth.getToken())
                     .retrieve().body(String.class);
             JsonNode data = mapper.readTree(body).path("data");
-            return data.path("release").isNumber()
-                    ? Optional.of(data.path("release").decimalValue()) : Optional.empty();
+            if (!data.path("release").isNumber()) return Optional.empty();
+            List<String> categories = new java.util.ArrayList<>();
+            data.path("estimateCategories").forEach(node -> categories.add(node.asText()));
+            return Optional.of(new ApplicablePrice(data.path("release").decimalValue(),
+                    data.path("delivery").isNumber() ? data.path("delivery").decimalValue() : null,
+                    categories));
         } catch (RuntimeException | java.io.IOException ex) {
             return Optional.empty();
         }
     }
+
+    public record ApplicablePrice(BigDecimal release, BigDecimal delivery, List<String> estimateCategories) {}
 }

@@ -1,0 +1,3320 @@
+{
+  "capturedAt": "2026-08-17T11:36:51.989Z",
+  "dates": {
+    "2026-08-03": {
+      "apiRowCount": 4,
+      "apiRows": [
+        {
+          "dcCondition": "홈45% / 360 -50000 / 4way -80000 / 1way -60000 / 스탠드 -20000 / 디럭스 -10000 / 1등급 -30000",
+          "slipDate": "2026-08-03",
+          "seqNo": 6,
+          "warehouseName": null,
+          "productName": "무풍 1way 냉방전용 실내기",
+          "modelName": "AC060CN1DBC1",
+          "quantity": 1,
+          "unitPriceWithVat": 641480,
+          "supplyAmount": 583164,
+          "vatAmount": 58316,
+          "total": 641480,
+          "partnerName": "(주)삼한공조시스템",
+          "partnerCode": "2148720659",
+          "productPrice": 475200,
+          "discountRate": -35,
+          "grandTotal": 641480,
+          "confirmation": "CONFIRMED",
+          "confirmationReason": null,
+          "accountingPostedAt": null,
+          "dcAmount": -166280,
+          "sourceStatus": "CONFIRMED",
+          "amountEditable": true,
+          "amountEditBlockReason": null
+        },
+        {
+          "dcCondition": "홈45% / 360 -50000 / 4way -80000 / 1way -60000 / 스탠드 -20000 / 디럭스 -10000 / 1등급 -30000",
+          "slipDate": "2026-08-03",
+          "seqNo": 6,
+          "warehouseName": null,
+          "productName": "무풍 1way 냉방전용 실외기",
+          "modelName": "AC060CX1DBC1",
+          "quantity": 1,
+          "unitPriceWithVat": 963040,
+          "supplyAmount": 875491,
+          "vatAmount": 87549,
+          "total": 963040,
+          "partnerName": "(주)삼한공조시스템",
+          "partnerCode": "2148720659",
+          "productPrice": 1023000,
+          "discountRate": 6,
+          "grandTotal": 963040,
+          "confirmation": "CONFIRMED",
+          "confirmationReason": null,
+          "accountingPostedAt": null,
+          "dcAmount": 59960,
+          "sourceStatus": "CONFIRMED",
+          "amountEditable": true,
+          "amountEditBlockReason": null
+        },
+        {
+          "dcCondition": "홈45% / 360 -50000 / 4way -80000 / 1way -60000 / 스탠드 -20000 / 디럭스 -10000 / 1등급 -30000",
+          "slipDate": "2026-08-03",
+          "seqNo": 6,
+          "warehouseName": null,
+          "productName": "판넬 1way 무풍대형 WIFI 내장",
+          "modelName": "PC1BWSK3NW",
+          "quantity": 1,
+          "unitPriceWithVat": 118580,
+          "supplyAmount": 107800,
+          "vatAmount": 10780,
+          "total": 118580,
+          "partnerName": "(주)삼한공조시스템",
+          "partnerCode": "2148720659",
+          "productPrice": 215600,
+          "discountRate": 45,
+          "grandTotal": 118580,
+          "confirmation": "CONFIRMED",
+          "confirmationReason": null,
+          "accountingPostedAt": null,
+          "dcAmount": 97020,
+          "sourceStatus": "CONFIRMED",
+          "amountEditable": true,
+          "amountEditBlockReason": null
+        },
+        {
+          "dcCondition": "홈45% / 360 -50000 / 4way -80000 / 1way -60000 / 스탠드 -20000 / 디럭스 -10000 / 1등급 -30000",
+          "slipDate": "2026-08-03",
+          "seqNo": 6,
+          "warehouseName": null,
+          "productName": "무선리모컨(냉방전용)",
+          "modelName": "AR-EC05",
+          "quantity": 1,
+          "unitPriceWithVat": 16000,
+          "supplyAmount": 14545,
+          "vatAmount": 1455,
+          "total": 16000,
+          "partnerName": "(주)삼한공조시스템",
+          "partnerCode": "2148720659",
+          "productPrice": 25300,
+          "discountRate": 37,
+          "grandTotal": 16000,
+          "confirmation": "CONFIRMED",
+          "confirmationReason": null,
+          "accountingPostedAt": null,
+          "dcAmount": 9300,
+          "sourceStatus": "CONFIRMED",
+          "amountEditable": true,
+          "amountEditBlockReason": null
+        }
+      ],
+      "availableTabs": [
+        "결과",
+        "선발행",
+        "마감이력",
+        "상세"
+      ],
+      "tabs": {
+        "결과": {
+          "headers": [
+            {
+              "text": "DC",
+              "x": 281.5,
+              "width": 128.65625
+            },
+            {
+              "text": "일자",
+              "x": 410.15625,
+              "width": 135.484375
+            },
+            {
+              "text": "번호",
+              "x": 545.640625,
+              "width": 241.234375
+            },
+            {
+              "text": "창고명",
+              "x": 786.875,
+              "width": 150.265625
+            },
+            {
+              "text": "품목명",
+              "x": 937.140625,
+              "width": 241.234375
+            },
+            {
+              "text": "수량",
+              "x": 1178.375,
+              "width": 135.484375
+            },
+            {
+              "text": "단가(VAT포함)",
+              "x": 1313.859375,
+              "width": 206.453125
+            },
+            {
+              "text": "공급가액",
+              "x": 1520.3125,
+              "width": 165.078125
+            },
+            {
+              "text": "부가세",
+              "x": 1685.390625,
+              "width": 150.265625
+            },
+            {
+              "text": "합계",
+              "x": 1835.65625,
+              "width": 135.484375
+            },
+            {
+              "text": "거래처명",
+              "x": 1971.140625,
+              "width": 241.234375
+            },
+            {
+              "text": "거래처코드",
+              "x": 2212.375,
+              "width": 179.859375
+            },
+            {
+              "text": "출고가",
+              "x": 2392.234375,
+              "width": 150.265625
+            },
+            {
+              "text": "할인율",
+              "x": 2542.5,
+              "width": 150.265625
+            },
+            {
+              "text": "총계",
+              "x": 2692.765625,
+              "width": 135.484375
+            },
+            {
+              "text": "확인",
+              "x": 2828.25,
+              "width": 135.484375
+            },
+            {
+              "text": "회계반영일자",
+              "x": 2963.734375,
+              "width": 194.765625
+            }
+          ],
+          "rowCount": 0,
+          "rows": []
+        },
+        "선발행": {
+          "headers": [
+            {
+              "text": "DC",
+              "x": 281.5,
+              "width": 568.15625
+            },
+            {
+              "text": "일자",
+              "x": 849.65625,
+              "width": 109.359375
+            },
+            {
+              "text": "번호",
+              "x": 959.015625,
+              "width": 194.71875
+            },
+            {
+              "text": "창고명",
+              "x": 1153.734375,
+              "width": 121.296875
+            },
+            {
+              "text": "품목명",
+              "x": 1275.03125,
+              "width": 194.71875
+            },
+            {
+              "text": "수량",
+              "x": 1469.75,
+              "width": 109.359375
+            },
+            {
+              "text": "단가(VAT포함)",
+              "x": 1579.109375,
+              "width": 182.8125
+            },
+            {
+              "text": "공급가액",
+              "x": 1761.921875,
+              "width": 133.234375
+            },
+            {
+              "text": "부가세",
+              "x": 1895.15625,
+              "width": 121.296875
+            },
+            {
+              "text": "합계",
+              "x": 2016.453125,
+              "width": 109.359375
+            },
+            {
+              "text": "거래처명",
+              "x": 2125.8125,
+              "width": 194.71875
+            },
+            {
+              "text": "거래처코드",
+              "x": 2320.53125,
+              "width": 219.421875
+            },
+            {
+              "text": "출고가",
+              "x": 2539.953125,
+              "width": 121.296875
+            },
+            {
+              "text": "할인율",
+              "x": 2661.25,
+              "width": 121.296875
+            },
+            {
+              "text": "총계",
+              "x": 2782.546875,
+              "width": 109.359375
+            },
+            {
+              "text": "확인",
+              "x": 2891.90625,
+              "width": 109.359375
+            },
+            {
+              "text": "회계반영일자",
+              "x": 3001.265625,
+              "width": 157.234375
+            }
+          ],
+          "rowCount": 4,
+          "rows": [
+            {
+              "testId": "daily-closing-data-row-0",
+              "cells": [
+                {
+                  "dataTestId": "daily-closing-cell-0-DC",
+                  "text": "홈45% / 360 -50000 / 4way -80000 / 1way -60000 / 스탠드 -20000 / 디럭스 -10000 / 1등급 -30000",
+                  "x": 281.5,
+                  "width": 568.15625,
+                  "colSpan": 1,
+                  "rowSpan": 4,
+                  "visualIndex": 0
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-일자",
+                  "text": "2026-08-03",
+                  "x": 849.65625,
+                  "width": 109.359375,
+                  "colSpan": 1,
+                  "rowSpan": 4,
+                  "visualIndex": 1
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-번호",
+                  "text": "6",
+                  "x": 959.015625,
+                  "width": 194.71875,
+                  "colSpan": 1,
+                  "rowSpan": 4,
+                  "visualIndex": 2
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-창고명",
+                  "text": "",
+                  "x": 1153.734375,
+                  "width": 121.296875,
+                  "colSpan": 1,
+                  "rowSpan": 4,
+                  "visualIndex": 3
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-품목명",
+                  "text": "무풍 1way 냉방전용 실내기상세 펼치기",
+                  "x": 1275.03125,
+                  "width": 194.71875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 4
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-수량",
+                  "text": "1",
+                  "x": 1469.75,
+                  "width": 109.359375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 5
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-단가(VAT포함)",
+                  "text": "641,480",
+                  "x": 1579.109375,
+                  "width": 182.8125,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 6
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-공급가액",
+                  "text": "583,164",
+                  "x": 1761.921875,
+                  "width": 133.234375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 7
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-부가세",
+                  "text": "58,316",
+                  "x": 1895.15625,
+                  "width": 121.296875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 8
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-합계",
+                  "text": "641,480",
+                  "x": 2016.453125,
+                  "width": 109.359375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 9
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-출고가",
+                  "text": "475,200",
+                  "x": 2125.8125,
+                  "width": 194.71875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 10
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-할인율",
+                  "text": "-35",
+                  "x": 2320.53125,
+                  "width": 219.421875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 11
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-총계",
+                  "text": "641,480",
+                  "x": 2539.953125,
+                  "width": 121.296875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 12
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-거래처명",
+                  "text": "(주)삼한공조시스템",
+                  "x": 2661.25,
+                  "width": 121.296875,
+                  "colSpan": 1,
+                  "rowSpan": 4,
+                  "visualIndex": 13
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-거래처코드",
+                  "text": "2148720659",
+                  "x": 2782.546875,
+                  "width": 109.359375,
+                  "colSpan": 1,
+                  "rowSpan": 4,
+                  "visualIndex": 14
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-확인",
+                  "text": "확인",
+                  "x": 2891.90625,
+                  "width": 109.359375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 15
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-회계반영일자",
+                  "text": "",
+                  "x": 3001.265625,
+                  "width": 157.234375,
+                  "colSpan": 1,
+                  "rowSpan": 4,
+                  "visualIndex": 16
+                }
+              ]
+            },
+            {
+              "testId": "daily-closing-data-row-1",
+              "cells": [
+                {
+                  "dataTestId": "daily-closing-cell-1-품목명",
+                  "text": "무풍 1way 냉방전용 실외기상세 펼치기",
+                  "x": 1275.03125,
+                  "width": 194.71875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 4
+                },
+                {
+                  "dataTestId": "daily-closing-cell-1-수량",
+                  "text": "1",
+                  "x": 1469.75,
+                  "width": 109.359375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 5
+                },
+                {
+                  "dataTestId": "daily-closing-cell-1-단가(VAT포함)",
+                  "text": "963,040",
+                  "x": 1579.109375,
+                  "width": 182.8125,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 6
+                },
+                {
+                  "dataTestId": "daily-closing-cell-1-공급가액",
+                  "text": "875,491",
+                  "x": 1761.921875,
+                  "width": 133.234375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 7
+                },
+                {
+                  "dataTestId": "daily-closing-cell-1-부가세",
+                  "text": "87,549",
+                  "x": 1895.15625,
+                  "width": 121.296875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 8
+                },
+                {
+                  "dataTestId": "daily-closing-cell-1-합계",
+                  "text": "963,040",
+                  "x": 2016.453125,
+                  "width": 109.359375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 9
+                },
+                {
+                  "dataTestId": "daily-closing-cell-1-출고가",
+                  "text": "1,023,000",
+                  "x": 2125.8125,
+                  "width": 194.71875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 10
+                },
+                {
+                  "dataTestId": "daily-closing-cell-1-할인율",
+                  "text": "6",
+                  "x": 2320.53125,
+                  "width": 219.421875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 11
+                },
+                {
+                  "dataTestId": "daily-closing-cell-1-총계",
+                  "text": "963,040",
+                  "x": 2539.953125,
+                  "width": 121.296875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 12
+                },
+                {
+                  "dataTestId": "daily-closing-cell-1-확인",
+                  "text": "확인",
+                  "x": 2891.90625,
+                  "width": 109.359375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 15
+                }
+              ]
+            },
+            {
+              "testId": "daily-closing-data-row-2",
+              "cells": [
+                {
+                  "dataTestId": "daily-closing-cell-2-품목명",
+                  "text": "판넬 1way 무풍대형 WIFI 내장상세 펼치기",
+                  "x": 1275.03125,
+                  "width": 194.71875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 4
+                },
+                {
+                  "dataTestId": "daily-closing-cell-2-수량",
+                  "text": "1",
+                  "x": 1469.75,
+                  "width": 109.359375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 5
+                },
+                {
+                  "dataTestId": "daily-closing-cell-2-단가(VAT포함)",
+                  "text": "118,580",
+                  "x": 1579.109375,
+                  "width": 182.8125,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 6
+                },
+                {
+                  "dataTestId": "daily-closing-cell-2-공급가액",
+                  "text": "107,800",
+                  "x": 1761.921875,
+                  "width": 133.234375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 7
+                },
+                {
+                  "dataTestId": "daily-closing-cell-2-부가세",
+                  "text": "10,780",
+                  "x": 1895.15625,
+                  "width": 121.296875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 8
+                },
+                {
+                  "dataTestId": "daily-closing-cell-2-합계",
+                  "text": "118,580",
+                  "x": 2016.453125,
+                  "width": 109.359375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 9
+                },
+                {
+                  "dataTestId": "daily-closing-cell-2-출고가",
+                  "text": "215,600",
+                  "x": 2125.8125,
+                  "width": 194.71875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 10
+                },
+                {
+                  "dataTestId": "daily-closing-cell-2-할인율",
+                  "text": "45",
+                  "x": 2320.53125,
+                  "width": 219.421875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 11
+                },
+                {
+                  "dataTestId": "daily-closing-cell-2-총계",
+                  "text": "118,580",
+                  "x": 2539.953125,
+                  "width": 121.296875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 12
+                },
+                {
+                  "dataTestId": "daily-closing-cell-2-확인",
+                  "text": "확인",
+                  "x": 2891.90625,
+                  "width": 109.359375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 15
+                }
+              ]
+            },
+            {
+              "testId": "daily-closing-data-row-3",
+              "cells": [
+                {
+                  "dataTestId": "daily-closing-cell-3-품목명",
+                  "text": "무선리모컨(냉방전용)상세 펼치기",
+                  "x": 1275.03125,
+                  "width": 194.71875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 4
+                },
+                {
+                  "dataTestId": "daily-closing-cell-3-수량",
+                  "text": "1",
+                  "x": 1469.75,
+                  "width": 109.359375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 5
+                },
+                {
+                  "dataTestId": "daily-closing-cell-3-단가(VAT포함)",
+                  "text": "16,000",
+                  "x": 1579.109375,
+                  "width": 182.8125,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 6
+                },
+                {
+                  "dataTestId": "daily-closing-cell-3-공급가액",
+                  "text": "14,545",
+                  "x": 1761.921875,
+                  "width": 133.234375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 7
+                },
+                {
+                  "dataTestId": "daily-closing-cell-3-부가세",
+                  "text": "1,455",
+                  "x": 1895.15625,
+                  "width": 121.296875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 8
+                },
+                {
+                  "dataTestId": "daily-closing-cell-3-합계",
+                  "text": "16,000",
+                  "x": 2016.453125,
+                  "width": 109.359375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 9
+                },
+                {
+                  "dataTestId": "daily-closing-cell-3-출고가",
+                  "text": "25,300",
+                  "x": 2125.8125,
+                  "width": 194.71875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 10
+                },
+                {
+                  "dataTestId": "daily-closing-cell-3-할인율",
+                  "text": "37",
+                  "x": 2320.53125,
+                  "width": 219.421875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 11
+                },
+                {
+                  "dataTestId": "daily-closing-cell-3-총계",
+                  "text": "16,000",
+                  "x": 2539.953125,
+                  "width": 121.296875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 12
+                },
+                {
+                  "dataTestId": "daily-closing-cell-3-확인",
+                  "text": "확인",
+                  "x": 2891.90625,
+                  "width": 109.359375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 15
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "2026-08-14": {
+      "apiRowCount": 13,
+      "apiRows": [
+        {
+          "dcCondition": null,
+          "slipDate": "2026-08-14",
+          "seqNo": 2,
+          "warehouseName": null,
+          "productName": "판넬 1way 무풍+공기청정 대형 WIFI",
+          "modelName": "PC1BWCK3NW",
+          "quantity": 1,
+          "unitPriceWithVat": 520300,
+          "supplyAmount": 473000,
+          "vatAmount": 47300,
+          "total": 520300,
+          "partnerName": "(주)이레솔루션",
+          "partnerCode": "4038141892",
+          "productPrice": 520300,
+          "discountRate": 0,
+          "grandTotal": 520300,
+          "confirmation": "CONFIRMED",
+          "confirmationReason": null,
+          "accountingPostedAt": null,
+          "dcAmount": 0,
+          "sourceStatus": "CONFIRMED",
+          "amountEditable": true,
+          "amountEditBlockReason": null
+        },
+        {
+          "dcCondition": null,
+          "slipDate": "2026-08-14",
+          "seqNo": 6,
+          "warehouseName": null,
+          "productName": "한경희 선풍기",
+          "modelName": "0000098",
+          "quantity": 1,
+          "unitPriceWithVat": 11000,
+          "supplyAmount": 10000,
+          "vatAmount": 1000,
+          "total": 11000,
+          "partnerName": "능동에어컨(박수천)",
+          "partnerCode": "4483500844",
+          "productPrice": null,
+          "discountRate": null,
+          "grandTotal": 11000,
+          "confirmation": "UNDETERMINED",
+          "confirmationReason": "출고가, DC조건, 회계반영일자(posted_at) 원천 미확보",
+          "accountingPostedAt": null,
+          "dcAmount": null,
+          "sourceStatus": "CONFIRMED",
+          "amountEditable": true,
+          "amountEditBlockReason": null
+        },
+        {
+          "dcCondition": null,
+          "slipDate": "2026-08-14",
+          "seqNo": 7,
+          "warehouseName": null,
+          "productName": "한경희 선풍기",
+          "modelName": "0000098",
+          "quantity": 1,
+          "unitPriceWithVat": 11000,
+          "supplyAmount": 10000,
+          "vatAmount": 1000,
+          "total": 11000,
+          "partnerName": "능동에어컨(박수천)",
+          "partnerCode": "4483500844",
+          "productPrice": null,
+          "discountRate": null,
+          "grandTotal": 11000,
+          "confirmation": "UNDETERMINED",
+          "confirmationReason": "출고가, DC조건, 회계반영일자(posted_at) 원천 미확보",
+          "accountingPostedAt": null,
+          "dcAmount": null,
+          "sourceStatus": "CONFIRMED",
+          "amountEditable": true,
+          "amountEditBlockReason": null
+        },
+        {
+          "dcCondition": null,
+          "slipDate": "2026-08-14",
+          "seqNo": 8,
+          "warehouseName": null,
+          "productName": "한경희 선풍기",
+          "modelName": "0000098",
+          "quantity": 1,
+          "unitPriceWithVat": 10000,
+          "supplyAmount": 9091,
+          "vatAmount": 909,
+          "total": 10000,
+          "partnerName": "능동에어컨(박수천)",
+          "partnerCode": "4483500844",
+          "productPrice": null,
+          "discountRate": null,
+          "grandTotal": 10000,
+          "confirmation": "UNDETERMINED",
+          "confirmationReason": "출고가, DC조건, 회계반영일자(posted_at) 원천 미확보",
+          "accountingPostedAt": null,
+          "dcAmount": null,
+          "sourceStatus": "CONFIRMED",
+          "amountEditable": true,
+          "amountEditBlockReason": null
+        },
+        {
+          "dcCondition": null,
+          "slipDate": "2026-08-14",
+          "seqNo": 9,
+          "warehouseName": null,
+          "productName": "한경희 선풍기",
+          "modelName": "0000098",
+          "quantity": 1,
+          "unitPriceWithVat": 10000,
+          "supplyAmount": 9091,
+          "vatAmount": 909,
+          "total": 10000,
+          "partnerName": "능동에어컨(박수천)",
+          "partnerCode": "4483500844",
+          "productPrice": null,
+          "discountRate": null,
+          "grandTotal": 10000,
+          "confirmation": "UNDETERMINED",
+          "confirmationReason": "출고가, DC조건, 회계반영일자(posted_at) 원천 미확보",
+          "accountingPostedAt": null,
+          "dcAmount": null,
+          "sourceStatus": "CONFIRMED",
+          "amountEditable": true,
+          "amountEditBlockReason": null
+        },
+        {
+          "dcCondition": null,
+          "slipDate": "2026-08-14",
+          "seqNo": 11,
+          "warehouseName": null,
+          "productName": "한경희 선풍기",
+          "modelName": "0000098",
+          "quantity": 1,
+          "unitPriceWithVat": 11000,
+          "supplyAmount": 10000,
+          "vatAmount": 1000,
+          "total": 11000,
+          "partnerName": "능동에어컨(박수천)",
+          "partnerCode": "4483500844",
+          "productPrice": null,
+          "discountRate": null,
+          "grandTotal": 11000,
+          "confirmation": "UNDETERMINED",
+          "confirmationReason": "출고가, DC조건, 회계반영일자(posted_at) 원천 미확보",
+          "accountingPostedAt": null,
+          "dcAmount": null,
+          "sourceStatus": "COMPLETED",
+          "amountEditable": true,
+          "amountEditBlockReason": null
+        },
+        {
+          "dcCondition": null,
+          "slipDate": "2026-08-14",
+          "seqNo": 12,
+          "warehouseName": null,
+          "productName": "한경희 선풍기",
+          "modelName": "0000098",
+          "quantity": 1,
+          "unitPriceWithVat": 11000,
+          "supplyAmount": 10000,
+          "vatAmount": 1000,
+          "total": 11000,
+          "partnerName": "능동에어컨(박수천)",
+          "partnerCode": "4483500844",
+          "productPrice": null,
+          "discountRate": null,
+          "grandTotal": 11000,
+          "confirmation": "UNDETERMINED",
+          "confirmationReason": "출고가, DC조건, 회계반영일자(posted_at) 원천 미확보",
+          "accountingPostedAt": null,
+          "dcAmount": null,
+          "sourceStatus": "COMPLETED",
+          "amountEditable": true,
+          "amountEditBlockReason": null
+        },
+        {
+          "dcCondition": null,
+          "slipDate": "2026-08-14",
+          "seqNo": 13,
+          "warehouseName": null,
+          "productName": "한경희 선풍기",
+          "modelName": "0000098",
+          "quantity": 1,
+          "unitPriceWithVat": 11000,
+          "supplyAmount": 10000,
+          "vatAmount": 1000,
+          "total": 11000,
+          "partnerName": "능동에어컨(박수천)",
+          "partnerCode": "4483500844",
+          "productPrice": null,
+          "discountRate": null,
+          "grandTotal": 11000,
+          "confirmation": "UNDETERMINED",
+          "confirmationReason": "출고가, DC조건, 회계반영일자(posted_at) 원천 미확보",
+          "accountingPostedAt": null,
+          "dcAmount": null,
+          "sourceStatus": "DELIVERED",
+          "amountEditable": true,
+          "amountEditBlockReason": null
+        },
+        {
+          "dcCondition": null,
+          "slipDate": "2026-08-14",
+          "seqNo": 14,
+          "warehouseName": null,
+          "productName": "한경희 선풍기",
+          "modelName": "0000098",
+          "quantity": 1,
+          "unitPriceWithVat": 11000,
+          "supplyAmount": 10000,
+          "vatAmount": 1000,
+          "total": 11000,
+          "partnerName": "능동에어컨(박수천)",
+          "partnerCode": "4483500844",
+          "productPrice": null,
+          "discountRate": null,
+          "grandTotal": 11000,
+          "confirmation": "UNDETERMINED",
+          "confirmationReason": "출고가, DC조건, 회계반영일자(posted_at) 원천 미확보",
+          "accountingPostedAt": null,
+          "dcAmount": null,
+          "sourceStatus": "CONFIRMED",
+          "amountEditable": true,
+          "amountEditBlockReason": null
+        },
+        {
+          "dcCondition": null,
+          "slipDate": "2026-08-14",
+          "seqNo": 15,
+          "warehouseName": null,
+          "productName": "한경희 선풍기",
+          "modelName": "0000098",
+          "quantity": 1,
+          "unitPriceWithVat": 11000,
+          "supplyAmount": 10000,
+          "vatAmount": 1000,
+          "total": 11000,
+          "partnerName": "능동에어컨(박수천)",
+          "partnerCode": "4483500844",
+          "productPrice": null,
+          "discountRate": null,
+          "grandTotal": 11000,
+          "confirmation": "UNDETERMINED",
+          "confirmationReason": "출고가, DC조건, 회계반영일자(posted_at) 원천 미확보",
+          "accountingPostedAt": null,
+          "dcAmount": null,
+          "sourceStatus": "CONFIRMED",
+          "amountEditable": true,
+          "amountEditBlockReason": null
+        },
+        {
+          "dcCondition": null,
+          "slipDate": "2026-08-14",
+          "seqNo": 16,
+          "warehouseName": null,
+          "productName": "한경희 선풍기",
+          "modelName": "0000098",
+          "quantity": 1,
+          "unitPriceWithVat": 11000,
+          "supplyAmount": 10000,
+          "vatAmount": 1000,
+          "total": 11000,
+          "partnerName": "능동에어컨(박수천)",
+          "partnerCode": "4483500844",
+          "productPrice": null,
+          "discountRate": null,
+          "grandTotal": 11000,
+          "confirmation": "UNDETERMINED",
+          "confirmationReason": "출고가, DC조건, 회계반영일자(posted_at) 원천 미확보",
+          "accountingPostedAt": null,
+          "dcAmount": null,
+          "sourceStatus": "CONFIRMED",
+          "amountEditable": true,
+          "amountEditBlockReason": null
+        },
+        {
+          "dcCondition": null,
+          "slipDate": "2026-08-14",
+          "seqNo": 17,
+          "warehouseName": null,
+          "productName": "한경희 선풍기",
+          "modelName": "0000098",
+          "quantity": 1,
+          "unitPriceWithVat": 11000,
+          "supplyAmount": 10000,
+          "vatAmount": 1000,
+          "total": 11000,
+          "partnerName": "능동에어컨(박수천)",
+          "partnerCode": "4483500844",
+          "productPrice": null,
+          "discountRate": null,
+          "grandTotal": 11000,
+          "confirmation": "UNDETERMINED",
+          "confirmationReason": "출고가, DC조건 원천 미확보",
+          "accountingPostedAt": "2026-08-14T11:47:00.896163",
+          "dcAmount": null,
+          "sourceStatus": "CONFIRMED",
+          "amountEditable": false,
+          "amountEditBlockReason": "회계전표가 이미 반영되었습니다."
+        },
+        {
+          "dcCondition": null,
+          "slipDate": "2026-08-14",
+          "seqNo": 18,
+          "warehouseName": null,
+          "productName": "한경희 선풍기",
+          "modelName": "0000098",
+          "quantity": 1,
+          "unitPriceWithVat": 11000,
+          "supplyAmount": 10000,
+          "vatAmount": 1000,
+          "total": 11000,
+          "partnerName": "능동에어컨(박수천)",
+          "partnerCode": "4483500844",
+          "productPrice": null,
+          "discountRate": null,
+          "grandTotal": 11000,
+          "confirmation": "UNDETERMINED",
+          "confirmationReason": "출고가, DC조건, 회계반영일자(posted_at) 원천 미확보",
+          "accountingPostedAt": null,
+          "dcAmount": null,
+          "sourceStatus": "CONFIRMED",
+          "amountEditable": true,
+          "amountEditBlockReason": null
+        }
+      ],
+      "availableTabs": [
+        "결과",
+        "선발행",
+        "마감이력",
+        "상세"
+      ],
+      "tabs": {
+        "결과": {
+          "headers": [
+            {
+              "text": "DC",
+              "x": 281.5,
+              "width": 119.203125
+            },
+            {
+              "text": "일자",
+              "x": 400.703125,
+              "width": 125.53125
+            },
+            {
+              "text": "번호",
+              "x": 526.234375,
+              "width": 223.515625
+            },
+            {
+              "text": "창고명",
+              "x": 749.75,
+              "width": 139.234375
+            },
+            {
+              "text": "품목명",
+              "x": 888.984375,
+              "width": 223.515625
+            },
+            {
+              "text": "수량",
+              "x": 1112.5,
+              "width": 125.53125
+            },
+            {
+              "text": "단가(VAT포함)",
+              "x": 1238.03125,
+              "width": 268.84375
+            },
+            {
+              "text": "공급가액",
+              "x": 1506.875,
+              "width": 152.953125
+            },
+            {
+              "text": "부가세",
+              "x": 1659.828125,
+              "width": 139.234375
+            },
+            {
+              "text": "합계",
+              "x": 1799.0625,
+              "width": 125.53125
+            },
+            {
+              "text": "거래처명",
+              "x": 1924.59375,
+              "width": 223.515625
+            },
+            {
+              "text": "거래처코드",
+              "x": 2148.109375,
+              "width": 251.859375
+            },
+            {
+              "text": "출고가",
+              "x": 2399.96875,
+              "width": 139.234375
+            },
+            {
+              "text": "할인율",
+              "x": 2539.203125,
+              "width": 139.234375
+            },
+            {
+              "text": "총계",
+              "x": 2678.4375,
+              "width": 125.53125
+            },
+            {
+              "text": "확인",
+              "x": 2803.96875,
+              "width": 174.046875
+            },
+            {
+              "text": "회계반영일자",
+              "x": 2978.015625,
+              "width": 180.484375
+            }
+          ],
+          "rowCount": 1,
+          "rows": [
+            {
+              "testId": "daily-closing-data-row-0",
+              "cells": [
+                {
+                  "dataTestId": "daily-closing-cell-0-DC",
+                  "text": "",
+                  "x": 281.5,
+                  "width": 119.203125,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 0
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-일자",
+                  "text": "2026-08-14",
+                  "x": 400.703125,
+                  "width": 125.53125,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 1
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-번호",
+                  "text": "17",
+                  "x": 526.234375,
+                  "width": 223.515625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 2
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-창고명",
+                  "text": "",
+                  "x": 749.75,
+                  "width": 139.234375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 3
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-품목명",
+                  "text": "한경희 선풍기상세 펼치기",
+                  "x": 888.984375,
+                  "width": 223.515625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 4
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-수량",
+                  "text": "1",
+                  "x": 1112.5,
+                  "width": 125.53125,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 5
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-단가(VAT포함)",
+                  "text": "11,000",
+                  "x": 1238.03125,
+                  "width": 268.84375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 6
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-공급가액",
+                  "text": "10,000",
+                  "x": 1506.875,
+                  "width": 152.953125,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 7
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-부가세",
+                  "text": "1,000",
+                  "x": 1659.828125,
+                  "width": 139.234375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 8
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-합계",
+                  "text": "11,000",
+                  "x": 1799.0625,
+                  "width": 125.53125,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 9
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-출고가",
+                  "text": "0",
+                  "x": 1924.59375,
+                  "width": 223.515625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 10
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-할인율",
+                  "text": "0",
+                  "x": 2148.109375,
+                  "width": 251.859375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 11
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-총계",
+                  "text": "11,000",
+                  "x": 2399.96875,
+                  "width": 139.234375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 12
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-거래처명",
+                  "text": "능동에어컨(박수천)",
+                  "x": 2539.203125,
+                  "width": 139.234375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 13
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-거래처코드",
+                  "text": "4483500844",
+                  "x": 2678.4375,
+                  "width": 125.53125,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 14
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-확인",
+                  "text": "판정불가출고가, DC조건 원천 미확보",
+                  "x": 2803.96875,
+                  "width": 174.046875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 15
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-회계반영일자",
+                  "text": "2026-08-14 11:47",
+                  "x": 2978.015625,
+                  "width": 180.484375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 16
+                }
+              ]
+            }
+          ]
+        },
+        "선발행": {
+          "headers": [
+            {
+              "text": "DC",
+              "x": 281.5,
+              "width": 114.84375
+            },
+            {
+              "text": "일자",
+              "x": 396.34375,
+              "width": 120.9375
+            },
+            {
+              "text": "번호",
+              "x": 517.28125,
+              "width": 215.34375
+            },
+            {
+              "text": "창고명",
+              "x": 732.625,
+              "width": 134.140625
+            },
+            {
+              "text": "품목명",
+              "x": 866.765625,
+              "width": 233.609375
+            },
+            {
+              "text": "수량",
+              "x": 1100.375,
+              "width": 120.9375
+            },
+            {
+              "text": "단가(VAT포함)",
+              "x": 1221.3125,
+              "width": 202.1875
+            },
+            {
+              "text": "공급가액",
+              "x": 1423.5,
+              "width": 147.359375
+            },
+            {
+              "text": "부가세",
+              "x": 1570.859375,
+              "width": 134.140625
+            },
+            {
+              "text": "합계",
+              "x": 1705,
+              "width": 120.9375
+            },
+            {
+              "text": "거래처명",
+              "x": 1825.9375,
+              "width": 215.34375
+            },
+            {
+              "text": "거래처코드",
+              "x": 2041.28125,
+              "width": 242.65625
+            },
+            {
+              "text": "출고가",
+              "x": 2283.9375,
+              "width": 134.140625
+            },
+            {
+              "text": "할인율",
+              "x": 2418.078125,
+              "width": 134.140625
+            },
+            {
+              "text": "총계",
+              "x": 2552.21875,
+              "width": 120.9375
+            },
+            {
+              "text": "확인",
+              "x": 2673.15625,
+              "width": 311.46875
+            },
+            {
+              "text": "회계반영일자",
+              "x": 2984.625,
+              "width": 173.875
+            }
+          ],
+          "rowCount": 12,
+          "rows": [
+            {
+              "testId": "daily-closing-data-row-0",
+              "cells": [
+                {
+                  "dataTestId": "daily-closing-cell-0-DC",
+                  "text": "",
+                  "x": 281.5,
+                  "width": 114.84375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 0
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-일자",
+                  "text": "2026-08-14",
+                  "x": 396.34375,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 1
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-번호",
+                  "text": "2",
+                  "x": 517.28125,
+                  "width": 215.34375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 2
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-창고명",
+                  "text": "",
+                  "x": 732.625,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 3
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-품목명",
+                  "text": "판넬 1way 무풍+공기청정 대형 WIFI상세 펼치기",
+                  "x": 866.765625,
+                  "width": 233.609375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 4
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-수량",
+                  "text": "1",
+                  "x": 1100.375,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 5
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-단가(VAT포함)",
+                  "text": "520,300",
+                  "x": 1221.3125,
+                  "width": 202.1875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 6
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-공급가액",
+                  "text": "473,000",
+                  "x": 1423.5,
+                  "width": 147.359375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 7
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-부가세",
+                  "text": "47,300",
+                  "x": 1570.859375,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 8
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-합계",
+                  "text": "520,300",
+                  "x": 1705,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 9
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-출고가",
+                  "text": "520,300",
+                  "x": 1825.9375,
+                  "width": 215.34375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 10
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-할인율",
+                  "text": "0",
+                  "x": 2041.28125,
+                  "width": 242.65625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 11
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-총계",
+                  "text": "520,300",
+                  "x": 2283.9375,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 12
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-거래처명",
+                  "text": "(주)이레솔루션",
+                  "x": 2418.078125,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 13
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-거래처코드",
+                  "text": "4038141892",
+                  "x": 2552.21875,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 14
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-확인",
+                  "text": "확인",
+                  "x": 2673.15625,
+                  "width": 311.46875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 15
+                },
+                {
+                  "dataTestId": "daily-closing-cell-0-회계반영일자",
+                  "text": "",
+                  "x": 2984.625,
+                  "width": 173.875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 16
+                }
+              ]
+            },
+            {
+              "testId": "daily-closing-data-row-1",
+              "cells": [
+                {
+                  "dataTestId": "daily-closing-cell-1-DC",
+                  "text": "",
+                  "x": 281.5,
+                  "width": 114.84375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 0
+                },
+                {
+                  "dataTestId": "daily-closing-cell-1-일자",
+                  "text": "2026-08-14",
+                  "x": 396.34375,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 1
+                },
+                {
+                  "dataTestId": "daily-closing-cell-1-번호",
+                  "text": "6",
+                  "x": 517.28125,
+                  "width": 215.34375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 2
+                },
+                {
+                  "dataTestId": "daily-closing-cell-1-창고명",
+                  "text": "",
+                  "x": 732.625,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 3
+                },
+                {
+                  "dataTestId": "daily-closing-cell-1-품목명",
+                  "text": "한경희 선풍기상세 펼치기",
+                  "x": 866.765625,
+                  "width": 233.609375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 4
+                },
+                {
+                  "dataTestId": "daily-closing-cell-1-수량",
+                  "text": "1",
+                  "x": 1100.375,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 5
+                },
+                {
+                  "dataTestId": "daily-closing-cell-1-단가(VAT포함)",
+                  "text": "11,000",
+                  "x": 1221.3125,
+                  "width": 202.1875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 6
+                },
+                {
+                  "dataTestId": "daily-closing-cell-1-공급가액",
+                  "text": "10,000",
+                  "x": 1423.5,
+                  "width": 147.359375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 7
+                },
+                {
+                  "dataTestId": "daily-closing-cell-1-부가세",
+                  "text": "1,000",
+                  "x": 1570.859375,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 8
+                },
+                {
+                  "dataTestId": "daily-closing-cell-1-합계",
+                  "text": "11,000",
+                  "x": 1705,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 9
+                },
+                {
+                  "dataTestId": "daily-closing-cell-1-출고가",
+                  "text": "0",
+                  "x": 1825.9375,
+                  "width": 215.34375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 10
+                },
+                {
+                  "dataTestId": "daily-closing-cell-1-할인율",
+                  "text": "0",
+                  "x": 2041.28125,
+                  "width": 242.65625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 11
+                },
+                {
+                  "dataTestId": "daily-closing-cell-1-총계",
+                  "text": "11,000",
+                  "x": 2283.9375,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 12
+                },
+                {
+                  "dataTestId": "daily-closing-cell-1-거래처명",
+                  "text": "능동에어컨(박수천)",
+                  "x": 2418.078125,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 13
+                },
+                {
+                  "dataTestId": "daily-closing-cell-1-거래처코드",
+                  "text": "4483500844",
+                  "x": 2552.21875,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 14
+                },
+                {
+                  "dataTestId": "daily-closing-cell-1-확인",
+                  "text": "판정불가출고가, DC조건, 회계반영일자(posted_at) 원천 미확보",
+                  "x": 2673.15625,
+                  "width": 311.46875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 15
+                },
+                {
+                  "dataTestId": "daily-closing-cell-1-회계반영일자",
+                  "text": "",
+                  "x": 2984.625,
+                  "width": 173.875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 16
+                }
+              ]
+            },
+            {
+              "testId": "daily-closing-data-row-2",
+              "cells": [
+                {
+                  "dataTestId": "daily-closing-cell-2-DC",
+                  "text": "",
+                  "x": 281.5,
+                  "width": 114.84375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 0
+                },
+                {
+                  "dataTestId": "daily-closing-cell-2-일자",
+                  "text": "2026-08-14",
+                  "x": 396.34375,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 1
+                },
+                {
+                  "dataTestId": "daily-closing-cell-2-번호",
+                  "text": "7",
+                  "x": 517.28125,
+                  "width": 215.34375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 2
+                },
+                {
+                  "dataTestId": "daily-closing-cell-2-창고명",
+                  "text": "",
+                  "x": 732.625,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 3
+                },
+                {
+                  "dataTestId": "daily-closing-cell-2-품목명",
+                  "text": "한경희 선풍기상세 펼치기",
+                  "x": 866.765625,
+                  "width": 233.609375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 4
+                },
+                {
+                  "dataTestId": "daily-closing-cell-2-수량",
+                  "text": "1",
+                  "x": 1100.375,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 5
+                },
+                {
+                  "dataTestId": "daily-closing-cell-2-단가(VAT포함)",
+                  "text": "11,000",
+                  "x": 1221.3125,
+                  "width": 202.1875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 6
+                },
+                {
+                  "dataTestId": "daily-closing-cell-2-공급가액",
+                  "text": "10,000",
+                  "x": 1423.5,
+                  "width": 147.359375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 7
+                },
+                {
+                  "dataTestId": "daily-closing-cell-2-부가세",
+                  "text": "1,000",
+                  "x": 1570.859375,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 8
+                },
+                {
+                  "dataTestId": "daily-closing-cell-2-합계",
+                  "text": "11,000",
+                  "x": 1705,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 9
+                },
+                {
+                  "dataTestId": "daily-closing-cell-2-출고가",
+                  "text": "0",
+                  "x": 1825.9375,
+                  "width": 215.34375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 10
+                },
+                {
+                  "dataTestId": "daily-closing-cell-2-할인율",
+                  "text": "0",
+                  "x": 2041.28125,
+                  "width": 242.65625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 11
+                },
+                {
+                  "dataTestId": "daily-closing-cell-2-총계",
+                  "text": "11,000",
+                  "x": 2283.9375,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 12
+                },
+                {
+                  "dataTestId": "daily-closing-cell-2-거래처명",
+                  "text": "능동에어컨(박수천)",
+                  "x": 2418.078125,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 13
+                },
+                {
+                  "dataTestId": "daily-closing-cell-2-거래처코드",
+                  "text": "4483500844",
+                  "x": 2552.21875,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 14
+                },
+                {
+                  "dataTestId": "daily-closing-cell-2-확인",
+                  "text": "판정불가출고가, DC조건, 회계반영일자(posted_at) 원천 미확보",
+                  "x": 2673.15625,
+                  "width": 311.46875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 15
+                },
+                {
+                  "dataTestId": "daily-closing-cell-2-회계반영일자",
+                  "text": "",
+                  "x": 2984.625,
+                  "width": 173.875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 16
+                }
+              ]
+            },
+            {
+              "testId": "daily-closing-data-row-3",
+              "cells": [
+                {
+                  "dataTestId": "daily-closing-cell-3-DC",
+                  "text": "",
+                  "x": 281.5,
+                  "width": 114.84375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 0
+                },
+                {
+                  "dataTestId": "daily-closing-cell-3-일자",
+                  "text": "2026-08-14",
+                  "x": 396.34375,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 1
+                },
+                {
+                  "dataTestId": "daily-closing-cell-3-번호",
+                  "text": "8",
+                  "x": 517.28125,
+                  "width": 215.34375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 2
+                },
+                {
+                  "dataTestId": "daily-closing-cell-3-창고명",
+                  "text": "",
+                  "x": 732.625,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 3
+                },
+                {
+                  "dataTestId": "daily-closing-cell-3-품목명",
+                  "text": "한경희 선풍기상세 펼치기",
+                  "x": 866.765625,
+                  "width": 233.609375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 4
+                },
+                {
+                  "dataTestId": "daily-closing-cell-3-수량",
+                  "text": "1",
+                  "x": 1100.375,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 5
+                },
+                {
+                  "dataTestId": "daily-closing-cell-3-단가(VAT포함)",
+                  "text": "10,000",
+                  "x": 1221.3125,
+                  "width": 202.1875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 6
+                },
+                {
+                  "dataTestId": "daily-closing-cell-3-공급가액",
+                  "text": "9,091",
+                  "x": 1423.5,
+                  "width": 147.359375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 7
+                },
+                {
+                  "dataTestId": "daily-closing-cell-3-부가세",
+                  "text": "909",
+                  "x": 1570.859375,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 8
+                },
+                {
+                  "dataTestId": "daily-closing-cell-3-합계",
+                  "text": "10,000",
+                  "x": 1705,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 9
+                },
+                {
+                  "dataTestId": "daily-closing-cell-3-출고가",
+                  "text": "0",
+                  "x": 1825.9375,
+                  "width": 215.34375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 10
+                },
+                {
+                  "dataTestId": "daily-closing-cell-3-할인율",
+                  "text": "0",
+                  "x": 2041.28125,
+                  "width": 242.65625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 11
+                },
+                {
+                  "dataTestId": "daily-closing-cell-3-총계",
+                  "text": "10,000",
+                  "x": 2283.9375,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 12
+                },
+                {
+                  "dataTestId": "daily-closing-cell-3-거래처명",
+                  "text": "능동에어컨(박수천)",
+                  "x": 2418.078125,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 13
+                },
+                {
+                  "dataTestId": "daily-closing-cell-3-거래처코드",
+                  "text": "4483500844",
+                  "x": 2552.21875,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 14
+                },
+                {
+                  "dataTestId": "daily-closing-cell-3-확인",
+                  "text": "판정불가출고가, DC조건, 회계반영일자(posted_at) 원천 미확보",
+                  "x": 2673.15625,
+                  "width": 311.46875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 15
+                },
+                {
+                  "dataTestId": "daily-closing-cell-3-회계반영일자",
+                  "text": "",
+                  "x": 2984.625,
+                  "width": 173.875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 16
+                }
+              ]
+            },
+            {
+              "testId": "daily-closing-data-row-4",
+              "cells": [
+                {
+                  "dataTestId": "daily-closing-cell-4-DC",
+                  "text": "",
+                  "x": 281.5,
+                  "width": 114.84375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 0
+                },
+                {
+                  "dataTestId": "daily-closing-cell-4-일자",
+                  "text": "2026-08-14",
+                  "x": 396.34375,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 1
+                },
+                {
+                  "dataTestId": "daily-closing-cell-4-번호",
+                  "text": "9",
+                  "x": 517.28125,
+                  "width": 215.34375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 2
+                },
+                {
+                  "dataTestId": "daily-closing-cell-4-창고명",
+                  "text": "",
+                  "x": 732.625,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 3
+                },
+                {
+                  "dataTestId": "daily-closing-cell-4-품목명",
+                  "text": "한경희 선풍기상세 펼치기",
+                  "x": 866.765625,
+                  "width": 233.609375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 4
+                },
+                {
+                  "dataTestId": "daily-closing-cell-4-수량",
+                  "text": "1",
+                  "x": 1100.375,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 5
+                },
+                {
+                  "dataTestId": "daily-closing-cell-4-단가(VAT포함)",
+                  "text": "10,000",
+                  "x": 1221.3125,
+                  "width": 202.1875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 6
+                },
+                {
+                  "dataTestId": "daily-closing-cell-4-공급가액",
+                  "text": "9,091",
+                  "x": 1423.5,
+                  "width": 147.359375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 7
+                },
+                {
+                  "dataTestId": "daily-closing-cell-4-부가세",
+                  "text": "909",
+                  "x": 1570.859375,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 8
+                },
+                {
+                  "dataTestId": "daily-closing-cell-4-합계",
+                  "text": "10,000",
+                  "x": 1705,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 9
+                },
+                {
+                  "dataTestId": "daily-closing-cell-4-출고가",
+                  "text": "0",
+                  "x": 1825.9375,
+                  "width": 215.34375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 10
+                },
+                {
+                  "dataTestId": "daily-closing-cell-4-할인율",
+                  "text": "0",
+                  "x": 2041.28125,
+                  "width": 242.65625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 11
+                },
+                {
+                  "dataTestId": "daily-closing-cell-4-총계",
+                  "text": "10,000",
+                  "x": 2283.9375,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 12
+                },
+                {
+                  "dataTestId": "daily-closing-cell-4-거래처명",
+                  "text": "능동에어컨(박수천)",
+                  "x": 2418.078125,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 13
+                },
+                {
+                  "dataTestId": "daily-closing-cell-4-거래처코드",
+                  "text": "4483500844",
+                  "x": 2552.21875,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 14
+                },
+                {
+                  "dataTestId": "daily-closing-cell-4-확인",
+                  "text": "판정불가출고가, DC조건, 회계반영일자(posted_at) 원천 미확보",
+                  "x": 2673.15625,
+                  "width": 311.46875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 15
+                },
+                {
+                  "dataTestId": "daily-closing-cell-4-회계반영일자",
+                  "text": "",
+                  "x": 2984.625,
+                  "width": 173.875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 16
+                }
+              ]
+            },
+            {
+              "testId": "daily-closing-data-row-5",
+              "cells": [
+                {
+                  "dataTestId": "daily-closing-cell-5-DC",
+                  "text": "",
+                  "x": 281.5,
+                  "width": 114.84375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 0
+                },
+                {
+                  "dataTestId": "daily-closing-cell-5-일자",
+                  "text": "2026-08-14",
+                  "x": 396.34375,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 1
+                },
+                {
+                  "dataTestId": "daily-closing-cell-5-번호",
+                  "text": "11",
+                  "x": 517.28125,
+                  "width": 215.34375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 2
+                },
+                {
+                  "dataTestId": "daily-closing-cell-5-창고명",
+                  "text": "",
+                  "x": 732.625,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 3
+                },
+                {
+                  "dataTestId": "daily-closing-cell-5-품목명",
+                  "text": "한경희 선풍기상세 펼치기",
+                  "x": 866.765625,
+                  "width": 233.609375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 4
+                },
+                {
+                  "dataTestId": "daily-closing-cell-5-수량",
+                  "text": "1",
+                  "x": 1100.375,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 5
+                },
+                {
+                  "dataTestId": "daily-closing-cell-5-단가(VAT포함)",
+                  "text": "11,000",
+                  "x": 1221.3125,
+                  "width": 202.1875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 6
+                },
+                {
+                  "dataTestId": "daily-closing-cell-5-공급가액",
+                  "text": "10,000",
+                  "x": 1423.5,
+                  "width": 147.359375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 7
+                },
+                {
+                  "dataTestId": "daily-closing-cell-5-부가세",
+                  "text": "1,000",
+                  "x": 1570.859375,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 8
+                },
+                {
+                  "dataTestId": "daily-closing-cell-5-합계",
+                  "text": "11,000",
+                  "x": 1705,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 9
+                },
+                {
+                  "dataTestId": "daily-closing-cell-5-출고가",
+                  "text": "0",
+                  "x": 1825.9375,
+                  "width": 215.34375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 10
+                },
+                {
+                  "dataTestId": "daily-closing-cell-5-할인율",
+                  "text": "0",
+                  "x": 2041.28125,
+                  "width": 242.65625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 11
+                },
+                {
+                  "dataTestId": "daily-closing-cell-5-총계",
+                  "text": "11,000",
+                  "x": 2283.9375,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 12
+                },
+                {
+                  "dataTestId": "daily-closing-cell-5-거래처명",
+                  "text": "능동에어컨(박수천)",
+                  "x": 2418.078125,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 13
+                },
+                {
+                  "dataTestId": "daily-closing-cell-5-거래처코드",
+                  "text": "4483500844",
+                  "x": 2552.21875,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 14
+                },
+                {
+                  "dataTestId": "daily-closing-cell-5-확인",
+                  "text": "판정불가출고가, DC조건, 회계반영일자(posted_at) 원천 미확보",
+                  "x": 2673.15625,
+                  "width": 311.46875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 15
+                },
+                {
+                  "dataTestId": "daily-closing-cell-5-회계반영일자",
+                  "text": "",
+                  "x": 2984.625,
+                  "width": 173.875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 16
+                }
+              ]
+            },
+            {
+              "testId": "daily-closing-data-row-6",
+              "cells": [
+                {
+                  "dataTestId": "daily-closing-cell-6-DC",
+                  "text": "",
+                  "x": 281.5,
+                  "width": 114.84375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 0
+                },
+                {
+                  "dataTestId": "daily-closing-cell-6-일자",
+                  "text": "2026-08-14",
+                  "x": 396.34375,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 1
+                },
+                {
+                  "dataTestId": "daily-closing-cell-6-번호",
+                  "text": "12",
+                  "x": 517.28125,
+                  "width": 215.34375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 2
+                },
+                {
+                  "dataTestId": "daily-closing-cell-6-창고명",
+                  "text": "",
+                  "x": 732.625,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 3
+                },
+                {
+                  "dataTestId": "daily-closing-cell-6-품목명",
+                  "text": "한경희 선풍기상세 펼치기",
+                  "x": 866.765625,
+                  "width": 233.609375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 4
+                },
+                {
+                  "dataTestId": "daily-closing-cell-6-수량",
+                  "text": "1",
+                  "x": 1100.375,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 5
+                },
+                {
+                  "dataTestId": "daily-closing-cell-6-단가(VAT포함)",
+                  "text": "11,000",
+                  "x": 1221.3125,
+                  "width": 202.1875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 6
+                },
+                {
+                  "dataTestId": "daily-closing-cell-6-공급가액",
+                  "text": "10,000",
+                  "x": 1423.5,
+                  "width": 147.359375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 7
+                },
+                {
+                  "dataTestId": "daily-closing-cell-6-부가세",
+                  "text": "1,000",
+                  "x": 1570.859375,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 8
+                },
+                {
+                  "dataTestId": "daily-closing-cell-6-합계",
+                  "text": "11,000",
+                  "x": 1705,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 9
+                },
+                {
+                  "dataTestId": "daily-closing-cell-6-출고가",
+                  "text": "0",
+                  "x": 1825.9375,
+                  "width": 215.34375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 10
+                },
+                {
+                  "dataTestId": "daily-closing-cell-6-할인율",
+                  "text": "0",
+                  "x": 2041.28125,
+                  "width": 242.65625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 11
+                },
+                {
+                  "dataTestId": "daily-closing-cell-6-총계",
+                  "text": "11,000",
+                  "x": 2283.9375,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 12
+                },
+                {
+                  "dataTestId": "daily-closing-cell-6-거래처명",
+                  "text": "능동에어컨(박수천)",
+                  "x": 2418.078125,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 13
+                },
+                {
+                  "dataTestId": "daily-closing-cell-6-거래처코드",
+                  "text": "4483500844",
+                  "x": 2552.21875,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 14
+                },
+                {
+                  "dataTestId": "daily-closing-cell-6-확인",
+                  "text": "판정불가출고가, DC조건, 회계반영일자(posted_at) 원천 미확보",
+                  "x": 2673.15625,
+                  "width": 311.46875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 15
+                },
+                {
+                  "dataTestId": "daily-closing-cell-6-회계반영일자",
+                  "text": "",
+                  "x": 2984.625,
+                  "width": 173.875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 16
+                }
+              ]
+            },
+            {
+              "testId": "daily-closing-data-row-7",
+              "cells": [
+                {
+                  "dataTestId": "daily-closing-cell-7-DC",
+                  "text": "",
+                  "x": 281.5,
+                  "width": 114.84375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 0
+                },
+                {
+                  "dataTestId": "daily-closing-cell-7-일자",
+                  "text": "2026-08-14",
+                  "x": 396.34375,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 1
+                },
+                {
+                  "dataTestId": "daily-closing-cell-7-번호",
+                  "text": "13",
+                  "x": 517.28125,
+                  "width": 215.34375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 2
+                },
+                {
+                  "dataTestId": "daily-closing-cell-7-창고명",
+                  "text": "",
+                  "x": 732.625,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 3
+                },
+                {
+                  "dataTestId": "daily-closing-cell-7-품목명",
+                  "text": "한경희 선풍기상세 펼치기",
+                  "x": 866.765625,
+                  "width": 233.609375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 4
+                },
+                {
+                  "dataTestId": "daily-closing-cell-7-수량",
+                  "text": "1",
+                  "x": 1100.375,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 5
+                },
+                {
+                  "dataTestId": "daily-closing-cell-7-단가(VAT포함)",
+                  "text": "11,000",
+                  "x": 1221.3125,
+                  "width": 202.1875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 6
+                },
+                {
+                  "dataTestId": "daily-closing-cell-7-공급가액",
+                  "text": "10,000",
+                  "x": 1423.5,
+                  "width": 147.359375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 7
+                },
+                {
+                  "dataTestId": "daily-closing-cell-7-부가세",
+                  "text": "1,000",
+                  "x": 1570.859375,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 8
+                },
+                {
+                  "dataTestId": "daily-closing-cell-7-합계",
+                  "text": "11,000",
+                  "x": 1705,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 9
+                },
+                {
+                  "dataTestId": "daily-closing-cell-7-출고가",
+                  "text": "0",
+                  "x": 1825.9375,
+                  "width": 215.34375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 10
+                },
+                {
+                  "dataTestId": "daily-closing-cell-7-할인율",
+                  "text": "0",
+                  "x": 2041.28125,
+                  "width": 242.65625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 11
+                },
+                {
+                  "dataTestId": "daily-closing-cell-7-총계",
+                  "text": "11,000",
+                  "x": 2283.9375,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 12
+                },
+                {
+                  "dataTestId": "daily-closing-cell-7-거래처명",
+                  "text": "능동에어컨(박수천)",
+                  "x": 2418.078125,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 13
+                },
+                {
+                  "dataTestId": "daily-closing-cell-7-거래처코드",
+                  "text": "4483500844",
+                  "x": 2552.21875,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 14
+                },
+                {
+                  "dataTestId": "daily-closing-cell-7-확인",
+                  "text": "판정불가출고가, DC조건, 회계반영일자(posted_at) 원천 미확보",
+                  "x": 2673.15625,
+                  "width": 311.46875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 15
+                },
+                {
+                  "dataTestId": "daily-closing-cell-7-회계반영일자",
+                  "text": "",
+                  "x": 2984.625,
+                  "width": 173.875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 16
+                }
+              ]
+            },
+            {
+              "testId": "daily-closing-data-row-8",
+              "cells": [
+                {
+                  "dataTestId": "daily-closing-cell-8-DC",
+                  "text": "",
+                  "x": 281.5,
+                  "width": 114.84375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 0
+                },
+                {
+                  "dataTestId": "daily-closing-cell-8-일자",
+                  "text": "2026-08-14",
+                  "x": 396.34375,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 1
+                },
+                {
+                  "dataTestId": "daily-closing-cell-8-번호",
+                  "text": "14",
+                  "x": 517.28125,
+                  "width": 215.34375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 2
+                },
+                {
+                  "dataTestId": "daily-closing-cell-8-창고명",
+                  "text": "",
+                  "x": 732.625,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 3
+                },
+                {
+                  "dataTestId": "daily-closing-cell-8-품목명",
+                  "text": "한경희 선풍기상세 펼치기",
+                  "x": 866.765625,
+                  "width": 233.609375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 4
+                },
+                {
+                  "dataTestId": "daily-closing-cell-8-수량",
+                  "text": "1",
+                  "x": 1100.375,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 5
+                },
+                {
+                  "dataTestId": "daily-closing-cell-8-단가(VAT포함)",
+                  "text": "11,000",
+                  "x": 1221.3125,
+                  "width": 202.1875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 6
+                },
+                {
+                  "dataTestId": "daily-closing-cell-8-공급가액",
+                  "text": "10,000",
+                  "x": 1423.5,
+                  "width": 147.359375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 7
+                },
+                {
+                  "dataTestId": "daily-closing-cell-8-부가세",
+                  "text": "1,000",
+                  "x": 1570.859375,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 8
+                },
+                {
+                  "dataTestId": "daily-closing-cell-8-합계",
+                  "text": "11,000",
+                  "x": 1705,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 9
+                },
+                {
+                  "dataTestId": "daily-closing-cell-8-출고가",
+                  "text": "0",
+                  "x": 1825.9375,
+                  "width": 215.34375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 10
+                },
+                {
+                  "dataTestId": "daily-closing-cell-8-할인율",
+                  "text": "0",
+                  "x": 2041.28125,
+                  "width": 242.65625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 11
+                },
+                {
+                  "dataTestId": "daily-closing-cell-8-총계",
+                  "text": "11,000",
+                  "x": 2283.9375,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 12
+                },
+                {
+                  "dataTestId": "daily-closing-cell-8-거래처명",
+                  "text": "능동에어컨(박수천)",
+                  "x": 2418.078125,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 13
+                },
+                {
+                  "dataTestId": "daily-closing-cell-8-거래처코드",
+                  "text": "4483500844",
+                  "x": 2552.21875,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 14
+                },
+                {
+                  "dataTestId": "daily-closing-cell-8-확인",
+                  "text": "판정불가출고가, DC조건, 회계반영일자(posted_at) 원천 미확보",
+                  "x": 2673.15625,
+                  "width": 311.46875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 15
+                },
+                {
+                  "dataTestId": "daily-closing-cell-8-회계반영일자",
+                  "text": "",
+                  "x": 2984.625,
+                  "width": 173.875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 16
+                }
+              ]
+            },
+            {
+              "testId": "daily-closing-data-row-9",
+              "cells": [
+                {
+                  "dataTestId": "daily-closing-cell-9-DC",
+                  "text": "",
+                  "x": 281.5,
+                  "width": 114.84375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 0
+                },
+                {
+                  "dataTestId": "daily-closing-cell-9-일자",
+                  "text": "2026-08-14",
+                  "x": 396.34375,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 1
+                },
+                {
+                  "dataTestId": "daily-closing-cell-9-번호",
+                  "text": "15",
+                  "x": 517.28125,
+                  "width": 215.34375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 2
+                },
+                {
+                  "dataTestId": "daily-closing-cell-9-창고명",
+                  "text": "",
+                  "x": 732.625,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 3
+                },
+                {
+                  "dataTestId": "daily-closing-cell-9-품목명",
+                  "text": "한경희 선풍기상세 펼치기",
+                  "x": 866.765625,
+                  "width": 233.609375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 4
+                },
+                {
+                  "dataTestId": "daily-closing-cell-9-수량",
+                  "text": "1",
+                  "x": 1100.375,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 5
+                },
+                {
+                  "dataTestId": "daily-closing-cell-9-단가(VAT포함)",
+                  "text": "11,000",
+                  "x": 1221.3125,
+                  "width": 202.1875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 6
+                },
+                {
+                  "dataTestId": "daily-closing-cell-9-공급가액",
+                  "text": "10,000",
+                  "x": 1423.5,
+                  "width": 147.359375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 7
+                },
+                {
+                  "dataTestId": "daily-closing-cell-9-부가세",
+                  "text": "1,000",
+                  "x": 1570.859375,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 8
+                },
+                {
+                  "dataTestId": "daily-closing-cell-9-합계",
+                  "text": "11,000",
+                  "x": 1705,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 9
+                },
+                {
+                  "dataTestId": "daily-closing-cell-9-출고가",
+                  "text": "0",
+                  "x": 1825.9375,
+                  "width": 215.34375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 10
+                },
+                {
+                  "dataTestId": "daily-closing-cell-9-할인율",
+                  "text": "0",
+                  "x": 2041.28125,
+                  "width": 242.65625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 11
+                },
+                {
+                  "dataTestId": "daily-closing-cell-9-총계",
+                  "text": "11,000",
+                  "x": 2283.9375,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 12
+                },
+                {
+                  "dataTestId": "daily-closing-cell-9-거래처명",
+                  "text": "능동에어컨(박수천)",
+                  "x": 2418.078125,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 13
+                },
+                {
+                  "dataTestId": "daily-closing-cell-9-거래처코드",
+                  "text": "4483500844",
+                  "x": 2552.21875,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 14
+                },
+                {
+                  "dataTestId": "daily-closing-cell-9-확인",
+                  "text": "판정불가출고가, DC조건, 회계반영일자(posted_at) 원천 미확보",
+                  "x": 2673.15625,
+                  "width": 311.46875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 15
+                },
+                {
+                  "dataTestId": "daily-closing-cell-9-회계반영일자",
+                  "text": "",
+                  "x": 2984.625,
+                  "width": 173.875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 16
+                }
+              ]
+            },
+            {
+              "testId": "daily-closing-data-row-10",
+              "cells": [
+                {
+                  "dataTestId": "daily-closing-cell-10-DC",
+                  "text": "",
+                  "x": 281.5,
+                  "width": 114.84375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 0
+                },
+                {
+                  "dataTestId": "daily-closing-cell-10-일자",
+                  "text": "2026-08-14",
+                  "x": 396.34375,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 1
+                },
+                {
+                  "dataTestId": "daily-closing-cell-10-번호",
+                  "text": "16",
+                  "x": 517.28125,
+                  "width": 215.34375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 2
+                },
+                {
+                  "dataTestId": "daily-closing-cell-10-창고명",
+                  "text": "",
+                  "x": 732.625,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 3
+                },
+                {
+                  "dataTestId": "daily-closing-cell-10-품목명",
+                  "text": "한경희 선풍기상세 펼치기",
+                  "x": 866.765625,
+                  "width": 233.609375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 4
+                },
+                {
+                  "dataTestId": "daily-closing-cell-10-수량",
+                  "text": "1",
+                  "x": 1100.375,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 5
+                },
+                {
+                  "dataTestId": "daily-closing-cell-10-단가(VAT포함)",
+                  "text": "11,000",
+                  "x": 1221.3125,
+                  "width": 202.1875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 6
+                },
+                {
+                  "dataTestId": "daily-closing-cell-10-공급가액",
+                  "text": "10,000",
+                  "x": 1423.5,
+                  "width": 147.359375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 7
+                },
+                {
+                  "dataTestId": "daily-closing-cell-10-부가세",
+                  "text": "1,000",
+                  "x": 1570.859375,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 8
+                },
+                {
+                  "dataTestId": "daily-closing-cell-10-합계",
+                  "text": "11,000",
+                  "x": 1705,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 9
+                },
+                {
+                  "dataTestId": "daily-closing-cell-10-출고가",
+                  "text": "0",
+                  "x": 1825.9375,
+                  "width": 215.34375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 10
+                },
+                {
+                  "dataTestId": "daily-closing-cell-10-할인율",
+                  "text": "0",
+                  "x": 2041.28125,
+                  "width": 242.65625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 11
+                },
+                {
+                  "dataTestId": "daily-closing-cell-10-총계",
+                  "text": "11,000",
+                  "x": 2283.9375,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 12
+                },
+                {
+                  "dataTestId": "daily-closing-cell-10-거래처명",
+                  "text": "능동에어컨(박수천)",
+                  "x": 2418.078125,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 13
+                },
+                {
+                  "dataTestId": "daily-closing-cell-10-거래처코드",
+                  "text": "4483500844",
+                  "x": 2552.21875,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 14
+                },
+                {
+                  "dataTestId": "daily-closing-cell-10-확인",
+                  "text": "판정불가출고가, DC조건, 회계반영일자(posted_at) 원천 미확보",
+                  "x": 2673.15625,
+                  "width": 311.46875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 15
+                },
+                {
+                  "dataTestId": "daily-closing-cell-10-회계반영일자",
+                  "text": "",
+                  "x": 2984.625,
+                  "width": 173.875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 16
+                }
+              ]
+            },
+            {
+              "testId": "daily-closing-data-row-11",
+              "cells": [
+                {
+                  "dataTestId": "daily-closing-cell-11-DC",
+                  "text": "",
+                  "x": 281.5,
+                  "width": 114.84375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 0
+                },
+                {
+                  "dataTestId": "daily-closing-cell-11-일자",
+                  "text": "2026-08-14",
+                  "x": 396.34375,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 1
+                },
+                {
+                  "dataTestId": "daily-closing-cell-11-번호",
+                  "text": "18",
+                  "x": 517.28125,
+                  "width": 215.34375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 2
+                },
+                {
+                  "dataTestId": "daily-closing-cell-11-창고명",
+                  "text": "",
+                  "x": 732.625,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 3
+                },
+                {
+                  "dataTestId": "daily-closing-cell-11-품목명",
+                  "text": "한경희 선풍기상세 펼치기",
+                  "x": 866.765625,
+                  "width": 233.609375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 4
+                },
+                {
+                  "dataTestId": "daily-closing-cell-11-수량",
+                  "text": "1",
+                  "x": 1100.375,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 5
+                },
+                {
+                  "dataTestId": "daily-closing-cell-11-단가(VAT포함)",
+                  "text": "11,000",
+                  "x": 1221.3125,
+                  "width": 202.1875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 6
+                },
+                {
+                  "dataTestId": "daily-closing-cell-11-공급가액",
+                  "text": "10,000",
+                  "x": 1423.5,
+                  "width": 147.359375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 7
+                },
+                {
+                  "dataTestId": "daily-closing-cell-11-부가세",
+                  "text": "1,000",
+                  "x": 1570.859375,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 8
+                },
+                {
+                  "dataTestId": "daily-closing-cell-11-합계",
+                  "text": "11,000",
+                  "x": 1705,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 9
+                },
+                {
+                  "dataTestId": "daily-closing-cell-11-출고가",
+                  "text": "0",
+                  "x": 1825.9375,
+                  "width": 215.34375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 10
+                },
+                {
+                  "dataTestId": "daily-closing-cell-11-할인율",
+                  "text": "0",
+                  "x": 2041.28125,
+                  "width": 242.65625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 11
+                },
+                {
+                  "dataTestId": "daily-closing-cell-11-총계",
+                  "text": "11,000",
+                  "x": 2283.9375,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 12
+                },
+                {
+                  "dataTestId": "daily-closing-cell-11-거래처명",
+                  "text": "능동에어컨(박수천)",
+                  "x": 2418.078125,
+                  "width": 134.140625,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 13
+                },
+                {
+                  "dataTestId": "daily-closing-cell-11-거래처코드",
+                  "text": "4483500844",
+                  "x": 2552.21875,
+                  "width": 120.9375,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 14
+                },
+                {
+                  "dataTestId": "daily-closing-cell-11-확인",
+                  "text": "판정불가출고가, DC조건, 회계반영일자(posted_at) 원천 미확보",
+                  "x": 2673.15625,
+                  "width": 311.46875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 15
+                },
+                {
+                  "dataTestId": "daily-closing-cell-11-회계반영일자",
+                  "text": "",
+                  "x": 2984.625,
+                  "width": 173.875,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "visualIndex": 16
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  }
+}

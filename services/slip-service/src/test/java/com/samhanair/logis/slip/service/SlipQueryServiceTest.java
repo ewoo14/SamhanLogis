@@ -11,6 +11,8 @@ import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.mock;
 
 import com.samhanair.logis.slip.client.UserInternalClient;
+import com.samhanair.logis.slip.client.ProductClient;
+import com.samhanair.logis.slip.client.ProductSummary;
 import com.samhanair.logis.slip.domain.DeliveryTag;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipLine;
@@ -56,11 +58,38 @@ class SlipQueryServiceTest {
     @Mock
     private DailyClosingSourceResolver dailyClosingSourceResolver;
 
+    @Mock
+    private ProductClient productClient;
+
     @InjectMocks
     private SlipQueryService service;
 
     @InjectMocks
     private DailyClosingQueryService dailyClosingQueryService;
+
+    @Test
+    void 일마감은_모델명을_상품서비스에_한번만_벌크조회해_상품코드와_세율을_응답한다() {
+        Slip slip = slip("2026/08/14-product", "dev_sales");
+        ReflectionTestUtils.setField(slip, "status", SlipStatus.CONFIRMED);
+        SlipLine first = mock(SlipLine.class);
+        SlipLine second = mock(SlipLine.class);
+        when(first.getModelName()).thenReturn("MODEL-A");
+        when(second.getModelName()).thenReturn("MODEL-A");
+        ReflectionTestUtils.setField(slip, "lines", List.of(first, second));
+        when(slipRepository.findDailyClosingOutboundSlips(any(), anyCollection())).thenReturn(List.of(slip));
+        when(productClient.lookupByModelNames(List.of("MODEL-A"))).thenReturn(List.of(
+                new ProductSummary(null, "품목 A", "MODEL-A", "PRD-A", null, null, "ACTIVE", false,
+                        null, null, null, null, null, null, null, null, "TAXABLE")));
+        when(dailyClosingSourceResolver.resolve(any(), any()))
+                .thenReturn(new DailyClosingRowResponse.SourceValues(null, null, null, "원천 미확보"));
+
+        List<DailyClosingRowResponse> rows = dailyClosingQueryService.findRows(LocalDate.of(2026, 8, 14));
+
+        assertThat(rows).extracting(DailyClosingRowResponse::productCode).containsExactly("PRD-A", "PRD-A");
+        assertThat(rows).extracting(DailyClosingRowResponse::taxType).containsExactly("TAXABLE", "TAXABLE");
+        assertThat(rows).extracting(DailyClosingRowResponse::sourceLineNo).containsExactly(1, 2);
+        verify(productClient).lookupByModelNames(List.of("MODEL-A"));
+    }
 
     @Test
     void listForQuery는_페이지의_distinct_UUID를_한번에_resolve하고_salesPersonName에_성명을_넣는다() {
