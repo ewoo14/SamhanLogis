@@ -11,10 +11,7 @@ import java.util.UUID;
  * <p>UUID 비공개 가드 — actorName / fieldName 만 사용자 화면 노출. actorId 는 FE 색상 hash 결정성 용.
  */
 public record InventoryAuditLogResponse(
-        UUID id,
-        UUID entityId,
         int revisionNo,
-        UUID actorId,
         String actorName,
         String actorColor,
         String fieldName,
@@ -24,10 +21,7 @@ public record InventoryAuditLogResponse(
 
     public static InventoryAuditLogResponse from(InventoryAuditLog row) {
         return new InventoryAuditLogResponse(
-                row.getId(),
-                row.getEntityId(),
                 row.getRevisionNo(),
-                row.getActorId(),
                 ActorDisplayName.resolve(row.getActorId() == null ? null : row.getActorId().toString(), row.getActorName()),
                 row.getActorColor(),
                 row.getFieldName(),

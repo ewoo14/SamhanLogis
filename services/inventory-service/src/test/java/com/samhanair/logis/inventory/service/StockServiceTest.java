@@ -391,9 +391,7 @@ class StockServiceTest {
         assertThat(newLot.getQuantity()).isEqualTo(15);
         assertThat(response.deductedQuantity()).isEqualTo(15);
         assertThat(response.affectedLots()).hasSize(2);
-        assertThat(response.affectedLots().get(0).lotId()).isEqualTo(oldId);
         assertThat(response.affectedLots().get(0).amount()).isEqualTo(10);
-        assertThat(response.affectedLots().get(1).lotId()).isEqualTo(newId);
         assertThat(response.affectedLots().get(1).amount()).isEqualTo(5);
         // 2 movement record (oldLot 차감 + newLot 차감)
         verify(stockMovementRepository, times(2)).save(any(StockMovement.class));

@@ -339,8 +339,10 @@ public class ProductInternalController {
                 request.setUnitOverride())
                 : new BundleExpander.ExpandOptions(o.remoteOption(), o.remoteExcluded(),
                 o.panelOption(), o.panelShape360(), o.materialIncluded(), request.setUnitOverride());
-        List<BundleExpander.ExpandedLine> lines =
-                bundleExpander.expand(request.parentModelCode(), request.setQty(), opts);
+        List<BundleExpander.ExpandedLine> lines = request.estimateCategory() == null
+                ? bundleExpander.expand(request.parentModelCode(), request.setQty(), opts)
+                : bundleExpander.expand(request.parentModelCode(), request.setQty(), opts,
+                        request.estimateCategory());
         boolean expandedSet = lines.size() > 1;
         List<ExpandedLineResponse> result = new ArrayList<>(lines.size());
         for (int i = 0; i < lines.size(); i++) {

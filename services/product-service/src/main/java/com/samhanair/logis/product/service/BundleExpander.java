@@ -7,7 +7,9 @@ import com.samhanair.logis.product.domain.BundleMode;
 import com.samhanair.logis.product.domain.Product;
 import com.samhanair.logis.product.domain.ProductCategory;
 import com.samhanair.logis.product.domain.ProductType;
+import com.samhanair.logis.product.domain.EstimateCategory;
 import com.samhanair.logis.product.repository.BundleComponentRepository;
+import com.samhanair.logis.product.repository.BundleComponentEstimateSettingRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
 import jakarta.persistence.EntityNotFoundException;
 import java.math.BigDecimal;
@@ -45,11 +47,14 @@ public class BundleExpander {
 
     private final ProductRepository productRepository;
     private final BundleComponentRepository componentRepository;
+    private final BundleComponentEstimateSettingRepository estimateSettingRepository;
 
     public BundleExpander(ProductRepository productRepository,
-                          BundleComponentRepository componentRepository) {
+                          BundleComponentRepository componentRepository,
+                          BundleComponentEstimateSettingRepository estimateSettingRepository) {
         this.productRepository = productRepository;
         this.componentRepository = componentRepository;
+        this.estimateSettingRepository = estimateSettingRepository;
     }
 
     /**
@@ -80,6 +85,13 @@ public class BundleExpander {
      */
     @Transactional(readOnly = true)
     public List<ExpandedLine> expand(String parentModelCode, BigDecimal setQty, ExpandOptions opts) {
+        return expand(parentModelCode, setQty, opts, null);
+    }
+
+    /** 카테고리가 주어지면 저장된 카테고리별 설정을 전개 입력에 병합한다. */
+    @Transactional(readOnly = true)
+    public List<ExpandedLine> expand(String parentModelCode, BigDecimal setQty, ExpandOptions opts,
+                                     EstimateCategory estimateCategory) {
         Product parent = productRepository.findByModelCodeAndIsDeletedFalse(parentModelCode)
                 .orElseThrow(() -> new EntityNotFoundException("Product 없음: " + parentModelCode));
         BigDecimal setUnit = opts.setUnitOverride() != null ? round(opts.setUnitOverride())
@@ -101,6 +113,14 @@ public class BundleExpander {
         List<BundleComponent> components = activeComponents.stream()
                 .filter(c -> Boolean.TRUE.equals(c.getIsDefault()))
                 .toList();
+        Map<java.util.UUID, com.samhanair.logis.product.domain.BundleComponentEstimateSetting> settings =
+                estimateCategory == null || components.isEmpty() ? Map.of()
+                        : estimateSettingRepository
+                                .findByBundleComponentIdInAndEstimateCategoryAndIsDeletedFalse(
+                                        components.stream().map(BundleComponent::getId).toList(), estimateCategory)
+                                .stream().collect(Collectors.toMap(
+                                        com.samhanair.logis.product.domain.BundleComponentEstimateSetting::getBundleComponentId,
+                                        s -> s, (left, right) -> right));
         Map<String, Product> productsByModelCode = components.isEmpty()
                 ? Map.of()
                 : productRepository.findByModelCodeInAndIsDeletedFalse(
@@ -111,17 +131,23 @@ public class BundleExpander {
                         .collect(Collectors.toMap(Product::getModelCode, Function.identity(), (left, right) -> left));
         List<Part> parts = new ArrayList<>();
         for (BundleComponent c : components) {
+            var setting = settings.get(c.getId());
+            BundleComponent.QtyMode qtyMode = setting == null ? c.getQtyMode() : setting.getQtyMode();
+            BundleComponent.ComponentKind componentKind = setting == null ? c.getComponentKind()
+                    : setting.getComponentKind();
+            String componentVariant = setting == null ? c.getComponentVariant() : setting.getComponentVariant();
+            boolean isDefault = setting == null ? Boolean.TRUE.equals(c.getIsDefault()) : setting.isDefault();
             Product cp = productsByModelCode.get(c.getComponentProductCode());
             String name = cp != null ? cp.getName() : c.getComponentProductCode();
             String modelName = cp != null ? cp.getModelName() : null;
             java.util.UUID pid = cp != null ? cp.getId() : null;
             BigDecimal price = cp != null ? nz(c.getContextDeliveryPrice() != null
                     ? c.getContextDeliveryPrice() : cp.getDeliveryPrice()) : BigDecimal.ZERO;
-            BigDecimal qty = c.getQtyMode() == BundleComponent.QtyMode.FOLLOW_SET
+            BigDecimal qty = qtyMode == BundleComponent.QtyMode.FOLLOW_SET
                     ? setQty.multiply(c.getDefaultQty())
                     : c.getDefaultQty();
-            parts.add(new Part(c.getComponentProductCode(), pid, name, modelName, c.getComponentKind(),
-                    c.getComponentVariant(), Boolean.TRUE.equals(c.getIsDefault()), price, qty,
+            parts.add(new Part(c.getComponentProductCode(), pid, name, modelName, componentKind,
+                    componentVariant, isDefault, price, qty,
                     c.getAllocationMode(), c.getAllocationWeight(), c.getFixedAllocationAmount(),
                     specOf(c.getSpecText()), cp != null ? cp.getPanelType() : null,
                     cp != null ? cp.getRemoteType() : null));

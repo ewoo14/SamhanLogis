@@ -19,8 +19,6 @@ import java.util.UUID;
  * @param createdAt 작성 시각 (audit createdAt)
  */
 public record SlipCommentResponse(
-        UUID id,
-        UUID slipId,
         String authorName,
         String body,
         LocalDateTime createdAt
@@ -28,8 +26,6 @@ public record SlipCommentResponse(
 
     public static SlipCommentResponse from(SlipComment comment) {
         return new SlipCommentResponse(
-                comment.getId(),
-                comment.getSlipId(),
                 ActorDisplayName.resolveNullable(
                         comment.getAuthorId() == null ? null : comment.getAuthorId().toString(),
                         comment.getAuthorName()),

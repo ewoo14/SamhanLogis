@@ -176,6 +176,7 @@ async function components(category, sanitizeDisp) {
     name: r.name ? sanitizeDisp(r.name) : '',
     feat: r.variant || '',
     isDefault: r.isDefault === true,
+    qtyMode: r.qtyMode || 'FOLLOW_SET',
     spec: r.specText || '',
     specs: Array.isArray(r.specs) ? r.specs : [],
     qty: r.defaultQty == null ? '1' : String(r.defaultQty),

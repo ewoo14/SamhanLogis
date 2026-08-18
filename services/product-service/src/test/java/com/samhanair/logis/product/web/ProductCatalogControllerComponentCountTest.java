@@ -19,6 +19,7 @@ import com.samhanair.logis.product.repository.ProductEstimateExposureRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.repository.SpecKeyTemplateRepository;
 import com.samhanair.logis.product.service.BundleComponentService;
+import com.samhanair.logis.product.service.BundleComponentEstimateSettingService;
 import com.samhanair.logis.product.service.ProductService;
 import com.samhanair.logis.product.service.ProductSpecService;
 import com.samhanair.logis.product.web.dto.ProductCatalogResponse;
@@ -68,6 +69,9 @@ class ProductCatalogControllerComponentCountTest {
     private BundleComponentService bundleComponentService;
 
     @Mock
+    private BundleComponentEstimateSettingService bundleComponentEstimateSettingService;
+
+    @Mock
     private ProductCatalogChangePublisher catalogChangePublisher;
 
     private ProductCatalogController controller;
@@ -80,7 +84,8 @@ class ProductCatalogControllerComponentCountTest {
     void setUp() {
         controller = new ProductCatalogController(
                 productRepository, specService, templateRepository,
-                productService, bundleComponentService, bundleComponentRepository,
+                productService, bundleComponentService, bundleComponentEstimateSettingService,
+                bundleComponentRepository,
                 exposureRepository, catalogChangePublisher);
 
         Category cat = Category.create("INDOOR_WALL", "벽걸이형", null, 1);
