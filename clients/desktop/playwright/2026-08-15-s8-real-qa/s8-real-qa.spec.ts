@@ -34,9 +34,9 @@ test('S8 실서버 — 레거시 상단 탭·액션 줄·단일 표 구조', asy
   await expect(page.getByTestId('daily-closing-table')).toBeVisible({ timeout: 30_000 })
   await page.screenshot({ path: path.join(SHOTS, '01-result.png'), fullPage: true })
 
-  await page.getByTestId('daily-closing-tab-pre_issued').click()
+  await page.getByTestId('daily-closing-tab-result').click()
   await expect(page.getByTestId('daily-closing-table')).toBeVisible()
-  await page.screenshot({ path: path.join(SHOTS, '02-pre-issued.png'), fullPage: true })
+  await page.screenshot({ path: path.join(SHOTS, '02-result.png'), fullPage: true })
 
   await page.getByTestId('daily-closing-tab-history').click()
   await expect(page.getByText('마감 이력', { exact: true })).toBeVisible()
@@ -50,7 +50,7 @@ test('S8 실서버 — 레거시 상단 탭·액션 줄·단일 표 구조', asy
   await expect(page.getByTestId('daily-closing-filter-reset')).toBeVisible()
   fs.writeFileSync(path.join(SHOTS, 'navigation.txt'), [
     '결과: 사용자는 일마감 메뉴에 들어와 대상일 2026-08-14를 조회하면 결과 탭과 표를 본다.',
-    '선발행: 사용자는 상단 선발행 탭을 눌러 회계반영일자 없는 원본행을 본다.',
+    '결과: 사용자는 상단 결과 탭을 눌러 회계반영일자 없는 원본행을 본다.',
     '마감이력: 사용자는 상단 마감이력 탭을 눌러 같은 날짜의 마감 이력을 본다.',
     '상세: 사용자는 상단 상세 탭을 눌러 선택된 마감 상세를 본다.',
     '액션 줄: 사용자는 표 위 액션 줄에서 대상일·마감 실행·역마감·필터초기화를 본다. 마감 실행은 공유 DB write 방지를 위해 누르지 않았다.',

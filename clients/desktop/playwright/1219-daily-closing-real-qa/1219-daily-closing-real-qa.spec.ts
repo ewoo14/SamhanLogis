@@ -34,19 +34,19 @@ async function signIn(page: Page) {
   })
 }
 
-async function openPreIssued(page: Page) {
+async function openResult(page: Page) {
   await page.goto(`${baseUrl}/#/accounting/daily-closings`)
   await page.addStyleTag({ content: '* { animation: none !important; transition: none !important; }' })
   await page.getByTestId('daily-closing-filter-date').fill('2026-08-03')
   await page.waitForLoadState('networkidle')
-  await page.getByRole('tab', { name: '선발행' }).click()
+  await page.getByRole('tab', { name: '결과' }).click()
   await expect(page.getByTestId('daily-closing-table')).toBeVisible()
   await expect(page.getByRole('button', { name: '상세 펼치기 6' })).toHaveCount(4)
 }
 
 test('1219 일마감 live QA 화면 계산과 표 정렬 캡처', async ({ page }) => {
   await signIn(page)
-  await openPreIssued(page)
+  await openResult(page)
 
   const table = page.getByTestId('daily-closing-table')
   await page.screenshot({ path: path.join(shots, '01-edit-before-real-qa.png'), fullPage: true })
@@ -68,7 +68,7 @@ test('1219 일마감 live QA 화면 계산과 표 정렬 캡처', async ({ page 
   fs.writeFileSync(path.join(shots, 'README.md'), [
     '# #1219 일마감 라이브QA',
     '',
-    '- `01-edit-before-real-qa.png`: 사용자는 로그인 → 회계 → 일마감 → 대상일 2026-08-03 → 선발행 탭으로 들어온다.',
+    '- `01-edit-before-real-qa.png`: 사용자는 로그인 → 회계 → 일마감 → 대상일 2026-08-03 → 결과 탭으로 들어온다.',
     '- `02-after-unit-rate-edit-real-qa.png`: 같은 경로에서 번호 6 전표 첫 행의 단가 입력만 수정한다. 저장 버튼은 누르지 않는다.',
     '- `03-expanded-first-row-real-qa.png`: 같은 화면에서 첫 행의 상세 펼치기만 누른다. 저장·마감 실행·역마감은 누르지 않는다.',
     '',

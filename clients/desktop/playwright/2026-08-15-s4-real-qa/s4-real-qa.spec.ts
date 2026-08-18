@@ -26,8 +26,8 @@ async function openDailyClosing(page: Page) {
   await expect(page.getByTestId('daily-closing-table')).toBeVisible({ timeout: 30_000 })
   const closeUpdate = page.getByRole('button', { name: '닫기', exact: true })
   if (await closeUpdate.count()) await closeUpdate.first().click()
-  await expect(page.getByRole('tab', { name: '결과 (1)' })).toBeVisible()
-  await expect(page.getByRole('tab', { name: '선발행 (12)' })).toBeVisible()
+  await expect(page.getByRole('tab', { name: '결과 (12)' })).toBeVisible()
+  await expect(page.getByRole('tab', { name: '선발행 (1)' })).toBeVisible()
 }
 
 test('S4 결과 탭 실데이터', async ({ page }) => {
@@ -38,15 +38,15 @@ test('S4 결과 탭 실데이터', async ({ page }) => {
 
 test('S4 선발행 탭 실데이터', async ({ page }) => {
   await openDailyClosing(page)
-  await page.getByRole('tab', { name: '선발행 (12)' }).click()
-  await expect(page.getByRole('tab', { name: '선발행 (12)' })).toHaveAttribute('aria-selected', 'true')
+  await page.getByRole('tab', { name: '선발행 (1)' }).click()
+  await expect(page.getByRole('tab', { name: '선발행 (1)' })).toHaveAttribute('aria-selected', 'true')
   await page.screenshot({ path: path.join(SHOTS, '02-pre-issued-tab.png'), fullPage: true })
-  fs.appendFileSync(path.join(SHOTS, 'navigation.txt'), '선발행 탭: 사용자는 상단 회계반영일자 이동 탭에서 선발행을 클릭해 posted_at 없는 12건을 본다.\n', 'utf8')
+  fs.appendFileSync(path.join(SHOTS, 'navigation.txt'), '선발행 탭: 사용자는 상단 회계반영일자 이동 탭에서 선발행을 클릭해 posted_at 있는 1건을 본다.\n', 'utf8')
 })
 
 test('S4 확장행 실데이터', async ({ page }) => {
   await openDailyClosing(page)
-  await page.getByRole('tab', { name: '선발행 (12)' }).click()
+  await page.getByRole('tab', { name: '선발행 (1)' }).click()
   await page.getByRole('button', { name: '상세 펼치기 2' }).click()
   await expect(page.getByTestId('daily-closing-expanded-2')).toBeVisible()
   await page.screenshot({ path: path.join(SHOTS, '03-expanded-row.png'), fullPage: false })
