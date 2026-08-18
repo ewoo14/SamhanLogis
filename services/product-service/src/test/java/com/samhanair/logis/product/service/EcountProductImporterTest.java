@@ -62,19 +62,19 @@ class EcountProductImporterTest {
     }
 
     @Test
-    void importCsv_활성_동명_기초품목은_CONFLICT로_차단한다() {
+    void importCsv_활성_동명_기초품목은_품목코드별로_정상_등록한다() {
         lenient().when(jdbcTemplate.queryForObject(
                 org.mockito.ArgumentMatchers.argThat(sql -> sql.contains("name = :name")
                         && sql.contains("status = 'ACTIVE'")),
                 any(SqlParameterSource.class), eq(Integer.class)))
                 .thenReturn(1);
 
-        assertThatThrownBy(() -> importer.importCsv(
+        EcountProductImportResult result = importer.importCsv(
                 itemCsv(row("DUP-001", "이미 존재하는 품목", "100", "0", "")),
-                null, null, "duplicate-name-red"))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
-                        .isEqualTo(ErrorCode.CONFLICT));
+                null, null, "duplicate-name-green");
+
+        assertThat(result.imported()).isEqualTo(1);
+        assertThat(result.aliasImported()).isEqualTo(1);
     }
 
     @Test
