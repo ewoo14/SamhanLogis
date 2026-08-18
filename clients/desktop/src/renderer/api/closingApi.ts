@@ -33,9 +33,15 @@ export interface DailyClosingSourceRow {
   unitPriceWithVat: string | number | null
   supplyAmount: string | number | null
   vatAmount: string | number | null
-  total: string | number | null
+  /** 원천 SlipLine의 VAT 포함 line total — 회계전표 line/allocation의 정본. */
+  total?: string | number | null
   partnerName: string
   partnerCode: string
+  partnerId?: string | null
+  slipNo?: string | null
+  productCode?: string | null
+  sourceLineNo?: number | null
+  taxType?: 'TAXABLE' | 'ZERO_RATED' | 'EXEMPT' | null
   productPrice: string | number | null
   discountRate: string | number | null
   grandTotal: string | number | null
@@ -58,10 +64,13 @@ export interface DailyClosingSourceRow {
 }
 
 /** 출고일 기준으로 레거시 일마감 원본행을 조회한다. */
-export async function getDailyClosingRows(slipDate: string): Promise<DailyClosingSourceRow[]> {
+export async function getDailyClosingRows(
+  slipDate: string,
+  slipType: 'OUTBOUND' | 'INBOUND' = 'OUTBOUND',
+): Promise<DailyClosingSourceRow[]> {
   const res = await apiClient.get<ApiEnvelope<DailyClosingSourceRow[]>>(
     '/slips/query/daily-closing',
-    { params: { slipDate } },
+    { params: { slipDate, slipType } },
   )
   return res.data.data
 }

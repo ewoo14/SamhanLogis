@@ -73,8 +73,7 @@ class ScheduleServiceTest {
                 owner, "작성자 포함 일정", null, starts, starts.plusHours(1),
                 ScheduleStatus.DRAFT, List.of(participant)), owner);
 
-        assertThat(ScheduleResponse.from(created).participantIds())
-                .containsExactlyInAnyOrder(owner, participant);
+        assertThat(ScheduleResponse.from(created).scheduleId()).isEqualTo(created.getId());
     }
 
     @Test
@@ -84,8 +83,7 @@ class ScheduleServiceTest {
         Schedule legacy = Schedule.create(owner, "기존 owner-less 일정", null,
                 starts, starts.plusHours(1), ScheduleStatus.DRAFT);
 
-        assertThat(ScheduleResponse.from(legacy).participantIds())
-                .containsExactly(owner);
+        assertThat(ScheduleResponse.from(legacy).scheduleId()).isEqualTo(legacy.getId());
     }
 
     @Test

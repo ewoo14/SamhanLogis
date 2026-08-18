@@ -22,8 +22,6 @@ public record TransferDetailResponse(
         TransferReason reason,
         String reasonDetail,
         TransferStatus status,
-        String requesterId,
-        String approverId,
         LocalDateTime requestedAt,
         LocalDateTime approvedAt,
         LocalDateTime shippedAt,
@@ -42,8 +40,6 @@ public record TransferDetailResponse(
                 t.getReason(),
                 t.getReasonDetail(),
                 t.getStatus(),
-                t.getRequesterId(),
-                t.getApproverId(),
                 t.getRequestedAt(),
                 t.getApprovedAt(),
                 t.getShippedAt(),
@@ -58,9 +54,8 @@ public record TransferDetailResponse(
             UUID productId,
             int requestedQuantity,
             int shippedQuantity,
-            int receivedQuantity,
-            UUID sourceLotId,
-            UUID destinationLotId) {
+            int receivedQuantity
+            ) {
 
         public static TransferLineResponse from(StockTransferLine line) {
             return new TransferLineResponse(
@@ -68,9 +63,8 @@ public record TransferDetailResponse(
                     line.getProductId(),
                     line.getRequestedQuantity(),
                     line.getShippedQuantity(),
-                    line.getReceivedQuantity(),
-                    line.getSourceLotId(),
-                    line.getDestinationLotId());
+                    line.getReceivedQuantity()
+                    );
         }
     }
 }

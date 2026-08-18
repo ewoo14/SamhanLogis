@@ -37,6 +37,10 @@ import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { today } from '../utils/dateUtils'
 import { fmtKrw } from '../utils/currencyUtils'
+import { buildDailyClosingAccountingSlipRequest } from './dailyClosingAccountingSlip'
+import { createSalesSlipDraft } from '../api/salesAccountingSlipApi'
+import { createPurchaseSlipDraft } from '../api/purchaseAccountingSlipApi'
+import { listAccountingSlipLinkEligibility } from '../api/accountingSlipLinkApi'
 
 type ClosingKindFilter = 'ALL' | DailyClosingKind
 
@@ -346,7 +350,18 @@ function execPartnerDraftGuardMessage(typedDraft: string, confirmedLabel: string
 
 
 export const DAILY_CLOSING_HEADERS = ['DC','일자','번호','창고명','품목명','수량','단가(VAT포함)','공급가액','부가세','합계','거래처명','거래처코드','출고가','할인율','총계','확인','회계반영일자'] as const
+
+export function dailyClosingSourceTableLabels(slipType: 'OUTBOUND' | 'INBOUND'): {
+  heading: string
+  dateLabel: string
+} {
+  return slipType === 'INBOUND'
+    ? { heading: '입고전표 원본행', dateLabel: '입고일' }
+    : { heading: '출고전표 원본행', dateLabel: '출고일' }
+}
 const LEGACY_MERGE_COLS = new Set(['DC','일자','번호','창고명','거래처명','거래처코드','회계반영일자'])
+// 품목명/상세 링크와 확인 사유가 두 줄인 행을 수용하되, 모든 데이터행의 높이를 고정한다.
+const DAILY_CLOSING_DATA_ROW_HEIGHT = 57
 type DailyClosingHeader = typeof DAILY_CLOSING_HEADERS[number]
 type DailyClosingFilterType = 'exact' | 'empty' | 'not_empty' | 'include' | 'exclude'
 type DailyClosingSortDirection = 'asc' | 'desc'
@@ -379,7 +394,7 @@ const DAILY_CLOSING_HEADER_ICON_STYLE: CSSProperties = {
   backgroundSize: '16px 16px',
 }
 
-function dailyClosingRawCellValue(row: DailyClosingSourceRow, header: DailyClosingHeader): string {
+export function dailyClosingColumnValue(row: DailyClosingSourceRow, header: DailyClosingHeader): string {
   const values: Record<DailyClosingHeader, unknown> = {
     'DC': row.dcCondition,
     '일자': row.slipDate,
@@ -526,8 +541,11 @@ function dailyClosingRowIdentity(row: DailyClosingSourceRow, occurrence = 0): st
 
 function LegacyAmountEditor({
   row,
+  accountingCreated,
   values,
   error,
+  includeBaseColumns = true,
+  includeReferenceColumns = true,
   onChange,
   rowIndex,
   selectedCells,
@@ -536,8 +554,11 @@ function LegacyAmountEditor({
   selectionKey,
 }: {
   row: DailyClosingSourceRow
+  accountingCreated: boolean
   values: CalculatedAmountValues | null
   error?: string
+  includeBaseColumns?: boolean
+  includeReferenceColumns?: boolean
   onChange: (values: CalculatedAmountValues) => void
   rowIndex: number
   selectedCells: Set<string>
@@ -545,7 +566,7 @@ function LegacyAmountEditor({
   onCellMouseEnter: (rowIndex: number, columnIndex: number) => void
   selectionKey: (rowIndex: number, columnIndex: number) => string
 }) {
-  const disabled = amountEditDisabled(row)
+  const disabled = accountingCreated || amountEditDisabled(row)
   const base = initialEditableAmounts(row)
   const current = values ?? {
     ...base,
@@ -610,46 +631,84 @@ function LegacyAmountEditor({
   >{content}</td>
 
   return <>
-    {amountCell(<>
+    {includeBaseColumns ? amountCell(<>
       {input('unit', current.unit, '단가(VAT포함)')}
-      {disabled ? <span title={amountEditDisabledReason(row)} style={{ marginLeft: 4, fontSize: 11 }}>수정 불가</span> : null}
       {!disabled && values ? <span role="status" style={{ marginLeft: 4, fontSize: 11 }}>수정됨</span> : null}
       {error ? <span role="alert" style={{ display: 'block', fontSize: 11 }}>{error}</span> : null}
-    </>, 6)}
-    {amountCell(values ? formatLegacyNumber(current.supply) : formatLegacyNumber(row.supplyAmount), 7)}
-    {amountCell(values ? formatLegacyNumber(current.vat) : formatLegacyNumber(row.vatAmount), 8)}
-    {amountCell(values ? formatLegacyNumber(current.total) : formatLegacyNumber(row.total), 9)}
-    {amountCell(input('price', current.price, '출고가'), 12)}
-    {amountCell(<div style={{ display: 'inline-flex', width: '100%', alignItems: 'center', justifyContent: 'center' }}>
+    </>, 6) : null}
+    {includeBaseColumns ? amountCell(values ? formatLegacyNumber(current.supply) : formatLegacyNumber(row.supplyAmount), 7) : null}
+    {includeBaseColumns ? amountCell(values ? formatLegacyNumber(current.vat) : formatLegacyNumber(row.vatAmount), 8) : null}
+    {includeBaseColumns ? amountCell(values ? formatLegacyNumber(current.total) : formatLegacyNumber(row.total), 9) : null}
+    {includeReferenceColumns ? amountCell(input('price', current.price, '출고가'), 12) : null}
+    {includeReferenceColumns ? amountCell(<div style={{ display: 'inline-flex', width: '100%', alignItems: 'center', justifyContent: 'center' }}>
         {input('rate', current.rate, '할인율')}
         <span style={{ marginLeft: 2 }}>%</span>
-      </div>, 13, { ...num, background: LEGACY_DISCOUNT_COLORS[legacyDiscountClass(Math.round(current.rate))] }, legacyDiscountClass(Math.round(current.rate)) || undefined)}
-    {amountCell(values ? formatLegacyNumber(current.total) : formatLegacyNumber(row.grandTotal), 14)}
+      </div>, 13, { ...num, background: LEGACY_DISCOUNT_COLORS[legacyDiscountClass(Math.round(current.rate))] }, legacyDiscountClass(Math.round(current.rate)) || undefined) : null}
+    {includeReferenceColumns ? amountCell(values ? formatLegacyNumber(current.total) : formatLegacyNumber(row.grandTotal), 14) : null}
   </>
 }
 
 function EditableLegacyDailyClosingTable({
   slipDate,
   tab,
+  closingKind,
   active,
   registerSave,
+  onAccountingSlipResult,
 }: {
   slipDate: string
   tab: 'RESULT' | 'PRE_ISSUED'
+  closingKind: ClosingKindFilter
   active: boolean
   registerSave: (save: (() => void) | null, dirtyCount: number) => void
+  onAccountingSlipResult?: (message: string, error?: boolean) => void
 }) {
   const [expanded, setExpanded] = useState<string | null>(null)
   const [drafts, setDrafts] = useState<Record<string, CalculatedAmountValues>>({})
   const [committedValues, setCommittedValues] = useState<Record<string, CalculatedAmountValues>>({})
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({})
+  const [accountingPending, setAccountingPending] = useState<string | null>(null)
+  const [accountingCreated, setAccountingCreated] = useState<Set<string>>(() => new Set())
   const saveRef = useRef<() => void>(() => undefined)
   const previousSlipDate = useRef(slipDate)
   const query = useQuery({
-    queryKey: ['daily-closing-source-rows', slipDate],
-    queryFn: () => getDailyClosingRows(slipDate),
+    queryKey: ['daily-closing-source-rows', slipDate, closingKind],
+    queryFn: () => closingKind === 'PURCHASE'
+      ? getDailyClosingRows(slipDate, 'INBOUND')
+      : getDailyClosingRows(slipDate),
   })
   const rows = (Array.isArray(query.data) ? query.data : []).filter((row) => !dailyClosingIsDeleted(row))
+  const accountingEligibilityQuery = useQuery({
+    queryKey: [
+      'daily-closing-accounting-eligibility',
+      slipDate,
+      closingKind,
+      rows.map((row) => `${row.slipId ?? ''}:${row.slipNo ?? ''}`).join('|'),
+    ],
+    enabled: rows.length > 0,
+    queryFn: async () => {
+      const result = await listAccountingSlipLinkEligibility(
+        Array.from(new Map(rows
+          .filter((row) => row.slipNo)
+          .map((row) => [
+            `${row.slipId ?? ''}:${row.slipNo}`,
+            {
+              sourceSlipIdToken: row.slipId ?? undefined,
+              sourceSlipNo: row.slipNo ?? undefined,
+              sourceSlipType: closingKind === 'PURCHASE' ? 'INBOUND' as const : 'OUTBOUND' as const,
+            },
+          ])).values()),
+        true,
+      )
+      return result ?? []
+    },
+  })
+  const serverAccountingCreated = useMemo(() => new Set(
+    (accountingEligibilityQuery.data ?? [])
+      .filter((item) => (item.readModel?.linkedSlips?.length ?? 0) > 0)
+      .map((item) => item.sourceSlipNo)
+      .filter((sourceSlipNo): sourceSlipNo is string => Boolean(sourceSlipNo)),
+  ), [accountingEligibilityQuery.data])
   const [viewStates, setViewStates] = useState<Record<'RESULT' | 'PRE_ISSUED', DailyClosingViewState>>({
     RESULT: { ...EMPTY_DAILY_CLOSING_VIEW_STATE },
     PRE_ISSUED: { ...EMPTY_DAILY_CLOSING_VIEW_STATE },
@@ -756,10 +815,25 @@ function EditableLegacyDailyClosingTable({
       return next
     })
   }
+  const viewColumnValue = (row: DailyClosingSourceRow, header: DailyClosingHeader): string => {
+    const edited = drafts[rowKey(row)] ?? committedValues[rowKey(row)]
+    if (!edited) return dailyClosingColumnValue(row, header)
+    const editedValues: Partial<Record<DailyClosingHeader, number>> = {
+      '단가(VAT포함)': edited.unit,
+      '공급가액': edited.supply,
+      '부가세': edited.vat,
+      '합계': edited.total,
+      '출고가': edited.price,
+      '할인율': edited.rate,
+      '총계': edited.total,
+    }
+    return editedValues[header] === undefined ? dailyClosingColumnValue(row, header) : formatLegacyNumber(editedValues[header])
+  }
+  // 레거시 의미: 회계반영일자가 없는 행은 결과, 있는 행은 선발행이다.
   const baseVisible = useMemo(
     () => rows.filter((row) => tab === 'RESULT'
-      ? Boolean(row.accountingPostedAt)
-      : !row.accountingPostedAt),
+      ? !row.accountingPostedAt
+      : Boolean(row.accountingPostedAt)),
     [rows, tab],
   )
   const visible = useMemo(
@@ -768,7 +842,7 @@ function EditableLegacyDailyClosingTable({
       const globalText = state.globalSearch.trim().toLowerCase()
       const filtered = baseVisible.filter((row) => {
         for (const [column, filter] of Object.entries(state.filters) as [DailyClosingHeader, DailyClosingFilter][]) {
-          const value = dailyClosingRawCellValue(row, column)
+          const value = viewColumnValue(row, column)
           const text = filter.text.trim()
           if (filter.type === 'exact' && value !== text) return false
           if (filter.type === 'empty' && value.trim() !== '') return false
@@ -777,14 +851,14 @@ function EditableLegacyDailyClosingTable({
           if (filter.type === 'exclude' && value.includes(text)) return false
         }
         return !globalText || DAILY_CLOSING_HEADERS.some((header) =>
-          dailyClosingRawCellValue(row, header).toLowerCase().includes(globalText))
+          viewColumnValue(row, header).toLowerCase().includes(globalText))
       })
       if (!state.sort) return filtered
       const originalIndex = new Map(baseVisible.map((row, index) => [row, index]))
       return [...filtered].sort((left, right) => {
         const column = state.sort!.col
-        const leftText = dailyClosingRawCellValue(left, column)
-        const rightText = dailyClosingRawCellValue(right, column)
+        const leftText = viewColumnValue(left, column)
+        const rightText = viewColumnValue(right, column)
         let comparison = 0
         if (column === '번호') {
           comparison = dailyClosingSortNumber(leftText) - dailyClosingSortNumber(rightText)
@@ -798,7 +872,7 @@ function EditableLegacyDailyClosingTable({
         return state.sort!.dir === 'asc' ? comparison : -comparison
       })
     },
-    [baseVisible, currentViewState],
+    [baseVisible, currentViewState, drafts, committedValues],
   )
   const cellSelectionKey = (rowIndex: number, columnIndex: number) => {
     const row = visible[rowIndex]
@@ -848,7 +922,7 @@ function EditableLegacyDailyClosingTable({
     if (field) return field.value
     const numericHeaders = new Set<DailyClosingHeader>(['번호', '수량', '공급가액', '부가세', '합계', '출고가', '총계'])
     if (numericHeaders.has(header) && cell?.textContent?.trim()) return cell.textContent.trim()
-    return dailyClosingRawCellValue(row, header)
+    return dailyClosingColumnValue(row, header)
   }
   const selectedSum = visible.reduce((sum, _row, rowIndex) => DAILY_CLOSING_HEADERS.reduce((rowSum, _header, columnIndex) => {
     if (!selectedCells.has(cellSelectionKey(rowIndex, columnIndex))) return rowSum
@@ -960,8 +1034,49 @@ function EditableLegacyDailyClosingTable({
     summaryRows: DailyClosingSourceRow[],
     summaryStyle: CSSProperties,
     summaryNumStyle: CSSProperties,
+    allowAccounting = false,
   ) => {
     const summary = amountSummary(summaryRows)
+    const source = summaryRows[0]
+    const sourceReady = source && summaryRows.every((row) => row.slipId && row.lineId && row.slipNo
+      && row.partnerId && row.productCode && row.sourceLineNo
+      && row.taxType && row.quantity > 0 && Number(row.unitPriceWithVat) > 0)
+    const accountingSourceKind = closingKind === 'PURCHASE' ? 'PURCHASE' : 'SALES'
+    const accountingKey = source ? `${accountingSourceKind}-${source.slipDate}-${source.seqNo}` : ''
+    const createAccounting = async () => {
+      if (!source || !sourceReady || accountingPending) return
+      setAccountingPending(accountingKey)
+      try {
+        const request = buildDailyClosingAccountingSlipRequest(summaryRows.map((row) => ({
+          sourceKind: closingKind === 'PURCHASE' ? 'PURCHASE_SLIP' : 'SALES_SLIP',
+          slipDate: row.slipDate,
+          slipId: row.slipId!,
+          slipNo: row.slipNo!,
+          lineId: row.lineId!,
+          sourceLineNo: row.sourceLineNo!,
+          partnerId: row.partnerId!,
+          partnerCode: row.partnerCode,
+          partnerName: row.partnerName,
+          productCode: row.productCode!,
+          productName: row.productName,
+          quantity: row.quantity,
+          unitPriceWithVat: row.unitPriceWithVat ?? 0,
+          total: row.total,
+          taxType: row.taxType!,
+          accountingPostedAt: row.accountingPostedAt,
+        })))
+        const response = request.kind === 'SALES'
+          ? await createSalesSlipDraft(request.body)
+          : await createPurchaseSlipDraft(request.body)
+        setAccountingCreated((current) => new Set(current).add(accountingKey))
+        onAccountingSlipResult?.(`${response.slipNo} 회계전표 생성 성공`)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : '회계전표 생성 실패'
+        onAccountingSlipResult?.(message, true)
+      } finally {
+        setAccountingPending(null)
+      }
+    }
     return <tr data-testid={testId} style={{ backgroundColor: summaryStyle.backgroundColor }}>
       <th colSpan={5} style={{ ...summaryStyle, textAlign: 'center', verticalAlign: 'middle' }}>{label}</th>
       <th style={summaryNumStyle}>{formatLegacyNumber(summary.quantity)}</th>
@@ -973,24 +1088,41 @@ function EditableLegacyDailyClosingTable({
       <th style={summaryNumStyle}>{formatLegacyNumber(summary.price)}</th>
       <th style={summaryNumStyle}>{formatLegacyNumber(summary.rate)}</th>
       <th style={summaryNumStyle}>{formatLegacyNumber(summary.grand)}</th>
-      <th style={summaryStyle} />
+      <th style={{ ...summaryStyle, whiteSpace: 'nowrap' }}>
+        {allowAccounting && source ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            data-testid={`daily-closing-accounting-create-${source.seqNo}`}
+            disabled={!sourceReady || Boolean(source.accountingPostedAt) || accountingCreated.has(accountingKey)
+              || serverAccountingCreated.has(source.slipNo ?? '') || accountingPending !== null}
+            title={!sourceReady ? '회계전표 생성에 필요한 원본값이 없습니다.' : undefined}
+            onClick={() => void createAccounting()}
+          >
+            {source.accountingPostedAt || accountingCreated.has(accountingKey) || serverAccountingCreated.has(source.slipNo ?? '')
+              ? '이미 생성됨' : accountingPending === accountingKey ? '생성 중' : '회계전표 생성'}
+          </Button>
+        ) : null}
+      </th>
       <th style={summaryStyle} />
     </tr>
   }
 
+  const tableLabels = dailyClosingSourceTableLabels(closingKind === 'PURCHASE' ? 'INBOUND' : 'OUTBOUND')
   return <div style={{ display: active ? undefined : 'none' }}>
     <Card style={{ marginBottom: 16 }}>
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-        <h3 style={{ margin: 0 }}>출고전표 원본행</h3>
-        <span style={{ color: 'var(--ink-secondary)', fontSize: 12 }}>출고일 {slipDate}</span>
+        <h3 style={{ margin: 0 }}>{tableLabels.heading}</h3>
+        <span style={{ color: 'var(--ink-secondary)', fontSize: 12 }}>{tableLabels.dateLabel} {slipDate}</span>
       </div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
         <label>통합검색 <input data-testid="daily-closing-global-search" value={currentViewState.globalSearch} onChange={(event) => updateViewState((state) => ({ ...state, globalSearch: event.target.value }))} /></label>
         <button type="button" onClick={() => updateViewState(() => ({ ...EMPTY_DAILY_CLOSING_VIEW_STATE }))}>열 필터·정렬 초기화</button>
         <span data-testid="daily-closing-selection-summary">합계: {selectedSum.toLocaleString()}</span>
       </div>
-      {query.isError ? <div role="alert" className="error-banner">출고전표 원본행을 불러오지 못했습니다.</div> : (
+      {query.isError ? <div role="alert" className="error-banner">{tableLabels.heading}을 불러오지 못했습니다.</div> : (
         <div
           data-testid={query.isLoading || !active ? undefined : 'daily-closing-table'}
           onCopy={handleTableCopy}
@@ -1053,7 +1185,7 @@ function EditableLegacyDailyClosingTable({
                   return start
                 })()
                 return <Fragment key={rowIdentity}>
-                  <tr data-testid={`daily-closing-data-row-${index}`}>
+                  <tr data-testid={`daily-closing-data-row-${index}`} style={{ height: DAILY_CLOSING_DATA_ROW_HEIGHT }}>
                     {mergedCell(row.dcCondition || '', 'DC', cell, merge, index, 0)}
                     {mergedCell(row.slipDate, '일자', cell, merge, index, 1)}
                     {mergedCell(formatLegacyNumber(row.seqNo), '번호', num, merge, index, 2)}
@@ -1072,6 +1204,8 @@ function EditableLegacyDailyClosingTable({
                     {selectableCell(formatLegacyNumber(row.quantity), index, 5, num)}
                     <LegacyAmountEditor
                       row={row}
+                      accountingCreated={accountingCreated.has(`${closingKind === 'PURCHASE' ? 'PURCHASE' : 'SALES'}-${row.slipDate}-${row.seqNo}`)
+                        || serverAccountingCreated.has(row.slipNo ?? '')}
                       values={drafts[rowKey(row)]
                         ?? committedValues[rowKey(row)]
                         ?? null}
@@ -1082,9 +1216,24 @@ function EditableLegacyDailyClosingTable({
                       onCellMouseDown={handleCellMouseDown}
                       onCellMouseEnter={handleCellMouseEnter}
                       selectionKey={cellSelectionKey}
+                      includeReferenceColumns={false}
                     />
                     {mergedCell(row.partnerName || '', '거래처명', cell, merge, index, 10)}
                     {mergedCell(row.partnerCode || '', '거래처코드', cell, merge, index, 11)}
+                    <LegacyAmountEditor
+                      row={row}
+                      accountingCreated={accountingCreated.has(`${closingKind === 'PURCHASE' ? 'PURCHASE' : 'SALES'}-${row.slipDate}-${row.seqNo}`)
+                        || serverAccountingCreated.has(row.slipNo ?? '')}
+                      values={drafts[rowKey(row)] ?? committedValues[rowKey(row)] ?? null}
+                      error={undefined}
+                      onChange={(values) => changeDraft(row, values)}
+                      rowIndex={index}
+                      selectedCells={selectedCells}
+                      onCellMouseDown={handleCellMouseDown}
+                      onCellMouseEnter={handleCellMouseEnter}
+                      selectionKey={cellSelectionKey}
+                      includeBaseColumns={false}
+                    />
                     {selectableCell(legacyStatusBadge(row), index, 15, cell)}
                     {mergedCell(
                       row.accountingPostedAt ? row.accountingPostedAt.replace('T', ' ').slice(0, 16) : '',
@@ -1114,6 +1263,7 @@ function EditableLegacyDailyClosingTable({
                     visible.slice(groupStart, index + 1),
                     subtotalCell,
                     subtotalNum,
+                    true,
                   ) : null}
                 </Fragment>
               })}
@@ -1146,6 +1296,7 @@ export function DailyClosingPage() {
   const [showExecutionPanel, setShowExecutionPanel] = useState(false)
   const [saveAllAction, setSaveAllAction] = useState<(() => void) | null>(null)
   const [unsavedAmountCount, setUnsavedAmountCount] = useState(0)
+  const [accountingSlipResult, setAccountingSlipResult] = useState<{ message: string; error: boolean } | null>(null)
   const [partnerCode, setPartnerCode] = useState('')
   const [closingKind, setClosingKind] = useState<ClosingKindFilter>('SALES')
   const [sourceKind, setSourceKind] = useState<DailyClosingSourceKind>('TAX_INVOICE')
@@ -1945,9 +2096,20 @@ export function DailyClosingPage() {
       <EditableLegacyDailyClosingTable
         slipDate={filterDate}
         tab={visibleSourceTab}
+        closingKind={closingKind}
         active={viewTab === 'RESULT' || viewTab === 'PRE_ISSUED'}
         registerSave={registerAmountSave}
+        onAccountingSlipResult={(message, error = false) => setAccountingSlipResult({ message, error })}
       />
+      {accountingSlipResult ? (
+        <div
+          role={accountingSlipResult.error ? 'alert' : 'status'}
+          data-testid="daily-closing-accounting-result"
+          style={{ marginBottom: 12, color: accountingSlipResult.error ? 'var(--color-danger-700)' : 'var(--color-success-700)' }}
+        >
+          {accountingSlipResult.message}
+        </div>
+      ) : null}
 
       {viewTab === 'HISTORY' ? <Card style={{ marginBottom: 16 }}>
         <h3 style={{ margin: '0 0 12px' }}>마감 이력</h3>

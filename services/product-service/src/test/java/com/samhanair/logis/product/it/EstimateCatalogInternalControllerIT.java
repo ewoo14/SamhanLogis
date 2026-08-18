@@ -22,6 +22,7 @@ import com.samhanair.logis.product.domain.ProductStatus;
 import com.samhanair.logis.product.domain.PriceHistory;
 import com.samhanair.logis.product.domain.UsageScope;
 import com.samhanair.logis.product.repository.BundleComponentRepository;
+import com.samhanair.logis.product.repository.BundleComponentEstimateSettingRepository;
 import com.samhanair.logis.product.repository.CategoryRepository;
 import com.samhanair.logis.product.repository.PriceHistoryRepository;
 import com.samhanair.logis.product.repository.ProductEstimateExposureRepository;
@@ -64,6 +65,9 @@ class EstimateCatalogInternalControllerIT extends AbstractPostgresIT {
 
     @Autowired
     private BundleComponentRepository bundleComponentRepository;
+
+    @Autowired
+    private BundleComponentEstimateSettingRepository estimateSettingRepository;
 
     /** estimate-app 의 실제 BASE 경로에 규칙 endpoint 가 존재하고 내부 토큰 필터를 통과한다. */
     @Test
@@ -151,6 +155,36 @@ class EstimateCatalogInternalControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[?(@.componentModelCode == 'IT_COMM_IDU_01')]"
                         + ".specs[*].specKey", hasItem("냉방능력")));
+    }
+
+    /** 저장된 카테고리별 설정이 종합견적 카탈로그의 실제 계산 입력으로 반영돼야 한다. */
+    @Test
+    void components_commercialMulti_usesSavedCategorySetting() throws Exception {
+        Product parent = seedBundleParent("IT_SETTING_SET_01",
+                ProductCategory.COMMERCIAL_MULTI, EstimateCategory.COMMERCIAL_MULTI);
+        Product component = seedComponentProduct("IT_SETTING_IDU_01", "설정 반영 실내기",
+                ProductCategory.COMMERCIAL_MULTI, EstimateCategory.COMMERCIAL_MULTI);
+        BundleComponent relation = BundleComponent.seed(parent.getId(), "IT_SETTING_IDU_01",
+                BigDecimal.ONE, BundleComponent.QtyMode.FOLLOW_SET,
+                BundleComponent.ComponentKind.INDOOR, null, true, null);
+        bundleComponentRepository.save(relation);
+        estimateSettingRepository.save(com.samhanair.logis.product.domain.BundleComponentEstimateSetting.create(
+                relation.getId(), EstimateCategory.COMMERCIAL_MULTI,
+                BundleComponent.QtyMode.FIXED, BundleComponent.ComponentKind.ACCESSORY,
+                "SOL1272", "사각", true, 1));
+        productRepository.flush();
+        bundleComponentRepository.flush();
+        estimateSettingRepository.flush();
+
+        mockMvc.perform(get("/products/internal/estimate-catalog/components?category=COMMERCIAL_MULTI")
+                        .header("X-Internal-Token", INTERNAL_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[?(@.componentModelCode == 'IT_SETTING_IDU_01')].kind",
+                        hasItem("ACCESSORY")))
+                .andExpect(jsonPath("$.data[?(@.componentModelCode == 'IT_SETTING_IDU_01')].qtyMode",
+                        hasItem("FIXED")))
+                .andExpect(jsonPath("$.data[?(@.componentModelCode == 'IT_SETTING_IDU_01')].variant",
+                        hasItem("SOL1272")));
     }
 
     /** 싱글 실내기 구성품에 ProductSpec 이 없으면 specs 필드는 존재하되 빈 배열로 반환한다. */

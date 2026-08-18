@@ -5,6 +5,7 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.product.domain.PriceHistory;
 import com.samhanair.logis.product.repository.PriceHistoryRepository;
+import com.samhanair.logis.product.repository.ProductEstimateExposureRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -36,6 +37,7 @@ public class PriceHistoryInternalController {
 
     private final PriceHistoryRepository priceHistoryRepository;
     private final ProductRepository productRepository;
+    private final ProductEstimateExposureRepository exposureRepository;
 
     /**
      * 제품/업무일 기준 적용 가능한 최신 정가를 조회한다.
@@ -127,13 +129,17 @@ public class PriceHistoryInternalController {
                 .map(history -> new ApplicablePriceResponse(
                         history.getReleasePrice(),
                         history.getDeliveryPrice(),
-                        history.getEffectiveDate()));
+                        history.getEffectiveDate(),
+                        exposureRepository.findByProductIdAndIsDeletedFalse(productId).stream()
+                                .map(exposure -> exposure.getEstimateCategory().name())
+                                .toList()));
     }
 
     public record ApplicablePriceResponse(
             BigDecimal release,
             BigDecimal delivery,
-            LocalDate effectiveDate) {
+            LocalDate effectiveDate,
+            List<String> estimateCategories) {
     }
 
     public record ApplicablePriceBulkRequest(

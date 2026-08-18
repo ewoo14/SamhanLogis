@@ -55,7 +55,7 @@ public class SlipCleanupSaveHistoryService {
         validateRequest(request);
         String user = normalizeUser(currentUser);
         SlipCleanupSaveHistory saved = saveWithAutoLatestRetry(request, user);
-        return new SlipCleanupSaveHistorySaveResponse(saved.getId(), saved.getCreatedAt());
+        return new SlipCleanupSaveHistorySaveResponse(saved.getCreatedAt());
     }
 
     private SlipCleanupSaveHistory saveWithAutoLatestRetry(

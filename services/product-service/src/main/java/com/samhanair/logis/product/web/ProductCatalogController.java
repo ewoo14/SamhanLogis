@@ -17,6 +17,10 @@ import com.samhanair.logis.product.repository.ProductEstimateExposureRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.repository.SpecKeyTemplateRepository;
 import com.samhanair.logis.product.service.BundleComponentService;
+import com.samhanair.logis.product.service.BundleComponentEstimateSettingService;
+import com.samhanair.logis.product.domain.EstimateCategory;
+import com.samhanair.logis.product.web.dto.BundleComponentEstimateSettingRequest;
+import com.samhanair.logis.product.web.dto.BundleComponentEstimateSettingResponse;
 import com.samhanair.logis.product.service.ProductService;
 import com.samhanair.logis.product.service.ProductSpecService;
 import com.samhanair.logis.product.web.dto.BundleComponentRequest;
@@ -113,6 +117,7 @@ public class ProductCatalogController {
     private final SpecKeyTemplateRepository templateRepository;
     private final ProductService productService;
     private final BundleComponentService bundleComponentService;
+    private final BundleComponentEstimateSettingService bundleComponentEstimateSettingService;
     private final BundleComponentRepository bundleComponentRepository;
     private final ProductEstimateExposureRepository exposureRepository;
     private final ProductCatalogChangePublisher catalogChangePublisher;
@@ -122,6 +127,7 @@ public class ProductCatalogController {
                                     SpecKeyTemplateRepository templateRepository,
                                     ProductService productService,
                                     BundleComponentService bundleComponentService,
+                                    BundleComponentEstimateSettingService bundleComponentEstimateSettingService,
                                     BundleComponentRepository bundleComponentRepository,
                                     ProductEstimateExposureRepository exposureRepository,
                                     ProductCatalogChangePublisher catalogChangePublisher) {
@@ -130,6 +136,7 @@ public class ProductCatalogController {
         this.templateRepository = templateRepository;
         this.productService = productService;
         this.bundleComponentService = bundleComponentService;
+        this.bundleComponentEstimateSettingService = bundleComponentEstimateSettingService;
         this.bundleComponentRepository = bundleComponentRepository;
         this.exposureRepository = exposureRepository;
         this.catalogChangePublisher = catalogChangePublisher;
@@ -436,6 +443,25 @@ public class ProductCatalogController {
     @RequirePermission(page = "products.list", action = PermissionAction.VIEW)
     public List<BundleComponentResponse> listComponents(@PathVariable @NotBlank String modelCode) {
         return bundleComponentService.listComponents(modelCode);
+    }
+
+    /** 카테고리별 설정 조회. 설정 전용 행은 웹 카탈로그 노출 membership가 아니다. */
+    @GetMapping("/products/{modelCode}/component-settings")
+    @RequirePermission(page = "products.list", action = PermissionAction.VIEW)
+    public List<BundleComponentEstimateSettingResponse> listComponentSettings(
+            @PathVariable @NotBlank String modelCode,
+            @RequestParam EstimateCategory estimateCategory) {
+        return bundleComponentEstimateSettingService.list(modelCode, estimateCategory);
+    }
+
+    /** 카테고리별 3종 설정만 저장하고 구성품·납품가는 변경하지 않는다. */
+    @PutMapping("/products/{modelCode}/component-settings")
+    @RequirePermission(page = "products.admin", action = PermissionAction.UPDATE)
+    public List<BundleComponentEstimateSettingResponse> replaceComponentSettings(
+            @PathVariable @NotBlank String modelCode,
+            @RequestParam EstimateCategory estimateCategory,
+            @Valid @RequestBody List<BundleComponentEstimateSettingRequest> requests) {
+        return bundleComponentEstimateSettingService.replace(modelCode, estimateCategory, requests);
     }
 
     /**

@@ -147,7 +147,7 @@ public class MessageService {
             NotificationPublisherSupport.publishAfterCommit(notificationPublisher, notificationRequest,
                     notificationPublisherDispatchExecutor);
         }
-        return new MessageBulkSendResponse(batchId, savedMessages.size(),
+        return new MessageBulkSendResponse(savedMessages.size(),
                 savedMessages.stream().map(MessageResponse::from).toList());
     }
 

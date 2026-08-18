@@ -34,6 +34,24 @@ class DailyClosingRowResponseTest {
         assertThat(row.discountRate()).isEqualByComparingTo("47.5");
     }
 
+    @Test
+    void 견적품목_원천값을_일마감_상세로_전달한다() {
+        Slip slip = mock(Slip.class);
+        SlipLine line = mock(SlipLine.class);
+        when(line.getQuantity()).thenReturn(1);
+        when(line.getUnitPriceWithVat()).thenReturn(new BigDecimal("286165"));
+        when(line.getSupplyAmount()).thenReturn(new BigDecimal("260150"));
+        when(line.getVatAmount()).thenReturn(new BigDecimal("26015"));
+        when(slip.getSlipDate()).thenReturn(java.time.LocalDate.of(2026, 8, 14));
+
+        DailyClosingRowResponse row = DailyClosingRowResponse.from(slip, line,
+                new DailyClosingRowResponse.SourceValues(new BigDecimal("520300"), null, null, null,
+                        "COMMERCIAL_MULTI", new BigDecimal("286165"), null));
+
+        assertThat(row.categoryKey()).isEqualTo("COMMERCIAL_MULTI");
+        assertThat(row.deliveryPrice()).isEqualByComparingTo("286165");
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"0", "0.5", "-1920.9680934076493", "1.01", "0.123456789"})
     void 할인율_소수_퍼센트_경계가_저장조회_왕복에서_변하지_않는다(String storedRate) {

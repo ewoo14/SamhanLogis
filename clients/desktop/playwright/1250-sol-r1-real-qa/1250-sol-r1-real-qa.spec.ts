@@ -59,7 +59,7 @@ function identityHeaders(login: Record<string, unknown>, attestation: string): R
   }
 }
 
-async function openPreIssued(page: Page, loginId: string, password: string): Promise<void> {
+async function openResult(page: Page, loginId: string, password: string): Promise<void> {
   await page.goto(`${BASE_URL}/#/accounting/daily-closings`)
   const loginInput = page.getByLabel(/사용자 ID/)
   if (await loginInput.isVisible({ timeout: 5_000 }).catch(() => false)) {
@@ -69,7 +69,7 @@ async function openPreIssued(page: Page, loginId: string, password: string): Pro
   }
   await expect(page.getByTestId('daily-closing-nav')).toBeVisible({ timeout: 60_000 })
   await page.getByTestId('daily-closing-filter-date').fill(QA_DATE)
-  await page.getByTestId('daily-closing-tab-pre_issued').click()
+  await page.getByTestId('daily-closing-tab-result').click()
   await expect(page.getByTestId('daily-closing-table')).toBeVisible({ timeout: 30_000 })
 }
 
@@ -157,10 +157,10 @@ test('PR 1250 SOL 적대검증 라운드1 금액 네 단계와 차단을 실측�
   }
   await page.route(`${SHARED_API}/**`, forward)
 
-  await openPreIssued(page, loginId, password)
-  const backendPreIssued = sourceRows.filter((row) => !row.accountingPostedAt).length
-  const preIssuedRows = await page.locator('[data-testid^="daily-closing-data-row-"]').count()
-  expect(preIssuedRows).toBe(backendPreIssued)
+  await openResult(page, loginId, password)
+  const backendResult = sourceRows.filter((row) => !row.accountingPostedAt).length
+  const resultRows = await page.locator('[data-testid^="daily-closing-data-row-"]').count()
+  expect(resultRows).toBe(backendResult)
   await page.screenshot({ path: path.join(SHOTS, '01-pre-edit-real-qa.png'), fullPage: true })
 
   const before15 = await rowAmounts(page, 15)
@@ -174,7 +174,7 @@ test('PR 1250 SOL 적대검증 라운드1 금액 네 단계와 차단을 실측�
   expect(saved15.status).toBe(200)
 
   await page.reload()
-  await openPreIssued(page, loginId, password)
+  await openResult(page, loginId, password)
   const after15 = await rowAmounts(page, 15)
   await page.getByTestId('daily-closing-unit-15').scrollIntoViewIfNeeded()
   await page.screenshot({ path: path.join(SHOTS, '03-requery-105-q2-real-qa.png'), fullPage: true })
@@ -187,7 +187,7 @@ test('PR 1250 SOL 적대검증 라운드1 금액 네 단계와 차단을 실측�
     const saved = await saveOne(page, putEvidence, item.seqNo)
     expect(saved.status).toBe(200)
     await page.reload()
-    await openPreIssued(page, loginId, password)
+    await openResult(page, loginId, password)
     const after = await rowAmounts(page, item.seqNo)
     quantityCases.push({ ...item, before, editing, payload: saved.payload, after })
   }
@@ -199,7 +199,7 @@ test('PR 1250 SOL 적대검증 라운드1 금액 네 단계와 차단을 실측�
     const saved = await saveOne(page, putEvidence, item.seqNo)
     expect(saved.status).toBe(200)
     await page.reload()
-    await openPreIssued(page, loginId, password)
+    await openResult(page, loginId, password)
     const after = await rowAmounts(page, item.seqNo)
     statusCases.push({ ...item, editing, payload: saved.payload, after })
   }
@@ -216,25 +216,25 @@ test('PR 1250 SOL 적대검증 라운드1 금액 네 단계와 차단을 실측�
   expect(rateFailure.status()).toBe(400)
 
   await page.reload()
-  await openPreIssued(page, loginId, password)
+  await openResult(page, loginId, password)
   await page.getByTestId('daily-closing-price-15').fill('200')
   await page.getByTestId('daily-closing-unit-15').fill('384393.61868152986')
   const negativeEditing = await rowAmounts(page, 15)
   const negativeSaved = await saveOne(page, putEvidence, 15)
   expect(negativeSaved.status).toBe(200)
   await page.reload()
-  await openPreIssued(page, loginId, password)
+  await openResult(page, loginId, password)
   const negativeAfter = await rowAmounts(page, 15)
   expect(negativeAfter.rate).toBe(negativeEditing.rate)
 
   await page.reload()
   await expect(page.getByTestId('daily-closing-nav')).toBeVisible({ timeout: 60_000 })
   await page.getByTestId('daily-closing-filter-date').fill(QA_DATE)
-  await page.getByTestId('daily-closing-tab-result').click()
+  await page.getByTestId('daily-closing-tab-pre_issued').click()
   await expect(page.getByTestId('daily-closing-table')).toBeVisible()
-  const resultRows = await page.locator('[data-testid^="daily-closing-data-row-"]').count()
-  const backendResult = sourceRows.filter((row) => Boolean(row.accountingPostedAt)).length
-  expect(resultRows).toBe(backendResult)
+  const preIssuedRows = await page.locator('[data-testid^="daily-closing-data-row-"]').count()
+  const backendPreIssued = sourceRows.filter((row) => Boolean(row.accountingPostedAt)).length
+  expect(preIssuedRows).toBe(backendPreIssued)
   const postedUnit = page.getByTestId('daily-closing-unit-17')
   await expect(postedUnit).toBeDisabled()
   await expect(postedUnit.locator('xpath=ancestor::td')).toContainText('수정 불가')
@@ -263,10 +263,10 @@ test('PR 1250 SOL 적대검증 라운드1 금액 네 단계와 차단을 실측�
     loginRole: String(login['role'] ?? ''),
     rows: {
       backendAll: sourceRows.length,
-      backendPreIssued,
-      screenPreIssued: preIssuedRows,
       backendResult,
       screenResult: resultRows,
+      backendPreIssued,
+      screenPreIssued: preIssuedRows,
     },
     fourStagesQ2: {
       identifier: '2026/08/14-15',

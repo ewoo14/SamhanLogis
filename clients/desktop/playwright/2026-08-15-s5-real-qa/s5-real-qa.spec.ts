@@ -31,13 +31,13 @@ async function openPage(page: Page) {
 
 test('S5 실서버 — 원본행 결과·선발행·실행·이력 read-only 확인', async ({ page }) => {
   await openPage(page)
-  await expect(page.getByTestId('daily-closing-tab-result')).toContainText('결과 (1)')
-  await expect(page.getByTestId('daily-closing-tab-pre_issued')).toContainText('선발행 (12)')
+  await expect(page.getByTestId('daily-closing-tab-result')).toContainText('결과 (12)')
+  await expect(page.getByTestId('daily-closing-tab-pre_issued')).toContainText('선발행 (1)')
   await page.screenshot({ path: path.join(SHOTS, '01-result-tab-and-history.png'), fullPage: true })
 
-  await page.getByTestId('daily-closing-tab-pre_issued').click()
-  await expect(page.getByTestId('daily-closing-tab-pre_issued')).toHaveAttribute('aria-selected', 'true')
-  await page.screenshot({ path: path.join(SHOTS, '02-pre-issued-tab-and-history.png'), fullPage: true })
+  await page.getByTestId('daily-closing-tab-result').click()
+  await expect(page.getByTestId('daily-closing-tab-result')).toHaveAttribute('aria-selected', 'true')
+  await page.screenshot({ path: path.join(SHOTS, '02-result-tab-and-history.png'), fullPage: true })
 
   const executeButton = page.getByTestId('daily-closing-exec-button')
   await expect(executeButton).toBeVisible()
@@ -49,7 +49,7 @@ test('S5 실서버 — 원본행 결과·선발행·실행·이력 read-only 확
 
   fs.writeFileSync(path.join(SHOTS, 'navigation.txt'), [
     '결과 탭: 사용자는 일마감 메뉴에서 대상일 2026-08-14를 조회하면 처음 결과 탭과 마감 이력을 본다.',
-    '선발행 탭: 사용자는 원본행 표 상단의 선발행 탭을 눌러 posted_at 없는 12건을 본다.',
+    '결과 탭: 사용자는 원본행 표 상단의 결과 탭을 눌러 posted_at 없는 12건을 본다.',
     '실행·이력: 사용자는 일마감 실행 영역에서 전체 범위를 선택하면 실행 버튼이 활성화되고, 아래 마감 이력을 확인한다. 실행 버튼은 공유 DB write 방지를 위해 누르지 않았다.',
   ].join('\n') + '\n', 'utf8')
 })

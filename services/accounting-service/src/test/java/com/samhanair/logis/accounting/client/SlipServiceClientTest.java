@@ -36,7 +36,7 @@ class SlipServiceClientTest {
         server = MockRestServiceServer.bindTo(builder).build();
         InternalAuthProperties props = new InternalAuthProperties();
         props.setToken(TOKEN);
-        client = new SlipServiceClient(builder, props);
+        client = new SlipServiceClient(builder, props, "http://slip-service");
     }
 
     @Test

@@ -60,6 +60,10 @@ import {
   updateProductFixedDiscount,
   updateProductVariableDiscount,
   updateProductGoodsType,
+  listBundleComponentSettings,
+  updateBundleComponentSettings,
+  type BundleComponentEstimateSetting,
+  type ComponentKind,
   type ProductGoodsType,
   type EstimateCategory,
   type ProductCatalogRow,
@@ -114,6 +118,54 @@ type MasterProductSearch = (
   q: string,
   options?: { size?: number; usageScope?: UsageScope },
 ) => Promise<ProductOption[]>
+
+const COMPONENT_KIND_LABELS: Record<ComponentKind, string> = {
+  INDOOR: '실내기', OUTDOOR: '실외기', PANEL: '판넬', REMOTE: '리모컨',
+  MATERIAL: '자재', ACCESSORY: '부속', FOOT: '받침대',
+}
+
+function ComponentSettingsCell({ row, category, canEdit }: { row: ProductCatalogRow; category: EstimateCategory; canEdit: boolean }) {
+  const queryClient = useQueryClient()
+  const [open, setOpen] = useState(false)
+  const [drafts, setDrafts] = useState<BundleComponentEstimateSetting[]>([])
+  const query = useQuery({
+    queryKey: ['bundle-component-settings', row.modelCode, category],
+    queryFn: () => listBundleComponentSettings(row.modelCode, category),
+    enabled: open && row.productType === 'BUNDLE',
+  })
+  const save = useMutation({
+    mutationFn: () => updateBundleComponentSettings(row.modelCode, category, drafts),
+    onSuccess: () => {
+      setOpen(false)
+      void queryClient.invalidateQueries({ queryKey: ['bundle-component-settings', row.modelCode, category] })
+    },
+  })
+  useEffect(() => {
+    if (query.data) setDrafts(query.data.map((item) => ({ ...item })))
+  }, [query.data])
+  if (row.productType !== 'BUNDLE') return <span style={{ color: 'var(--color-neutral-400)' }}>—</span>
+  return <>
+    <Button variant="secondary" size="sm" onClick={() => setOpen(true)} data-testid={`estimate-items-component-settings-${row.modelCode}`}>
+      카테고리별 3종 설정
+    </Button>
+    <Modal open={open} onClose={() => setOpen(false)} title={`카테고리별 설정 · ${row.modelCode}`} size="lg" footer={<Button variant="primary" onClick={() => save.mutate()} disabled={!canEdit || save.isPending}>저장</Button>}>
+      <p style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}>구성품 추가·삭제와 납품가는 기초품목에 남습니다. 이 화면은 수량동기화·옵션·품목구분만 저장합니다.</p>
+      <div style={{ display: 'grid', gap: 10 }}>
+        {drafts.map((item, index) => <div key={item.componentProductCode} style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1fr', gap: 8, alignItems: 'end' }}>
+          <strong>{item.componentProductCode}</strong>
+          <Select label="수량 동기화" value={item.qtyMode} disabled={!canEdit} onChange={(event) => setDrafts((current) => current.map((draft, i) => i === index ? { ...draft, qtyMode: event.target.value as BundleComponentEstimateSetting['qtyMode'] } : draft))}>
+            <option value="FOLLOW_SET">세트 따라감</option><option value="FIXED">고정</option>
+          </Select>
+          <Select label="품목구분" value={item.componentKind} disabled={!canEdit} onChange={(event) => setDrafts((current) => current.map((draft, i) => i === index ? { ...draft, componentKind: event.target.value as ComponentKind } : draft))}>
+            {Object.entries(COMPONENT_KIND_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </Select>
+          <Input label="옵션" value={item.componentVariant ?? ''} disabled={!canEdit} onChange={(event) => setDrafts((current) => current.map((draft, i) => i === index ? { ...draft, componentVariant: event.target.value || null } : draft))} />
+        </div>)}
+        {drafts.length === 0 && !query.isFetching ? <span>설정 가능한 구성품이 없습니다.</span> : null}
+      </div>
+    </Modal>
+  </>
+}
 
 /** 라이브 모달에서 effect 의존성이 렌더마다 바뀌지 않도록 노출 행 배열을 고정한다. */
 export function useStableEstimateCatalogRows<T extends { usageScope: UsageScope }>(
@@ -1554,6 +1606,13 @@ export function EstimateItemsCatalogPage() {
           searchQuantitySyncProducts={searchQuantitySyncProducts}
         />
       ),
+    },
+    {
+      key: 'categorySettings',
+      header: '카테고리별 설정',
+      width: '170px',
+      mobilePriority: 'secondary',
+      render: (row) => <ComponentSettingsCell row={row} category={committedCategory} canEdit={canEdit} />,
     },
     {
       key: 'usageScope',
