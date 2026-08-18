@@ -1,4 +1,4 @@
-import { supplyFromVatInclusive, vatFromIntegerSupply } from './vatRounding'
+import { calculateVatInclusiveAmounts, vatFromIntegerSupply } from './vatRounding'
 
 /**
  * 품목행 공급가액·부가세·VAT 포함 합계 계산.
@@ -298,11 +298,14 @@ function fromAmounts<T extends LineVatLine>(
 export function recalculateLineVat<T extends LineVatLine>(line: T, authority: LineVatAuthority = 'PRICE'): T {
   const quantity = Math.max(1, Math.trunc(Number(line.quantity) || 1))
   if (authority === 'PRICE') {
-    const total = roundProduct(quantity, line.unitPrice)
-    // P1-03: BE VatAmountCalculator/splitVatInclusive와 같은 레거시 원 단위 HALF_UP이다.
-    // 단일 진실원(vatRounding.ts)의 계산기를 사용해 전표·견적 표시와 저장 계약을 맞춘다.
-    const supply = supplyFromVatInclusive(total)
-    return fromAmounts(line, authority, supply, total - supply, total)
+    const amounts = calculateVatInclusiveAmounts(line.unitPrice, quantity)
+    return fromAmounts(
+      line,
+      authority,
+      BigInt(amounts.supply),
+      BigInt(amounts.vat),
+      BigInt(amounts.total),
+    )
   }
   if (authority === 'SUPPLY') {
     const supply = integerAmount(line.supplyAmount)

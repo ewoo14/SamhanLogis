@@ -16,6 +16,53 @@ export function vatFromIntegerSupply(supplyAmount: bigint): bigint {
   return supplyAmount / 10n
 }
 
+interface DecimalParts {
+  coefficient: bigint
+  scale: number
+}
+
+function decimalParts(raw: string | number): DecimalParts | null {
+  const match = String(raw).trim().match(/^([+-]?)(\d*)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/)
+  if (!match || (!match[2] && !match[3])) return null
+  const sign = match[1] === '-' ? -1n : 1n
+  const integer = match[2] || '0'
+  const fraction = match[3] || ''
+  const exponent = Number(match[4] || '0')
+  if (!Number.isSafeInteger(exponent)) return null
+  let coefficient = sign * BigInt(`${integer}${fraction}`)
+  let scale = fraction.length - exponent
+  if (scale < 0) {
+    coefficient *= 10n ** BigInt(-scale)
+    scale = 0
+  }
+  return { coefficient, scale }
+}
+
+function divideHalfUp(numerator: bigint, denominator: bigint): bigint {
+  const sign = numerator < 0n ? -1n : 1n
+  const absolute = numerator < 0n ? -numerator : numerator
+  const quotient = absolute / denominator
+  const remainder = absolute % denominator
+  return sign * (remainder * 2n >= denominator ? quotient + 1n : quotient)
+}
+
+/** VAT 포함 단가 편집/저장 공통 정본. 레거시처럼 총액을 먼저 만든 뒤 VAT를 분리한다. */
+export function calculateVatInclusiveAmounts(
+  unitPriceWithVat: string | number,
+  quantity: number,
+): { supply: string; vat: string; total: string } {
+  const parsed = decimalParts(unitPriceWithVat)
+  if (!parsed || !Number.isInteger(quantity) || quantity <= 0) {
+    throw new Error('VAT 포함 단가와 수량이 올바르지 않습니다')
+  }
+  const unitAtScale2 = parsed.scale <= 2
+    ? parsed.coefficient * 10n ** BigInt(2 - parsed.scale)
+    : divideHalfUp(parsed.coefficient, 10n ** BigInt(parsed.scale - 2))
+  const total = divideHalfUp(unitAtScale2 * BigInt(quantity), 100n)
+  const supply = divideHalfUp(total * 100n, 110n)
+  return { supply: String(supply), vat: String(total - supply), total: String(total) }
+}
+
 /** VAT 포함 정수 합계에서 공급가액을 분리한다 — 레거시 원 단위 HALF_UP. */
 export function supplyFromVatInclusive(lineTotal: bigint): bigint {
   const numerator = lineTotal * 100n

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { formatVatAmount, splitVatInclusive, splitVatInclusiveFromQtyUnitPrice } from './vatRounding'
+import {
+  calculateVatInclusiveAmounts,
+  formatVatAmount,
+  splitVatInclusive,
+  splitVatInclusiveFromQtyUnitPrice,
+} from './vatRounding'
 
 describe('VAT 포함 금액 표시 분리', () => {
   it.each([
@@ -16,6 +21,14 @@ describe('VAT 포함 금액 표시 분리', () => {
 
   it('절사와 갈리는 110005원도 레거시 HALF_UP 공급가와 차액 VAT를 사용한다', () => {
     expect(splitVatInclusive(110005, true)).toEqual({ supply: 100005, vat: 10000, total: 110005 })
+  })
+
+  it('가격수정 중에도 소수 경계 단가의 총액축 금액을 레거시와 동일하게 낸다', () => {
+    expect(calculateVatInclusiveAmounts('616975', 3)).toEqual({
+      supply: '1682659',
+      vat: '168266',
+      total: '1850925',
+    })
   })
 
   it('부분 배분도 VAT를 다시 더하지 않고 세 값의 항등식을 지킨다', () => {

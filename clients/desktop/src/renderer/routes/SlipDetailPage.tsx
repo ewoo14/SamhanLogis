@@ -4549,6 +4549,10 @@ export function SlipDetailPage({ mode, slipId }: SlipDetailPageProps) {
               {renderRedlineCell('header.partnerName', salesSlipPartnerHeader.name || '-')}
             </span>
           </div>
+          <div data-testid="slip-detail-source-reference">
+            <span className="detail-label">원천 {slip.sourceType === 'ESTIMATE' ? '견적' : '주문'}</span>
+            <span className="detail-value">{slip.sourceReference ?? '—'}</span>
+          </div>
           <div>
             <span className="detail-label">일자</span>
             <span className="detail-value">
