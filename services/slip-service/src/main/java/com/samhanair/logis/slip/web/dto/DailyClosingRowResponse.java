@@ -3,6 +3,7 @@ package com.samhanair.logis.slip.web.dto;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipLine;
 import com.samhanair.logis.slip.domain.SlipStatus;
+import com.samhanair.logis.slip.client.ProductSummary;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -39,7 +40,12 @@ public record DailyClosingRowResponse(
         String amountEditBlockReason,
         String categoryKey,
         BigDecimal deliveryPrice,
-        Integer expectedRate) {
+        Integer expectedRate,
+        UUID partnerId,
+        String slipNo,
+        String productCode,
+        int sourceLineNo,
+        String taxType) {
 
     /** S1 기존 호출자 호환 생성자 — S7 내부 편집 메타데이터는 읽기 전용 기본값으로 둔다. */
     public DailyClosingRowResponse(
@@ -56,7 +62,7 @@ public record DailyClosingRowResponse(
                 accountingPostedAt, dcAmount, sourceStatus, null, null,
                 null,
                 accountingPostedAt == null, accountingPostedAt == null ? null : "회계전표가 이미 반영되었습니다.",
-                null, null, null);
+                null, null, null, null, null, null, 1, null);
     }
 
     public enum Confirmation { CONFIRMED, MISMATCH, UNDETERMINED }
@@ -82,6 +88,17 @@ public record DailyClosingRowResponse(
     }
 
     public static DailyClosingRowResponse from(Slip slip, SlipLine line, SourceValues source) {
+        return from(slip, line, source, 1);
+    }
+
+    /** 일마감 행을 기존 회계전표 생성 요청의 원천 allocation 계약으로 확장한다. */
+    public static DailyClosingRowResponse from(Slip slip, SlipLine line, SourceValues source, int sourceLineNo) {
+        return from(slip, line, source, sourceLineNo, null);
+    }
+
+    /** 상품서비스 벌크 조회 결과를 원본 식별자/세율로 연결한다. */
+    public static DailyClosingRowResponse from(Slip slip, SlipLine line, SourceValues source,
+                                               int sourceLineNo, ProductSummary product) {
         BigDecimal supply = zero(line.getSupplyAmount());
         BigDecimal vat = zero(line.getVatAmount());
         BigDecimal unitPriceWithVat = zero(line.getUnitPriceWithVat());
@@ -128,7 +145,9 @@ public record DailyClosingRowResponse(
                 slip.getModifiedAt() == null ? slip.getCreatedAt() : slip.getModifiedAt(),
                 source.accountingPostedAt() == null,
                 source.accountingPostedAt() == null ? null : "회계전표가 이미 반영되었습니다.",
-                source.categoryKey(), source.deliveryPrice(), source.expectedRate());
+                source.categoryKey(), source.deliveryPrice(), source.expectedRate(),
+                slip.getPartnerId(), slip.getSlipNo(), product == null ? null : product.productCode(),
+                sourceLineNo, product == null ? null : product.taxType());
     }
 
     /** 마감일 잠금 결과를 조회 응답에 반영한다. */
@@ -138,7 +157,8 @@ public record DailyClosingRowResponse(
                 productPrice, discountRate, grandTotal, confirmation, confirmationReason,
                 accountingPostedAt, dcAmount, sourceStatus, slipId, lineId, updatedAt,
                 editable && amountEditable, editable && amountEditable ? null
-                        : (editable ? amountEditBlockReason : reason), categoryKey, deliveryPrice, expectedRate);
+                        : (editable ? amountEditBlockReason : reason), categoryKey, deliveryPrice, expectedRate,
+                partnerId, slipNo, productCode, sourceLineNo, taxType);
     }
 
     private static BigDecimal zero(BigDecimal value) {
