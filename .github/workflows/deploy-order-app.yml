@@ -46,25 +46,23 @@ jobs:
 
       - name: 릴리스 wrapper build + dist 버전 사후검증
         env:
+          # GitHub repository variable가 릴리스 번호의 정본이다. 공통 resolver가
+          # YYYY/MM/DD-{번호} 형식을 검증하므로 임의의 날짜/run 번호를 생성하지 않는다.
           VITE_APP_VERSION: ${{ vars.SAMHAN_RELEASE_VERSION }}
+          VITE_API_BASE_URL: https://api.samhan-air.com/api/v1
         run: npm run build:release
 
-      - name: Cloudflare 토큰 설정 여부 확인
-        id: cfcheck
-        # CLOUDFLARE_API_TOKEN 미설정 시 배포 단계를 skip 하여 chronic false-red 를 제거한다.
-        # (build/typecheck/test 게이트는 항상 수행). 토큰 등록 시 자동으로 배포가 재활성화된다.
+      - name: Cloudflare 자격 증명 필수 확인
+        # 자격 누락은 배포 skip이 아니라 job 실패여야 한다. account ID도 Pages action의
+        # 필수 입력이므로 토큰과 함께 fail-fast 검증한다.
         env:
-          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          if [ -n "$CF_TOKEN" ]; then
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::warning title=Cloudflare 배포 skip::CLOUDFLARE_API_TOKEN 미설정 — order-app Cloudflare 배포 단계를 건너뜁니다. 활성화하려면 저장소 시크릿 CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID 를 등록하세요."
-          fi
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "CLOUDFLARE_API_TOKEN is required for Cloudflare Pages deployment" >&2; exit 1; }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "CLOUDFLARE_ACCOUNT_ID is required for Cloudflare Pages deployment" >&2; exit 1; }
 
       - name: Cloudflare Pages 배포
-        if: steps.cfcheck.outputs.ready == 'true'
         uses: cloudflare/pages-action@v1
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -74,7 +72,6 @@ jobs:
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 배포 후 smoke test
-        if: steps.cfcheck.outputs.ready == 'true'
         # CDN 전파 대기 후 root HTML 안에 "주문서" 문자열 존재 검증.
         run: |
           sleep 30
