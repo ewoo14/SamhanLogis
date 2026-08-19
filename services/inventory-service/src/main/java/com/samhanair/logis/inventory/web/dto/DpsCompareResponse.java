@@ -12,7 +12,7 @@ import java.util.List;
  * @param from           조회 기간 시작 (echo)
  * @param to             조회 기간 종료 (echo)
  * @param groupBy        매칭 단위 (SLIP / ITEM)
- * @param outboundCount  출고전표 라인 수 (slip-service 응답 건수)
+ * @param inboundCount   입고전표 라인 수 (slip-service 응답 건수)
  * @param dpsRowCount    DPS 엑셀 row 수 (헤더 제외)
  * @param matchedCount   정상 일치 건수
  * @param mismatchCount  불일치 건수
@@ -22,7 +22,7 @@ public record DpsCompareResponse(
         LocalDate from,
         LocalDate to,
         String groupBy,
-        int outboundCount,
+        int inboundCount,
         int dpsRowCount,
         int matchedCount,
         int mismatchCount,

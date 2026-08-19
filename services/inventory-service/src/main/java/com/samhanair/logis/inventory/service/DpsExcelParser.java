@@ -4,6 +4,7 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -45,6 +46,9 @@ public class DpsExcelParser {
     public static final String HEADER_QUANTITY = "수량";
     public static final String HEADER_PARTNER_CODE = "거래처코드";
     public static final String HEADER_PARTNER_NAME = "거래처";
+    public static final String HEADER_DELIVERY_NO = "납품번호";
+    public static final String HEADER_MODEL = "모델";
+    public static final String HEADER_TOTAL = "합계";
 
     /**
      * .xlsx 입력 stream → DPS row 목록.
@@ -65,24 +69,33 @@ public class DpsExcelParser {
             }
             Sheet sheet = workbook.getSheetAt(0);
 
-            Row headerRow = sheet.getRow(sheet.getFirstRowNum());
+            Row headerRow = findHeaderRow(sheet);
             if (headerRow == null) {
                 throw new BusinessException(ErrorCode.INVALID_INPUT,
                         "DPS 엑셀의 헤더 row 가 없습니다");
             }
             Map<String, Integer> headerIndex = mapHeaders(headerRow);
-            requireHeader(headerIndex, HEADER_PRODUCT_CODE);
+            boolean actualDps = headerIndex.containsKey(HEADER_DELIVERY_NO)
+                    && headerIndex.containsKey(HEADER_MODEL)
+                    && headerIndex.containsKey(HEADER_TOTAL);
+            if (actualDps) {
+                requireHeader(headerIndex, HEADER_DELIVERY_NO);
+                requireHeader(headerIndex, HEADER_MODEL);
+            } else {
+                requireHeader(headerIndex, HEADER_PRODUCT_CODE);
+            }
             requireHeader(headerIndex, HEADER_QUANTITY);
 
             List<DpsExcelRow> rows = new ArrayList<>();
-            int firstDataRow = sheet.getFirstRowNum() + 1;
+            int firstDataRow = headerRow.getRowNum() + 1;
             int lastRow = sheet.getLastRowNum();
             for (int r = firstDataRow; r <= lastRow; r++) {
                 Row dataRow = sheet.getRow(r);
                 if (dataRow == null) {
                     continue;
                 }
-                String productCode = readString(dataRow, headerIndex.get(HEADER_PRODUCT_CODE));
+                String productCode = readString(dataRow, actualDps
+                        ? headerIndex.get(HEADER_MODEL) : headerIndex.get(HEADER_PRODUCT_CODE));
                 if (productCode == null || productCode.isBlank()) {
                     continue; // 빈 row 스킵 (헤더 아래 trailing 빈 라인 허용)
                 }
@@ -90,10 +103,13 @@ public class DpsExcelParser {
                 LocalDate inboundDate = readDate(dataRow, headerIndex.get(HEADER_INBOUND_DATE));
                 String partnerCode = readString(dataRow, headerIndex.get(HEADER_PARTNER_CODE));
                 String partnerName = readString(dataRow, headerIndex.get(HEADER_PARTNER_NAME));
+                String deliveryNo = readString(dataRow, headerIndex.get(HEADER_DELIVERY_NO));
+                BigDecimal totalAmount = readDecimal(dataRow, headerIndex.get(HEADER_TOTAL));
 
-                rows.add(new DpsExcelRow(productCode.trim(), inboundDate, quantity,
+                rows.add(new DpsExcelRow(deliveryNo == null ? null : deliveryNo.trim(),
+                        productCode.trim(), inboundDate, quantity,
                         partnerCode == null ? null : partnerCode.trim(),
-                        partnerName == null ? null : partnerName.trim()));
+                        partnerName == null ? null : partnerName.trim(), totalAmount));
             }
             return rows;
         } catch (BusinessException ex) {
@@ -120,9 +136,15 @@ public class DpsExcelParser {
             if (normalized.contains(HEADER_PRODUCT_CODE)) {
                 index.putIfAbsent(HEADER_PRODUCT_CODE, c);
             }
+            if (normalized.contains(HEADER_DELIVERY_NO)) index.putIfAbsent(HEADER_DELIVERY_NO, c);
+            if (normalized.equals(HEADER_MODEL)) index.putIfAbsent(HEADER_MODEL, c);
+            if (normalized.equals(HEADER_TOTAL) || normalized.equals("합계금액")) {
+                index.putIfAbsent(HEADER_TOTAL, c);
+            }
             if (normalized.contains(HEADER_INBOUND_DATE)) {
                 index.putIfAbsent(HEADER_INBOUND_DATE, c);
             }
+            if (normalized.contains("납품일자")) index.putIfAbsent(HEADER_INBOUND_DATE, c);
             if (normalized.contains(HEADER_PARTNER_CODE)) {
                 index.putIfAbsent(HEADER_PARTNER_CODE, c);
             } else if (normalized.contains(HEADER_PARTNER_NAME)
@@ -137,6 +159,17 @@ public class DpsExcelParser {
             }
         }
         return index;
+    }
+
+    private Row findHeaderRow(Sheet sheet) {
+        for (int r = sheet.getFirstRowNum(); r <= sheet.getLastRowNum(); r++) {
+            Row row = sheet.getRow(r);
+            if (row == null) continue;
+            Map<String, Integer> headers = mapHeaders(row);
+            if ((headers.containsKey(HEADER_PRODUCT_CODE) || headers.containsKey(HEADER_MODEL))
+                    && headers.containsKey(HEADER_QUANTITY)) return row;
+        }
+        throw new BusinessException(ErrorCode.INVALID_INPUT, "DPS 엑셀의 헤더 row 를 찾을 수 없습니다");
     }
 
     private void requireHeader(Map<String, Integer> headerIndex, String headerName) {
@@ -173,6 +206,17 @@ public class DpsExcelParser {
             return Integer.parseInt(s.trim().replace(",", ""));
         } catch (NumberFormatException ex) {
             return 0;
+        }
+    }
+
+    private BigDecimal readDecimal(Row row, Integer columnIndex) {
+        if (columnIndex == null || row.getCell(columnIndex) == null) return BigDecimal.ZERO;
+        String value = readCellAsString(row.getCell(columnIndex));
+        if (value == null || value.isBlank()) return BigDecimal.ZERO;
+        try {
+            return new BigDecimal(value.trim().replace(",", ""));
+        } catch (NumberFormatException ex) {
+            return BigDecimal.ZERO;
         }
     }
 

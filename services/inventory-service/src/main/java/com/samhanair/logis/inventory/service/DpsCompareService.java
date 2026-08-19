@@ -9,6 +9,7 @@ import com.samhanair.logis.inventory.web.dto.RowMismatch;
 import com.samhanair.logis.inventory.web.dto.RowMismatch.MismatchType;
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -31,11 +32,11 @@ import org.springframework.web.multipart.MultipartFile;
  * DPS 입고 비교 service — PR-E1 BE-2.
  *
  * <p>legacy GAS 1번 (DPS 입고기록 비교) + 16번 (품목별 DPS 입고내역 비교) 의 자동화 endpoint
- * 비즈니스 로직. 출고전표는 자체 자동 조회 (slip-service Feign), DPS 는 사용자 엑셀 업로드 유지.
+ * 비즈니스 로직. 입고전표는 자체 자동 조회 (slip-service Feign), DPS 는 사용자 엑셀 업로드 유지.
  *
  * <p>흐름:
  * <ol>
- *   <li>{@link SlipServiceClient#getOutboundSlips} — 기간 내 출고전표 라인 평탄화 응답</li>
+ *   <li>{@link SlipServiceClient#getInboundSlips} — 기간 내 입고전표 라인 평탄화 응답</li>
  *   <li>{@link DpsExcelParser#parse} — 엑셀 row 추출</li>
  *   <li>{@link DpsCompareGroupBy} 에 따라 SLIP / ITEM 단위 매칭 + mismatch 누적</li>
  *   <li>{@link DpsCompareResponse} 반환</li>
@@ -63,11 +64,11 @@ public class DpsCompareService {
     }
 
     /**
-     * DPS 입고 비교 실행 — multipart 업로드 + 출고전표 자동 조회 + 매칭 + mismatch 누적.
+     * DPS 입고 비교 실행 — multipart 업로드 + 입고전표 자동 조회 + 매칭 + mismatch 누적.
      *
      * @param file    DPS 엑셀 (.xlsx) MultipartFile (필수, non-empty)
-     * @param from    출고전표 자동 조회 기간 시작
-     * @param to      출고전표 자동 조회 기간 종료
+     * @param from    입고전표 자동 조회 기간 시작
+     * @param to      입고전표 자동 조회 기간 종료
      * @param groupBy 매칭 단위 (SLIP/ITEM)
      * @return 매칭 결과 + mismatch 라인 목록
      * @throws BusinessException(INVALID_INPUT) file null/empty, 인자 누락, 엑셀 형식 오류
@@ -83,7 +84,7 @@ public class DpsCompareService {
         }
         // from/to null/range 검증은 slipServiceClient 가 위임 (단일 진실 source)
 
-        List<OutboundSlipLineSummary> outbound = slipServiceClient.getOutboundSlips(from, to);
+        List<OutboundSlipLineSummary> inbound = slipServiceClient.getInboundSlips(from, to);
         List<DpsExcelRow> dpsRows;
         try (InputStream in = file.getInputStream()) {
             dpsRows = dpsExcelParser.parse(in);
@@ -92,23 +93,26 @@ public class DpsCompareService {
                     "DPS 엑셀 stream 읽기 실패: " + ex.getMessage(), ex);
         }
 
-        List<RowMismatch> mismatches = (groupBy == DpsCompareGroupBy.SLIP)
-                ? matchBySlip(outbound, dpsRows)
-                : matchByItem(outbound, dpsRows);
+        boolean actualDpsFormat = dpsRows.stream().anyMatch(row -> row.deliveryNo() != null);
+        List<RowMismatch> mismatches = actualDpsFormat
+                ? matchByInbound(inbound, dpsRows)
+                : (groupBy == DpsCompareGroupBy.SLIP
+                    ? matchBySlip(inbound, dpsRows)
+                    : matchByItem(inbound, dpsRows));
 
-        // matched = 출고전표 라인 중 mismatch 가 아닌 건수 (출고 기준 정상 매칭 카운트).
-        // QUANTITY/PARTNER/DPS_NOT_FOUND 는 출고 기준 mismatch, SLIP_NOT_FOUND 는 출고에 없는 케이스.
-        int outboundMismatched = (int) mismatches.stream()
+        // matched = 입고전표 라인 중 mismatch 가 아닌 건수 (입고 기준 정상 매칭 카운트).
+        // QUANTITY/PARTNER/DPS_NOT_FOUND 는 입고 기준 mismatch, SLIP_NOT_FOUND 는 입고에 없는 케이스.
+        int inboundMismatched = (int) mismatches.stream()
                 .filter(m -> m.rowType() != MismatchType.SLIP_NOT_FOUND)
                 .count();
-        int matched = outbound.size() - outboundMismatched;
+        int matched = inbound.size() - inboundMismatched;
         if (matched < 0) {
             matched = 0;
         }
 
         return new DpsCompareResponse(
                 from, to, groupBy.name(),
-                outbound.size(), dpsRows.size(),
+                inbound.size(), dpsRows.size(),
                 matched, mismatches.size(),
                 mismatches);
     }
@@ -157,15 +161,15 @@ public class DpsCompareService {
      *
      * <p>한 쪽만 존재 시:
      * <ul>
-     *   <li>출고전표만 존재 → {@link MismatchType#DPS_NOT_FOUND}</li>
+     *   <li>입고전표만 존재 → {@link MismatchType#DPS_NOT_FOUND}</li>
      *   <li>DPS 엑셀만 존재 → {@link MismatchType#SLIP_NOT_FOUND}</li>
      * </ul>
      *
      * <p>NOTE: DPS 엑셀에는 보통 slipNo 컬럼이 없으므로, SLIP 단위 매칭은 DPS row 의 productCode +
-     * 거래처코드 + 입고일자 조합을 출고전표 (slipNo, slipDate, productCode, partnerCode) 와 매칭한다 —
+     * 거래처코드 + 입고일자 조합을 입고전표 (slipNo, slipDate, productCode, partnerCode) 와 매칭한다 —
      * "같은 거래처 + 같은 품번 + 같은 날짜" 가 1쌍이라는 legacy GAS 1번 가정.
      */
-    List<RowMismatch> matchBySlip(List<OutboundSlipLineSummary> outbound, List<DpsExcelRow> dpsRows) {
+    List<RowMismatch> matchBySlip(List<OutboundSlipLineSummary> inbound, List<DpsExcelRow> dpsRows) {
         List<RowMismatch> mismatches = new ArrayList<>();
 
         // DPS row 를 (productCode + partnerCode + inboundDate) bucket 으로 그룹 (수량 합계)
@@ -179,8 +183,8 @@ public class DpsCompareService {
 
         Set<String> matchedDpsKeys = new HashSet<>();
 
-        // 출고전표 라인을 순회 — 매칭 시도
-        for (OutboundSlipLineSummary slip : outbound) {
+        // 입고전표 라인을 순회 — 매칭 시도
+        for (OutboundSlipLineSummary slip : inbound) {
             String key = slipMatchKey(slip.productCode(), slip.partnerCode(), slip.slipDate());
             DpsBucket bucket = dpsBuckets.get(key);
             if (bucket == null) {
@@ -194,7 +198,7 @@ public class DpsCompareService {
                     mismatches.add(new RowMismatch(MismatchType.PARTNER_MISMATCH,
                             slip.slipNo(), slip.productCode(), slip.partnerCode(),
                             slip.quantity(), partnerMismatchBucket.totalQty,
-                            "거래처 불일치 — 출고: " + safe(slip.partnerCode())
+                            "거래처 불일치 — 입고: " + safe(slip.partnerCode())
                                     + " / DPS: " + safe(partnerMismatchBucket.partnerCode)));
                 } else {
                     mismatches.add(new RowMismatch(MismatchType.DPS_NOT_FOUND,
@@ -210,7 +214,7 @@ public class DpsCompareService {
                 mismatches.add(new RowMismatch(MismatchType.QUANTITY_MISMATCH,
                         slip.slipNo(), slip.productCode(), slip.partnerCode(),
                         slip.quantity(), bucket.totalQty,
-                        "수량 불일치 — 출고: " + slip.quantity() + " / DPS: " + bucket.totalQty));
+                        "수량 불일치 — 입고: " + slip.quantity() + " / DPS: " + bucket.totalQty));
             }
         }
 
@@ -223,7 +227,7 @@ public class DpsCompareService {
             mismatches.add(new RowMismatch(MismatchType.SLIP_NOT_FOUND,
                     null, b.productCode, b.partnerCode,
                     0, b.totalQty,
-                    "출고전표에서 매칭 라인 미발견"));
+                    "입고전표에서 매칭 라인 미발견"));
         }
 
         return mismatches;
@@ -255,15 +259,15 @@ public class DpsCompareService {
     // ---------- ITEM 단위 매칭 (legacy GAS 16번) ----------
 
     /**
-     * ITEM 단위 매칭 — productCode 별 출고 합계 vs 입고 합계 비교.
+     * ITEM 단위 매칭 — productCode 별 입고 합계와 DPS 합계 비교.
      *
      * <p>거래처/슬립 식별자는 비교 안 함. 매칭 키 = productCode 단일.
      */
-    List<RowMismatch> matchByItem(List<OutboundSlipLineSummary> outbound, List<DpsExcelRow> dpsRows) {
+    List<RowMismatch> matchByItem(List<OutboundSlipLineSummary> inbound, List<DpsExcelRow> dpsRows) {
         List<RowMismatch> mismatches = new ArrayList<>();
 
         Map<String, Integer> outSum = new HashMap<>();
-        for (OutboundSlipLineSummary s : outbound) {
+        for (OutboundSlipLineSummary s : inbound) {
             outSum.merge(safe(s.productCode()), s.quantity(), Integer::sum);
         }
         Map<String, Integer> dpsSum = new HashMap<>();
@@ -281,19 +285,93 @@ public class DpsCompareService {
             if (expected == 0 && actual > 0) {
                 mismatches.add(new RowMismatch(MismatchType.SLIP_NOT_FOUND,
                         null, code, null, 0, actual,
-                        "출고 합계 0 / DPS 합계 " + actual));
+                        "입고 합계 0 / DPS 합계 " + actual));
             } else if (actual == 0 && expected > 0) {
                 mismatches.add(new RowMismatch(MismatchType.DPS_NOT_FOUND,
                         null, code, null, expected, 0,
-                        "출고 합계 " + expected + " / DPS 합계 0"));
+                        "입고 합계 " + expected + " / DPS 합계 0"));
             } else if (expected != actual) {
                 mismatches.add(new RowMismatch(MismatchType.QUANTITY_MISMATCH,
                         null, code, null, expected, actual,
-                        "수량 합계 불일치 — 출고: " + expected + " / DPS: " + actual));
+                        "수량 합계 불일치 — 입고: " + expected + " / DPS: " + actual));
             }
         }
 
         return mismatches;
+    }
+
+    /** 레거시 키(납품번호 적요 + 정규화 모델명)로 입고 라인을 행별 1:1 소비한다. */
+    List<RowMismatch> matchByInbound(List<OutboundSlipLineSummary> inbound,
+                                     List<DpsExcelRow> dpsRows) {
+        List<RowMismatch> result = new ArrayList<>();
+        boolean[] consumed = new boolean[dpsRows.size()];
+        for (OutboundSlipLineSummary line : inbound) {
+            int found = -1;
+            String key = inboundKey(line.slipNo(), line.productCode());
+            // 동일 키가 여러 행이면 수량·금액이 정확히 맞는 행을 먼저 소비한다.
+            for (int i = 0; i < dpsRows.size(); i++) {
+                DpsExcelRow candidate = dpsRows.get(i);
+                if (!consumed[i]
+                        && key.equals(inboundKey(candidate.deliveryNo(), candidate.productCode()))
+                        && line.quantity() == candidate.quantity()
+                        && line.totalAmount().compareTo(candidate.totalAmount()) == 0) {
+                    found = i;
+                    break;
+                }
+            }
+            // 정확행이 없으면 기존처럼 동일 키의 첫 미소비 행을 비교 대상으로 삼는다.
+            for (int i = 0; found < 0 && i < dpsRows.size(); i++) {
+                if (!consumed[i] && key.equals(inboundKey(dpsRows.get(i).deliveryNo(),
+                        dpsRows.get(i).productCode()))) {
+                    found = i;
+                    break;
+                }
+            }
+            if (found < 0) {
+                result.add(new RowMismatch(MismatchType.DPS_NOT_FOUND, line.slipNo(),
+                        line.productCode(), line.partnerCode(), line.quantity(), 0,
+                        line.totalAmount(), BigDecimal.ZERO, "DPS 엑셀에서 매칭 row 미발견"));
+                continue;
+            }
+            consumed[found] = true;
+            DpsExcelRow row = dpsRows.get(found);
+            boolean qtyMismatch = line.quantity() != row.quantity();
+            boolean amountMismatch = line.totalAmount().compareTo(row.totalAmount()) != 0;
+            if (qtyMismatch) {
+                result.add(new RowMismatch(MismatchType.QUANTITY_MISMATCH, line.slipNo(),
+                        line.productCode(), line.partnerCode(), line.quantity(), row.quantity(),
+                        line.totalAmount(), row.totalAmount(), "수량 불일치"));
+            } else if (amountMismatch) {
+                result.add(new RowMismatch(MismatchType.AMOUNT_MISMATCH, line.slipNo(),
+                        line.productCode(), line.partnerCode(), line.quantity(), row.quantity(),
+                        line.totalAmount(), row.totalAmount(), "합계금액 불일치"));
+            }
+        }
+        for (int i = 0; i < dpsRows.size(); i++) {
+            if (!consumed[i]) {
+                DpsExcelRow row = dpsRows.get(i);
+                result.add(new RowMismatch(MismatchType.SLIP_NOT_FOUND, row.deliveryNo(),
+                        row.productCode(), row.partnerCode(), 0, row.quantity(), BigDecimal.ZERO,
+                        row.totalAmount(), "입고전표에서 매칭 라인 미발견"));
+            }
+        }
+        return result;
+    }
+
+    private String inboundKey(String deliveryNo, String productCode) {
+        return safe(deliveryNo) + "|" + normalizeModel(productCode);
+    }
+
+    private String normalizeModel(String model) {
+        String normalized = safe(model).trim();
+        int cut = normalized.length();
+        for (char delimiter : new char[]{'[', '(', '.'}) {
+            int index = normalized.indexOf(delimiter);
+            if (index >= 0) {
+                cut = Math.min(cut, index);
+            }
+        }
+        return normalized.substring(0, cut).replaceAll("\\s+", "");
     }
 
     private static String safe(String v) {

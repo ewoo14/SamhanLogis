@@ -8,7 +8,7 @@
  * <ul>
  *   <li>본 화면은 read-only (사용자 비교 도구) — 단일 entity 미보유 → SSE/audit overlay 미적용.</li>
  *   <li>비교 결과 mismatch 표 자체에는 변경 이력이 없음. 만약 mismatch 가 발견되어 사용자가
- *       원본 출고전표를 수정하면 SlipDetailPage (PR-H1~H3) 의 audit overlay 가 자동 추적.</li>
+ *       원본 입고전표를 수정하면 SlipDetailPage (PR-H1~H3) 의 audit overlay 가 자동 추적.</li>
  *   <li>화면 우상단에 "감사 추적: 원 전표 화면에서 자동" 안내 배너 추가.</li>
  * </ul>
  *
@@ -17,7 +17,7 @@
  *
  * <h2>UX</h2>
  * <ol>
- *   <li>날짜 범위 from/to 입력 (출고전표 자동 조회 기간)</li>
+ *   <li>날짜 범위 from/to 입력 (입고전표 자동 조회 기간)</li>
  *   <li>매칭 단위 토글 (SLIP / ITEM)</li>
  *   <li>DPS 엑셀 .xlsx 업로드 — 사용자 명시 "자동 조회 X"</li>
  *   <li>"양식 다운로드" link — 헤더만 있는 .xlsx 받기</li>
@@ -49,7 +49,7 @@ import {
   type ChangeEvent,
   type CSSProperties,
 } from 'react'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Button, Tabs } from '@samhan/design-system'
 import {
   compareDps,
@@ -71,6 +71,7 @@ import { DpsSaveDialog } from '../components/DpsSaveDialog'
 import { maskCreatedBy } from '../utils/maskCreatedBy'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { useIsMobile } from '../hooks/useIsMobile'
+import { refreshDpsHistoryQueries } from '../utils/dpsHistoryRefresh'
 
 /** 오늘 날짜 (YYYY-MM-DD) — date input 기본값. */
 function todayIso(): string {
@@ -84,7 +85,7 @@ function todayIso(): string {
 /**
  * mismatch[] → CSV 문자열 (BOM 포함, Excel 한글 호환).
  *
- * <p>컬럼: 카테고리 / 전표번호 / 품번 / 거래처코드 / 출고수량 / DPS수량 / 사유.
+ * <p>컬럼: 카테고리 / 전표번호 / 품번 / 거래처코드 / 입고수량 / DPS수량 / 사유.
  */
 function mismatchesToCsv(mismatches: DpsRowMismatch[]): string {
   const header = [
@@ -92,8 +93,10 @@ function mismatchesToCsv(mismatches: DpsRowMismatch[]): string {
     '전표번호',
     '품번',
     '거래처코드',
-    '출고수량',
+    '입고수량',
     'DPS수량',
+    '입고합계',
+    'DPS합계',
     '사유',
   ]
   const escape = (v: string): string => {
@@ -111,6 +114,8 @@ function mismatchesToCsv(mismatches: DpsRowMismatch[]): string {
       m.partnerCode ?? '',
       String(m.expectedQty),
       String(m.actualQty),
+      String(m.expectedAmount),
+      String(m.actualAmount),
       m.reason,
     ]
     lines.push(cells.map(escape).join(','))
@@ -139,6 +144,7 @@ function errorMessage(err: unknown): string {
 export function InventoryDpsComparePage() {
   usePageTitle('DPS 입고 비교')
   const isMobile = useIsMobile()
+  const queryClient = useQueryClient()
 
   // ── 폼 상태 ────────────────────────────────────────────────
   const today = useMemo(todayIso, [])
@@ -173,7 +179,7 @@ export function InventoryDpsComparePage() {
           mismatchCount: data.mismatchCount,
         },
         responsePayload: data,
-      }).catch(() => {
+      }).then(() => refreshDpsHistoryQueries(queryClient)).catch(() => {
         // 자동 저장 실패는 비교 실행 UX 를 막지 않는다. 명시 저장에서 사용자에게 재시도 기회를 제공한다.
       })
     },
@@ -196,7 +202,8 @@ export function InventoryDpsComparePage() {
         responsePayload: payload,
       })
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      await refreshDpsHistoryQueries(queryClient)
       setSaveDialogOpen(false)
       setActiveTab(1)
     },
@@ -294,7 +301,7 @@ export function InventoryDpsComparePage() {
       <div style={headerRowStyle}>
         <h3 style={{ margin: 0 }}>DPS 입고 비교</h3>
         <span style={subtitleStyle}>
-          출고전표 자동 조회 + DPS 엑셀 업로드 → SLIP/ITEM 단위 매칭
+          입고전표 자동 조회 + DPS 엑셀 업로드 → SLIP/ITEM 단위 매칭
         </span>
         {/* PR-H4c FE-B: read-only 비교 화면 안내 */}
         <span
@@ -305,7 +312,7 @@ export function InventoryDpsComparePage() {
             marginLeft: 'auto',
           }}
         >
-          감사 추적 (수정 이력) 은 원 출고전표 화면에서 자동
+           감사 추적 (수정 이력) 은 원 입고전표 화면에서 자동
         </span>
       </div>
 
@@ -449,7 +456,7 @@ export function InventoryDpsComparePage() {
           <div style={statsRowStyle}>
             <StatCard label="조회 기간" value={`${result.from} ~ ${result.to}`} />
             <StatCard label="매칭 단위" value={result.groupBy} />
-            <StatCard label="출고전표 라인" value={result.outboundCount.toLocaleString()} />
+            <StatCard label="입고전표 라인" value={result.inboundCount.toLocaleString()} />
             <StatCard label="DPS 행" value={result.dpsRowCount.toLocaleString()} />
             <StatCard
               label="정상 일치"
@@ -507,8 +514,10 @@ export function InventoryDpsComparePage() {
                       <th style={thStyle}>전표번호</th>
                       <th style={thStyle}>품번</th>
                       <th style={thStyle}>거래처코드</th>
-                      <th style={{ ...thStyle, textAlign: 'right' }}>출고수량</th>
+                      <th style={{ ...thStyle, textAlign: 'right' }}>입고수량</th>
                       <th style={{ ...thStyle, textAlign: 'right' }}>DPS수량</th>
+                      <th style={{ ...thStyle, textAlign: 'right' }}>입고합계</th>
+                      <th style={{ ...thStyle, textAlign: 'right' }}>DPS합계</th>
                       <th style={thStyle}>사유</th>
                     </tr>
                   </thead>
@@ -533,6 +542,12 @@ export function InventoryDpsComparePage() {
                           </td>
                           <td style={{ ...tdStyle, textAlign: 'right' }}>
                             {m.actualQty.toLocaleString()}
+                          </td>
+                          <td style={{ ...tdStyle, textAlign: 'right' }}>
+                            {m.expectedAmount.toLocaleString()}
+                          </td>
+                          <td style={{ ...tdStyle, textAlign: 'right' }}>
+                            {m.actualAmount.toLocaleString()}
                           </td>
                           <td style={{ ...tdStyle, color: colors.text }}>
                             {m.reason}
@@ -625,8 +640,10 @@ function DpsMismatchCard({
       </div>
       <MobileField label="품번" value={mismatch.productCode ?? '—'} />
       <MobileField label="거래처코드" value={mismatch.partnerCode ?? '—'} />
-      <MobileField label="출고수량" value={mismatch.expectedQty.toLocaleString()} numeric />
+      <MobileField label="입고수량" value={mismatch.expectedQty.toLocaleString()} numeric />
       <MobileField label="DPS수량" value={mismatch.actualQty.toLocaleString()} numeric />
+      <MobileField label="입고합계" value={mismatch.expectedAmount.toLocaleString()} numeric />
+      <MobileField label="DPS합계" value={mismatch.actualAmount.toLocaleString()} numeric />
       <MobileField label="사유" value={mismatch.reason} />
     </article>
   )

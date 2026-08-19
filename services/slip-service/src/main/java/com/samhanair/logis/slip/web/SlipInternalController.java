@@ -445,6 +445,24 @@ public class SlipInternalController {
         return ApiResponse.ok(lines);
     }
 
+    /** DPS 입고비교용 INBOUND 전표 라인 조회. UUID 없이 전표번호·모델·금액만 반환한다. */
+    @GetMapping("/inbound-lines")
+    @PreAuthorize("hasRole('MASTER')")
+    public ApiResponse<List<OutboundSlipLineResponse>> findInboundSlips(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        if (from == null || to == null || to.isBefore(from)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "from/to 날짜가 올바르지 않습니다");
+        }
+        List<OutboundSlipLineResponse> lines = slipRepository
+                .findByPeriodWithLines(SlipType.INBOUND, from, to, null)
+                .stream()
+                .flatMap(slip -> slip.getLines().stream()
+                        .map(line -> OutboundSlipLineResponse.from(slip, line)))
+                .toList();
+        return ApiResponse.ok(lines);
+    }
+
     /**
      * 거래처별 원장용 출고전표 read projection 조회.
      *

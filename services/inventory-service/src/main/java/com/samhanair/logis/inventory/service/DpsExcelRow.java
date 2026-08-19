@@ -1,25 +1,27 @@
 package com.samhanair.logis.inventory.service;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
-/**
- * DPS 입고 엑셀의 한 row — {@link DpsExcelParser} 가 생성.
- *
- * <p>legacy GAS 1번/16번 의 DPS 엑셀 컬럼 5종 (품번, 입고일자, 수량, 거래처코드, 거래처명) 만
- * 추출. 그 외 metadata (품목명/규격/단위) 는 매칭에 사용하지 않으므로 무시.
- *
- * <p>UUID 비공개 — DPS 엑셀에는 애초에 UUID 가 없다. productCode / partnerCode 가 매칭 키.
- *
- * @param productCode  품번 (필수)
- * @param inboundDate  입고 일자 (nullable — 일부 엑셀이 빈 값 허용)
- * @param quantity     입고 수량
- * @param partnerCode  거래처 코드 (nullable)
- * @param partnerName  거래처명 (nullable)
- */
+/** DPS 원본 엑셀 한 행. 레거시 호환 필드와 실제 DPS 입고 필드를 함께 보존한다. */
 public record DpsExcelRow(
+        String deliveryNo,
         String productCode,
         LocalDate inboundDate,
         int quantity,
         String partnerCode,
-        String partnerName) {
+        String partnerName,
+        BigDecimal totalAmount) {
+
+    /** 기존 템플릿 5열 생성 호환용 생성자. */
+    public DpsExcelRow(String productCode, LocalDate inboundDate, int quantity,
+                       String partnerCode, String partnerName) {
+        this(null, productCode, inboundDate, quantity, partnerCode, partnerName, BigDecimal.ZERO);
+    }
+
+    /** 실제 DPS 헤더(납품번호·모델·수량·합계)용 생성자. */
+    public DpsExcelRow(String deliveryNo, String productCode, int quantity,
+                       BigDecimal totalAmount) {
+        this(deliveryNo, productCode, null, quantity, null, null, totalAmount);
+    }
 }

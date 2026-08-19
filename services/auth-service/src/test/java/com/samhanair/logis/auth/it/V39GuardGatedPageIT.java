@@ -55,6 +55,17 @@ class V39GuardGatedPageIT extends AbstractPostgresIT {
         assertRoleSet("can_print", "slip.print.next-day", "MASTER", "MANAGER", "SALES");
     }
 
+    @Test
+    @DisplayName("MANAGER는 DPS 비교 결과 저장 CREATE 권한을 가진다")
+    void managerCanCreateDpsHistory() {
+        assertThat(flag("MANAGER", "inventory.dps", "can_create")).isTrue();
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT can_create FROM group_page_permissions
+                WHERE group_id = '00000000-0000-0000-0000-000000000101'::uuid
+                  AND page_code = 'inventory.dps' AND is_deleted = FALSE
+                """, Boolean.class)).isTrue();
+    }
+
     private Boolean flag(String roleCode, String pageCode, String column) {
         return jdbcTemplate.queryForObject("""
                 SELECT %s

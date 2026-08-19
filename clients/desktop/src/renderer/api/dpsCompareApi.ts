@@ -6,7 +6,7 @@
  * <h2>Endpoint</h2>
  * <ul>
  *   <li>POST {@code /warehouse/audit/dps-compare} (multipart) —
- *       DPS 엑셀(.xlsx) + 출고전표 자동 조회 기간(from/to) + groupBy(SLIP/ITEM) → 매칭/mismatch 결과</li>
+ *       DPS 엑셀(.xlsx) + 입고전표 자동 조회 기간(from/to) + groupBy(SLIP/ITEM) → 매칭/mismatch 결과</li>
  *   <li>GET  {@code /warehouse/audit/dps-compare/template} —
  *       헤더 row 만 있는 빈 .xlsx 양식 (Blob 응답)</li>
  * </ul>
@@ -19,7 +19,7 @@
  * 사용자 노출 식별자 = slipNo / productCode / partnerCode 만 사용.
  *
  * <h2>사용자 명시 가드</h2>
- * <p>"DPS 엑셀을 그대로 업로드 — 자동 조회 X". 출고전표만 자동(slip-service Feign),
+ * <p>"DPS 엑셀을 그대로 업로드 — 자동 조회 X". 입고전표만 자동(slip-service Feign),
  * DPS 는 반드시 사용자가 .xlsx 직접 업로드.
  */
 import { apiClient, type ApiEnvelope } from './client'
@@ -34,6 +34,7 @@ export type DpsCompareGroupBy = 'SLIP' | 'ITEM'
 /** BE {@code RowMismatch.MismatchType} enum 과 1:1 — mismatch 카테고리. */
 export type DpsMismatchType =
   | 'QUANTITY_MISMATCH'
+  | 'AMOUNT_MISMATCH'
   | 'PARTNER_MISMATCH'
   | 'DPS_NOT_FOUND'
   | 'SLIP_NOT_FOUND'
@@ -48,10 +49,12 @@ export interface DpsRowMismatch {
   productCode: string | null
   /** 거래처 코드 — 가능한 경우. */
   partnerCode: string | null
-  /** 출고전표 합계/단건 수량. */
+  /** 입고전표 합계/단건 수량. */
   expectedQty: number
   /** DPS 엑셀 합계/단건 수량. */
   actualQty: number
+  expectedAmount: number
+  actualAmount: number
   /** 사용자 노출용 한국어 사유. */
   reason: string
 }
@@ -64,8 +67,8 @@ export interface DpsCompareResponse {
   to: string
   /** 매칭 단위. BE 가 String 으로 직렬화 ("SLIP" / "ITEM"). */
   groupBy: string
-  /** 출고전표 라인 수. */
-  outboundCount: number
+  /** 입고전표 라인 수. */
+  inboundCount: number
   /** DPS 엑셀 row 수 (헤더 제외). */
   dpsRowCount: number
   /** 정상 일치 건수. */
@@ -84,8 +87,8 @@ export interface DpsCompareResponse {
  * DPS 입고 비교 — multipart 업로드 + 자동 조회.
  *
  * @param file    사용자가 업로드한 DPS 엑셀 (.xlsx)
- * @param from    출고전표 조회 기간 시작 (YYYY-MM-DD)
- * @param to      출고전표 조회 기간 종료 (YYYY-MM-DD)
+ * @param from    입고전표 조회 기간 시작 (YYYY-MM-DD)
+ * @param to      입고전표 조회 기간 종료 (YYYY-MM-DD)
  * @param groupBy 매칭 단위 (SLIP / ITEM)
  * @return        매칭 통계 + mismatch 행 상세
  */
@@ -138,9 +141,10 @@ export async function downloadDpsTemplate(): Promise<Blob> {
 /** mismatch 카테고리 → 한국어 라벨. */
 export const DPS_MISMATCH_LABEL: Record<DpsMismatchType, string> = {
   QUANTITY_MISMATCH: '수량 불일치',
+  AMOUNT_MISMATCH: '합계금액 불일치',
   PARTNER_MISMATCH: '거래처 불일치',
   DPS_NOT_FOUND: 'DPS 미발견',
-  SLIP_NOT_FOUND: '출고 미발견',
+  SLIP_NOT_FOUND: '입고전표 미발견',
 }
 
 /**
@@ -154,6 +158,11 @@ export const DPS_MISMATCH_COLOR: Record<
   QUANTITY_MISMATCH: {
     background: '#FFF7ED',
     border: '#FB923C',
+    text: '#9A3412',
+  },
+  AMOUNT_MISMATCH: {
+    background: '#FFF7ED',
+    border: '#F97316',
     text: '#9A3412',
   },
   PARTNER_MISMATCH: {

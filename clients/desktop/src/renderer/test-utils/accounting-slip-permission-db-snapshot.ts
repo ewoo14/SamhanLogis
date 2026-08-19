@@ -164,7 +164,7 @@ const TEMPLATE_PERMISSION_DB_BITS_BY_ROLE: Record<string, Record<string, string>
     'inventory.warehouse': '1111000',
     'inventory.stock': '1000000',
     'inventory.stock-transfer': '1111000',
-    'inventory.dps': '1000010',
+    'inventory.dps': '1100010',
     'inventory.audit': '1000000',
     'inventory.list': '1111000',
     'inventory.detail': '1000000',

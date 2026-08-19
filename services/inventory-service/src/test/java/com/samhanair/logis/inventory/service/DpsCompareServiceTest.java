@@ -14,6 +14,7 @@ import com.samhanair.logis.inventory.web.dto.RowMismatch;
 import com.samhanair.logis.inventory.web.dto.RowMismatch.MismatchType;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import org.apache.poi.ss.usermodel.Row;
@@ -59,7 +60,7 @@ class DpsCompareServiceTest {
 
     @Test
     void slip_단위_정상_매칭_mismatch_없음() throws IOException {
-        when(slipServiceClient.getOutboundSlips(any(), any())).thenReturn(List.of(
+        when(slipServiceClient.getInboundSlips(any(), any())).thenReturn(List.of(
                 outbound("S-001", D, "C-100", "삼한", "P-001", 10),
                 outbound("S-001", D, "C-100", "삼한", "P-002", 5)));
         MockMultipartFile file = excel(new Object[][]{
@@ -74,7 +75,7 @@ class DpsCompareServiceTest {
 
     @Test
     void slip_단위_수량_불일치_QUANTITY_MISMATCH() throws IOException {
-        when(slipServiceClient.getOutboundSlips(any(), any())).thenReturn(List.of(
+        when(slipServiceClient.getInboundSlips(any(), any())).thenReturn(List.of(
                 outbound("S-001", D, "C-100", "삼한", "P-001", 10)));
         MockMultipartFile file = excel(new Object[][]{
                 {"P-001", "2026-05-09", 7, "C-100"}});
@@ -90,8 +91,30 @@ class DpsCompareServiceTest {
     }
 
     @Test
+    void inbound_단위_수량은_같아도_금액이_다르면_불일치() {
+        List<OutboundSlipLineSummary> inbound = List.of(
+                inbound("IN-001", D, "P-001", 2, "220"));
+        List<DpsExcelRow> dps = List.of(
+                new DpsExcelRow("IN-001", "P-001", 2, new BigDecimal("221")));
+
+        List<RowMismatch> mismatches = service.matchByInbound(inbound, dps);
+
+        assertThat(mismatches).hasSize(1);
+        assertThat(mismatches.get(0).rowType()).isEqualTo(MismatchType.AMOUNT_MISMATCH);
+    }
+
+    @Test
+    void inbound_단위_수량과_금액이_모두_같으면_통과한다() {
+        List<RowMismatch> mismatches = service.matchByInbound(
+                List.of(inbound("IN-001", D, "P-001", 2, "220")),
+                List.of(new DpsExcelRow("IN-001", "P-001", 2, new BigDecimal("220"))));
+
+        assertThat(mismatches).isEmpty();
+    }
+
+    @Test
     void slip_단위_거래처_불일치_PARTNER_MISMATCH() throws IOException {
-        when(slipServiceClient.getOutboundSlips(any(), any())).thenReturn(List.of(
+        when(slipServiceClient.getInboundSlips(any(), any())).thenReturn(List.of(
                 outbound("S-001", D, "C-100", "삼한", "P-001", 10)));
         MockMultipartFile file = excel(new Object[][]{
                 {"P-001", "2026-05-09", 10, "C-999"}});  // 거래처 다름, 수량 같음
@@ -105,7 +128,7 @@ class DpsCompareServiceTest {
 
     @Test
     void slip_단위_DPS_미발견_DPS_NOT_FOUND() throws IOException {
-        when(slipServiceClient.getOutboundSlips(any(), any())).thenReturn(List.of(
+        when(slipServiceClient.getInboundSlips(any(), any())).thenReturn(List.of(
                 outbound("S-001", D, "C-100", "삼한", "P-XXX", 3)));
         MockMultipartFile file = excel(new Object[][]{
                 {"P-001", "2026-05-09", 10, "C-100"}});  // 다른 품번
@@ -120,7 +143,7 @@ class DpsCompareServiceTest {
 
     @Test
     void item_단위_정상_합계_매칭() throws IOException {
-        when(slipServiceClient.getOutboundSlips(any(), any())).thenReturn(List.of(
+        when(slipServiceClient.getInboundSlips(any(), any())).thenReturn(List.of(
                 outbound("S-001", D, "C-100", "삼한", "P-001", 6),
                 outbound("S-002", D, "C-200", "ABC", "P-001", 4)));
         MockMultipartFile file = excel(new Object[][]{
@@ -133,7 +156,7 @@ class DpsCompareServiceTest {
 
     @Test
     void item_단위_수량_합계_불일치_QUANTITY_MISMATCH() throws IOException {
-        when(slipServiceClient.getOutboundSlips(any(), any())).thenReturn(List.of(
+        when(slipServiceClient.getInboundSlips(any(), any())).thenReturn(List.of(
                 outbound("S-001", D, "C-100", "삼한", "P-001", 6)));
         MockMultipartFile file = excel(new Object[][]{
                 {"P-001", "2026-05-09", 5, "C-100"}});
@@ -149,7 +172,7 @@ class DpsCompareServiceTest {
 
     @Test
     void item_단위_한쪽만_존재_NOT_FOUND() throws IOException {
-        when(slipServiceClient.getOutboundSlips(any(), any())).thenReturn(List.of(
+        when(slipServiceClient.getInboundSlips(any(), any())).thenReturn(List.of(
                 outbound("S-001", D, "C-100", "삼한", "P-A", 3)));
         MockMultipartFile file = excel(new Object[][]{
                 {"P-B", "2026-05-09", 7, "C-100"}});
@@ -234,6 +257,49 @@ class DpsCompareServiceTest {
                                              String partnerName, String productCode, int qty) {
         return new OutboundSlipLineSummary(slipNo, date, partnerCode, partnerName,
                 productCode, productCode + " 품목", qty);
+    }
+
+    @Test
+    void inbound_legacy_model_normalization_matches_bracket_parenthesis_dot_and_spaces() {
+        List<OutboundSlipLineSummary> inbound = List.of(
+                inbound("IN-LEGACY-1", D, "MODEL 01", 1, "100"),
+                inbound("IN-LEGACY-2", D, "MODEL 02", 1, "100"),
+                inbound("IN-LEGACY-3", D, "MODEL 03", 1, "100"));
+        List<DpsExcelRow> dps = List.of(
+                new DpsExcelRow("IN-LEGACY-1", "MODEL 01[검증]", 1, new BigDecimal("100")),
+                new DpsExcelRow("IN-LEGACY-2", "MODEL 02(구형)", 1, new BigDecimal("100")),
+                new DpsExcelRow("IN-LEGACY-3", "MODEL 03.001", 1, new BigDecimal("100")));
+
+        assertThat(service.matchByInbound(inbound, dps)).isEmpty();
+    }
+
+    @Test
+    void inbound_legacy_model_normalization_does_not_match_different_model() {
+        List<RowMismatch> mismatches = service.matchByInbound(
+                List.of(inbound("IN-NEGATIVE", D, "MODEL 04", 1, "100")),
+                List.of(new DpsExcelRow("IN-NEGATIVE", "MODEL 040", 1, new BigDecimal("100"))));
+
+        assertThat(mismatches).extracting(RowMismatch::rowType)
+                .containsExactlyInAnyOrder(MismatchType.DPS_NOT_FOUND, MismatchType.SLIP_NOT_FOUND);
+    }
+
+    @Test
+    void inbound_duplicate_key_consumes_exact_quantity_and_amount_row_first() {
+        List<RowMismatch> mismatches = service.matchByInbound(
+                List.of(inbound("IN-DUP", D, "MODEL-DUP", 2, "200")),
+                List.of(
+                        new DpsExcelRow("IN-DUP", "MODEL-DUP", 1, new BigDecimal("100")),
+                        new DpsExcelRow("IN-DUP", "MODEL-DUP", 2, new BigDecimal("200"))));
+
+        assertThat(mismatches).hasSize(1);
+        assertThat(mismatches.get(0).rowType()).isEqualTo(MismatchType.SLIP_NOT_FOUND);
+        assertThat(mismatches.get(0).actualQty()).isEqualTo(1);
+    }
+
+    private OutboundSlipLineSummary inbound(String deliveryNo, LocalDate date, String productCode,
+                                             int qty, String totalAmount) {
+        return new OutboundSlipLineSummary(deliveryNo, date, null, null, productCode,
+                productCode, qty, new BigDecimal(totalAmount));
     }
 
     private MockMultipartFile excel(Object[][] dataRows) throws IOException {
