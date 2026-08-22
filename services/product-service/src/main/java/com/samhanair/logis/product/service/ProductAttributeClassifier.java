@@ -47,6 +47,24 @@ public class ProductAttributeClassifier {
         return "일반";
     }
 
+    /** 인피니트 판넬의 세부 특징은 기존 panel_type이 아닌 품목명에서 도출한다. */
+    public String classifyInfinitePanelVariant(String name, String panelType) {
+        String n = normalize(name);
+        if (!n.matches("(?i).*인피니트.*")) {
+            return null;
+        }
+        if (n.matches("(?i).*(공청.*동작감지|동작감지.*공청).*")) {
+            return "인피니트 공청+동작감지 AI";
+        }
+        if (n.matches("(?i).*(공기청정|공청).*") || "공청".equals(normalize(panelType))) {
+            return "인피니트 공청";
+        }
+        if (n.matches("(?i).*25년형.*")) {
+            return "인피니트 25년형";
+        }
+        return "인피니트 기본";
+    }
+
     public String classifyRemoteType(String name) {
         String n = normalize(name);
         if (!REMOTE.matcher(n).find()) {

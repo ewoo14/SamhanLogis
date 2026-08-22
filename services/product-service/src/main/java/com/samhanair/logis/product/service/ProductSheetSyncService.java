@@ -414,6 +414,13 @@ public class ProductSheetSyncService {
                     && child.getProductCategory() == ProductCategory.COMMERCIAL_MULTI) {
                 kind = BundleComponent.ComponentKind.OUTDOOR;
             }
+            if (kind == BundleComponent.ComponentKind.PANEL) {
+                String infiniteVariant = attributeClassifier.classifyInfinitePanelVariant(
+                        child.getName(), child.getPanelType());
+                if (infiniteVariant != null) {
+                    variant = infiniteVariant;
+                }
+            }
             QtyAndMode qm = resolveQty(mapping.hasQtyColumn, qtyRaw);
             int pairOccurrences = occurrenceByPair.getOrDefault(setModel + "\u001f" + childModel, 0);
             if (mapping.hasQtyColumn && pairOccurrences > 1) {

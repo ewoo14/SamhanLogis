@@ -1,0 +1,325 @@
+{
+  "url": "http://127.0.0.1:5183/?email=dev_master%40samhan-air.com",
+  "controls": [
+    {
+      "id": "whCode",
+      "label": "",
+      "options": [
+        "00003",
+        "2",
+        "14",
+        "1"
+      ]
+    },
+    {
+      "id": "selCutUnit",
+      "label": "",
+      "options": [
+        "0",
+        "10",
+        "100",
+        "1000",
+        "10000"
+      ]
+    },
+    {
+      "id": "histDateField",
+      "label": "출고일\n              발송시각\n            \n            :",
+      "options": [
+        "출고일",
+        "발송시각"
+      ]
+    },
+    {
+      "id": "old_round_unit",
+      "label": "",
+      "options": [
+        "0",
+        "10",
+        "100",
+        "1000"
+      ]
+    },
+    {
+      "id": "old_round_mode",
+      "label": "",
+      "options": [
+        "ROUND",
+        "FLOOR",
+        "CEIL"
+      ]
+    },
+    {
+      "id": "comm_panel",
+      "label": "판넬변경 판넬제외",
+      "options": [
+        "판넬제외"
+      ]
+    },
+    {
+      "id": "comm_p360",
+      "label": "360판넬 원형사각",
+      "options": [
+        "원형",
+        "사각"
+      ]
+    },
+    {
+      "id": "comm_remote",
+      "label": "리모컨 제외",
+      "options": [
+        "제외"
+      ]
+    },
+    {
+      "id": "comm_round_unit",
+      "label": "",
+      "options": [
+        "0",
+        "10",
+        "100",
+        "1000"
+      ]
+    },
+    {
+      "id": "comm_round_mode",
+      "label": "",
+      "options": [
+        "ROUND",
+        "FLOOR",
+        "CEIL"
+      ]
+    },
+    {
+      "id": "ss_remote",
+      "label": "리모컨 기본컬러유선",
+      "options": [
+        "기본",
+        "컬러",
+        "유선"
+      ]
+    },
+    {
+      "id": "ss_panel",
+      "label": "판넬변경 판넬제외기본블랙승강공청",
+      "options": [
+        "판넬제외",
+        "기본",
+        "블랙",
+        "승강",
+        "공청"
+      ]
+    },
+    {
+      "id": "ss_p360",
+      "label": "360판넬 원형사각",
+      "options": [
+        "원형",
+        "사각"
+      ]
+    },
+    {
+      "id": "ss_mat",
+      "label": "자재 포함 여부 포함별도",
+      "options": [
+        "포함",
+        "별도"
+      ]
+    },
+    {
+      "id": "home_remote",
+      "label": "리모컨 무선유선컬러제외",
+      "options": [
+        "무선",
+        "유선",
+        "컬러",
+        "제외"
+      ]
+    },
+    {
+      "id": "home_panel",
+      "label": "판넬변경 판넬제외기본공청",
+      "options": [
+        "판넬제외",
+        "기본",
+        "공청"
+      ]
+    },
+    {
+      "id": "home_round_unit",
+      "label": "",
+      "options": [
+        "0",
+        "10",
+        "100",
+        "1000"
+      ]
+    },
+    {
+      "id": "home_round_mode",
+      "label": "",
+      "options": [
+        "ROUND",
+        "FLOOR",
+        "CEIL"
+      ]
+    },
+    {
+      "id": "homeFilterL",
+      "label": "",
+      "options": [
+        "",
+        "실외기",
+        "실내기",
+        "전열교환기",
+        "판넬",
+        "부자재",
+        "실외기 받침대",
+        "인테리어핏",
+        "시스템제습기"
+      ]
+    },
+    {
+      "id": "homeFilterM",
+      "label": "",
+      "options": [
+        "",
+        "단배관",
+        "다배관",
+        "1-Way WIFI",
+        "1-Way 미내장",
+        "1-Way 인피니트 일반",
+        "1-Way 인피니트 UV",
+        "에어콤보",
+        "4WAY WIFI",
+        "360 WIFI",
+        "360 미내장",
+        "벽걸이",
+        "WIFI",
+        "공기청정 WIFI",
+        "미내장",
+        "공기청정 미내장",
+        "리모컨",
+        "분기관",
+        "유연호스",
+        "기타",
+        "원형발통",
+        "일자발"
+      ]
+    },
+    {
+      "id": "homeFilterS",
+      "label": "",
+      "options": [
+        "",
+        "소형",
+        "중형",
+        "대형"
+      ]
+    },
+    {
+      "id": "singleFilterL",
+      "label": "",
+      "options": [
+        "",
+        "기타",
+        "360",
+        "4way 냉난방",
+        "4way 냉방전용",
+        "1way 냉난방",
+        "1way 냉방전용",
+        "덕트",
+        "실링",
+        "부자재",
+        "냉난방 스탠드",
+        "냉전 스탠드",
+        "비스포크 스탠드",
+        "냉전 벽걸이",
+        "냉난방 벽걸이",
+        "가정용 에어컨",
+        "실외기 받침"
+      ]
+    },
+    {
+      "id": "singleFilterM",
+      "label": "",
+      "options": [
+        "",
+        "CST UV",
+        "프리미엄/디럭스",
+        "1등급",
+        "콰이엇 그레이",
+        "세이지 블루",
+        "프라임 핑크",
+        "무풍",
+        "일반",
+        "Q9000",
+        "무풍클래식"
+      ]
+    },
+    {
+      "id": "commFilterL",
+      "label": "",
+      "options": [
+        "",
+        "실외기",
+        "실내기",
+        "판넬",
+        "부자재"
+      ]
+    },
+    {
+      "id": "commFilterM",
+      "label": "",
+      "options": [
+        "",
+        "프라임",
+        "고효율한랭지",
+        "표준형",
+        "냉방전용",
+        "ECO 냉난방",
+        "ECO 냉방전용",
+        "ECO 리뉴얼",
+        "1-Way WIFI내장",
+        "2Way",
+        "4-Way WIFI내장",
+        "MINI 4WAY WIFI내장",
+        "360CST WIFI내장",
+        "1-Way 인피니트",
+        "4-Way UV-C WIFI내장",
+        "4WAY 미내장",
+        "MINI 4WAY 미내장",
+        "360CST 미내장",
+        "벽걸이",
+        "스탠드형(PAC)",
+        "실링",
+        "DUCT",
+        "전열교환기",
+        "1-Way",
+        "2-Way",
+        "4-Way",
+        "360",
+        "분배헤더",
+        "분기관",
+        "1WAY 미내장"
+      ]
+    },
+    {
+      "id": "commFilterS",
+      "label": "",
+      "options": [
+        "",
+        "단상형",
+        "삼상형",
+        "소형",
+        "중형",
+        "대형",
+        "저정압 SLIM",
+        "중정압",
+        "고정압",
+        "상업용",
+        "주택용"
+      ]
+    }
+  ]
+}

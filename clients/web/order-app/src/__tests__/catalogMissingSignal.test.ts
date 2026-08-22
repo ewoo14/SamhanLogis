@@ -140,6 +140,7 @@ function runRecompute(
     const setDerivedQty = (scope, map, model, quantity) => map.set(model, quantity);
     const RENEW_FILTER_MAP = {};
     ${[
+      'd03PanelOption',
       'rawNameOf',
       'isCommIndoorRow',
       'isCommOutdoorRow',

@@ -206,6 +206,7 @@ function catalogPreludeScript(source, input) {
   const single = clone(input.catalog?.single || []);
   const singleParts = clone(input.catalog?.singleParts || []);
   return `
+    ${sourceFunctionBundle(source, ['d03RemoteOption', 'configuredRemoteModel_'])}
     const HOMEMULTI = ${JSON.stringify(home)};
     const SINGLE_SETS = ${JSON.stringify(single)};
     const SINGLE_PARTS = ${JSON.stringify(singleParts)};
@@ -217,6 +218,7 @@ function runHome(source, input) {
   const quantities = input.sourceQuantities || {};
   const locks = input.manualLocks?.home || {};
   const functions = sourceFunctionBundleForApp(source, input.app || 'estimate', [
+    'd03PanelOption',
     'lockScope_',
     'targetScope_',
     'registerDerivedQty',
@@ -347,6 +349,7 @@ function runCommercial(source, input) {
   const quantities = input.sourceQuantities || {};
   const locks = input.manualLocks?.commercial || {};
   const functions = sourceFunctionBundleForApp(source, input.app || 'estimate', [
+    'd03PanelOption',
     'lockScope_',
     'targetScope_',
     'registerDerivedQty',

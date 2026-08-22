@@ -1,0 +1,100 @@
+{
+  "home": {
+    "screen": "01-home-multi",
+    "totalRows": 107,
+    "visibleRows": 107,
+    "remote": [
+      "기본",
+      "360",
+      "인피니트",
+      "유선",
+      "컬러",
+      "제외"
+    ],
+    "panel": [
+      "판넬제외",
+      "기본",
+      "공청",
+      "인피니트 25년형",
+      "인피니트 공청+동작감지 AI"
+    ]
+  },
+  "infinite": {
+    "found": true,
+    "rowText": "1-Way 인피니트 일반중형무풍 5평형실내기(1-Way) 인피니트 무풍 중형 5평형AJ020CN1FBC1 301,290-",
+    "panel": [
+      "판넬제외",
+      "기본",
+      "공청",
+      "인피니트 25년형",
+      "인피니트 공청+동작감지 AI"
+    ]
+  },
+  "commercial": {
+    "screen": "03-commercial-multi",
+    "totalRows": 310,
+    "visibleRows": 310,
+    "remote": [
+      "기본",
+      "인피니트",
+      "360",
+      "컬러",
+      "유선",
+      "제외"
+    ],
+    "panel": [
+      "판넬제외",
+      "기본",
+      "공청",
+      "블랙",
+      "승강",
+      "인피니트 25년형",
+      "인피니트 공청+동작감지 AI"
+    ],
+    "shape": [
+      "원형",
+      "사각"
+    ]
+  },
+  "single": {
+    "screen": "04-single",
+    "totalRows": 851,
+    "visibleRows": 133,
+    "remote": [
+      "기본",
+      "컬러",
+      "유선"
+    ],
+    "panel": [
+      "판넬제외",
+      "기본",
+      "블랙",
+      "승강",
+      "공청"
+    ],
+    "shape": [
+      "원형",
+      "사각"
+    ]
+  },
+  "exclusion": {
+    "selected": "유선",
+    "excluded": true,
+    "setFound": true,
+    "emittedRemoteParts": []
+  },
+  "dynamic": {
+    "applied": true,
+    "before": [
+      "기본",
+      "컬러",
+      "유선"
+    ],
+    "after": [
+      "SOL-화면격리-동적옵션",
+      "기본",
+      "컬러",
+      "유선"
+    ]
+  }
+}

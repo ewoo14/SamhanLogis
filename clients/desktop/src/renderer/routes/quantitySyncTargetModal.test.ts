@@ -44,7 +44,10 @@ describe('수량 동기화 target 모달 RED', () => {
   })
 
   it('불변식 3: 판넬·리모컨 특징 후보가 구성품 화면과 동일하다', () => {
-    expect(getQuantitySyncFeatureOptions('PANEL')).toEqual(['기본', '블랙', '승강', '공청'])
+    expect(getQuantitySyncFeatureOptions('PANEL')).toEqual([
+      '기본', '블랙', '승강', '공청',
+      '인피니트 기본', '인피니트 25년형', '인피니트 공청', '인피니트 공청+동작감지 AI',
+    ])
     expect(getQuantitySyncFeatureOptions('REMOTE')).toEqual(['기본', '유선', '컬러'])
   })
 

@@ -79,8 +79,9 @@ describe('종합견적서 HOME_MULTI 서버 규칙 수량 동기화', () => {
 
   test('R19 UI 분모는 실제 select·checkbox 선언값을 사용한다', () => {
     const source = fs.readFileSync(path.join(__dirname, '../views/index.ejs'), 'utf8');
-    expect(source).toContain("sel('리모컨',['기본','유선','컬러','제외'],defRemote,'home_remote')");
-    expect(source).toContain("sel('판넬변경',['','판넬제외','공청판넬','인피니트 25년형','인피니트 공청+동작감지 AI'],HOME_DEFAULTS['판넬변경']||'','home_panel')");
+    expect(source).toContain("d03ConfiguredVariants_(HOMEMULTI,'REMOTE')");
+    expect(source).toContain("d03ConfiguredVariants_(HOMEMULTI,'PANEL')");
+    expect(source).not.toContain("sel('리모컨',['기본','유선','컬러','제외'],defRemote,'home_remote')");
     expect(source).toContain("'home_hose_i'");
     expect(source).toContain("'home_no_hose'");
     expect(source).toContain("'home_no_branch'");
